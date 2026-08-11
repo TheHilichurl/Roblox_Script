@@ -1,8 +1,15 @@
 -- ============================================================
 --  Blox_Fruit_Script.lua  (Single-File Executor · Luau)
---  Author  : Leviathan Dev  |  Version : 3.0.0
+--  Author  : Hilichurl  |  Version : 4.0.0
 --  Rules   : .cursorrules  |  Logic ref : bflua.lua
 -- ============================================================
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║         [GLOBAL CLEANUP] TỰ ĐỘNG DỌN DẸP SCRIPT CŨ       ║
+-- ╚══════════════════════════════════════════════════════════╝
+if _G.UnloadScript then
+    pcall(function() _G.UnloadScript() end)
+end
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║          [SECTION 1] CUSTOM UI LIBRARY ENGINE            ║
@@ -19,12 +26,11 @@ local Lighting           = game:GetService("Lighting")
 local CoreGui            = game:GetService("CoreGui")
 local LocalPlayer        = Players.LocalPlayer
 
--- ── UI Scale (80 % of original) ─────────────────────────────
--- Original: 560 × 390  →  New: 448 × 312
-local UI_W  = 448
-local UI_H  = 312
-local SB_W  = 104   -- sidebar width
-local TH    = 37    -- title bar height
+-- ── UI Scale ────────────────────────────────────────────────
+local UI_W  = 420
+local UI_H  = 300
+local SB_W  = 98   -- sidebar width
+local TH    = 35    -- title bar height
 
 -- ── Theme ────────────────────────────────────────────────────
 local THEME = {
@@ -65,6 +71,34 @@ local function ProtectGui(gui)
         end
     end)
     if not ok then gui.Parent = CoreGui end
+end
+
+-- ── Helper Tải & Hiển Thị Ảnh Cục Bộ Chuẩn Tên File ────────────
+local function GetOnlineImage(url, fileName)
+    if not url or url == "" then return "" end
+    local path = fileName or "Hilichurl_icon.png"
+    
+    -- Xóa file cũ nếu lỡ lưu sai định dạng webp trước đó
+    if isfile("hilichurl_icon.webp") then pcall(function() delfile("hilichurl_icon.webp") end) end
+    if isfile("hilichurl_icon.png")  then pcall(function() delfile("hilichurl_icon.png") end)  end
+
+    if not isfile(path) then
+        pcall(function()
+            local content = game:HttpGet(url)
+            if content and #content > 0 then
+                writefile(path, content)
+            end
+        end)
+    end
+
+    if isfile(path) then
+        if getcustomasset then
+            return getcustomasset(path)
+        elseif getsynasset then
+            return getsynasset(path)
+        end
+    end
+    return url
 end
 
 -- ── Low-level helpers ────────────────────────────────────────
@@ -166,9 +200,9 @@ function UILib.Notify(title, msg, dur)
     end)
 end
 
--- ── Toggle Icon Button (hilichurl_icon.webp, 50×50) ─────────
+-- ── Toggle Icon Button ───────────────────────────────────────
 local _iconGui = nil
-local _winRef  = nil   -- assigned after window is built
+local _winRef  = nil
 local _iconVisible = true
 
 local function BuildIconToggle(iconUrl)
@@ -180,7 +214,7 @@ local function BuildIconToggle(iconUrl)
 
     local btn = Instance.new("ImageButton")
     btn.Name = "IconBtn"
-    btn.Image = iconUrl
+    btn.Image = GetOnlineImage(iconUrl, "Hilichurl_icon.png")
     btn.Size = UDim2.fromOffset(50,50)
     btn.Position = UDim2.new(0,16,0.5,-25)
     btn.BackgroundColor3 = THEME.ICON_BTN_BG
@@ -203,7 +237,6 @@ local function BuildIconToggle(iconUrl)
         if _winRef then
             _iconVisible = not _iconVisible
             _winRef.Visible = _iconVisible
-            -- pulse the icon
             TweenService:Create(btn,TI_FAST,{BackgroundTransparency=0}):Play()
             task.delay(0.12,function()
                 TweenService:Create(btn,TI_FAST,{BackgroundTransparency=0.3}):Play()
@@ -211,24 +244,19 @@ local function BuildIconToggle(iconUrl)
         end
     end)
 
-    -- Make icon draggable too
     EnableDrag(btn, btn)
 end
 
 -- ── CreateWindow ─────────────────────────────────────────────
 function UILib.CreateWindow(cfg)
     cfg = cfg or {}
-    local title = cfg.Title or "Leviathan Hub"
-    local sub   = cfg.Subtitle or ""
-
-    if _G.CurrentUI then pcall(function() _G.CurrentUI:Destroy() end) end
+    local title = cfg.Title or "Hili Hub"
+    local sub   = cfg.Subtitle or "made by Hilichurl"
 
     local sg = Instance.new("ScreenGui")
     sg.Name = "LevHub"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
     ProtectGui(sg)
-    _G.CurrentUI = sg
 
-    -- Root window
     local win = MkFrame({
         Color=THEME.BG, Alpha=0,
         Size=UDim2.fromOffset(UI_W, UI_H),
@@ -241,33 +269,70 @@ function UILib.CreateWindow(cfg)
     local outStroke = Instance.new("UIStroke")
     outStroke.Color = THEME.BORDER; outStroke.Thickness = 1.2; outStroke.Parent = win
 
-    -- Title bar
-    local tb = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(1,0,0,TH), Name="TitleBar", Parent=win, Radius=0})
+    local tb = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(1,0,0,TH), Name="TitleBar", Parent=win, Radius=10})
+    
+    local tbMask = Instance.new("Frame")
+    tbMask.Name = "TitleBarMask"
+    tbMask.BackgroundColor3 = THEME.BG_OVERLAY
+    tbMask.BorderSizePixel = 0
+    tbMask.Size = UDim2.new(1, 0, 0, 10)
+    tbMask.Position = UDim2.new(0, 0, 1, -10)
+    tbMask.Parent = tb
+
     local strip = Instance.new("Frame")
-    strip.BackgroundColor3=THEME.ACCENT; strip.BorderSizePixel=0
-    strip.Size=UDim2.new(0,3,1,0); strip.Parent=tb
+    strip.Name = "AccentStrip"
+    strip.BackgroundColor3 = THEME.ACCENT
+    strip.BorderSizePixel = 0
+    strip.Size = UDim2.new(0, 3, 1, -4)
+    strip.Position = UDim2.fromOffset(2, 2)
+    strip.Parent = tb
+    
+    local stripCorner = Instance.new("UICorner")
+    stripCorner.CornerRadius = UDim.new(0, 4)
+    stripCorner.Parent = strip
+
+    local titleContainer = Instance.new("Frame")
+    titleContainer.Size = UDim2.new(1, -100, 1, 0)
+    titleContainer.Position = UDim2.fromOffset(12, 0)
+    titleContainer.BackgroundTransparency = 1
+    titleContainer.Parent = tb
+
+    local titleListLayout = Instance.new("UIListLayout")
+    titleListLayout.FillDirection = Enum.FillDirection.Horizontal
+    titleListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    titleListLayout.Padding = UDim.new(0, 8)
+    titleListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    titleListLayout.Parent = titleContainer
 
     local tLbl = Instance.new("TextLabel")
-    tLbl.BackgroundTransparency=1; tLbl.TextColor3=THEME.TEXT; tLbl.Text=title
-    tLbl.Font=Enum.Font.GothamBold; tLbl.TextSize=13
-    tLbl.TextXAlignment=Enum.TextXAlignment.Left
-    tLbl.Size=UDim2.new(1,-80,1,0); tLbl.Position=UDim2.fromOffset(12,0)
-    tLbl.Parent=tb
+    tLbl.BackgroundTransparency = 1
+    tLbl.TextColor3 = THEME.TEXT
+    tLbl.Text = title
+    tLbl.Font = Enum.Font.GothamBold
+    tLbl.TextSize = 13
+    tLbl.AutomaticSize = Enum.AutomaticSize.X
+    tLbl.Size = UDim2.new(0, 0, 1, 0)
+    tLbl.LayoutOrder = 1
+    tLbl.Parent = titleContainer
 
-    if sub~="" then
-        MkLabel({Text=sub, Size=9, Color=THEME.TEXT_SUB, Font=Enum.Font.Gotham,
-            Pos=UDim2.new(1,-88,0,6), FS=UDim2.new(0,80,0,11),
-            XA=Enum.TextXAlignment.Right, Parent=tb})
-    end
+    local subLbl = Instance.new("TextLabel")
+    subLbl.BackgroundTransparency = 1
+    subLbl.TextColor3 = THEME.TEXT_SUB
+    subLbl.Text = sub
+    subLbl.Font = Enum.Font.Gotham
+    subLbl.TextSize = 10
+    subLbl.AutomaticSize = Enum.AutomaticSize.X
+    subLbl.Size = UDim2.new(0, 0, 1, 0)
+    subLbl.LayoutOrder = 2
+    subLbl.Parent = titleContainer
 
-    -- Close btn
     local function MkWinBtn(icon, xOff, bgColor)
         local b = Instance.new("TextButton")
         b.Text=icon; b.Font=Enum.Font.GothamBold; b.TextSize=11
         b.TextColor3=THEME.TEXT_SUB; b.BackgroundColor3=bgColor
         b.BackgroundTransparency=1; b.AutoButtonColor=false
         b.Size=UDim2.fromOffset(24,24)
-        b.Position=UDim2.new(1,xOff,0.5,-12)
+        b.Position=UDim2.new(1, xOff, 0.5, -12)
         b.Parent=tb
         Instance.new("UICorner").Parent=b
         b.MouseEnter:Connect(function() TweenService:Create(b,TI_FAST,{BackgroundTransparency=0, TextColor3=Color3.new(1,1,1)}):Play() end)
@@ -275,13 +340,12 @@ function UILib.CreateWindow(cfg)
         return b
     end
 
-    local closeBtn = MkWinBtn("✕", -8, Color3.fromRGB(180,40,40))
+    local closeBtn = MkWinBtn("X", -30, Color3.fromRGB(180,40,40))
     closeBtn.MouseButton1Click:Connect(function()
-        TweenService:Create(win,TI_MED,{Size=UDim2.fromOffset(UI_W,0)}):Play()
-        task.delay(0.28,function() sg:Destroy() end)
+        if _G.UnloadScript then _G.UnloadScript() end
     end)
 
-    local minBtn = MkWinBtn("─", -36, Color3.fromRGB(60,60,60))
+    local minBtn = MkWinBtn("─", -58, Color3.fromRGB(60,60,60))
     local minimized = false
     minBtn.MouseButton1Click:Connect(function()
         minimized = not minimized
@@ -290,24 +354,33 @@ function UILib.CreateWindow(cfg)
         }):Play()
     end)
 
-    -- Body
-    local body = MkFrame({Color=THEME.BG, Size=UDim2.new(1,0,1,-TH), Pos=UDim2.fromOffset(0,TH), Name="Body", Parent=win, Radius=0})
+    local body = MkFrame({Color=THEME.BG, Size=UDim2.new(1,0,1,-TH), Pos=UDim2.fromOffset(0,TH), Name="Body", Parent=win, Radius=10})
+    
+    local bodyMask = Instance.new("Frame")
+    bodyMask.Name = "BodyMask"
+    bodyMask.BackgroundColor3 = THEME.BG
+    bodyMask.BorderSizePixel = 0
+    bodyMask.Size = UDim2.new(1, 0, 0, 10)
+    bodyMask.Position = UDim2.new(0, 0, 0, 0)
+    bodyMask.Parent = body
 
-    -- Sidebar
-    local sidebar = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(0,SB_W,1,0), Name="Sidebar", Parent=body, Radius=0})
+    local sidebar = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(0,SB_W,1,0), Name="Sidebar", Parent=body, Radius=10})
     local sbll = Instance.new("UIListLayout"); sbll.SortOrder=Enum.SortOrder.LayoutOrder; sbll.Padding=UDim.new(0,3); sbll.Parent=sidebar
     local sbp = Instance.new("UIPadding"); sbp.PaddingTop=UDim.new(0,8); sbp.PaddingLeft=UDim.new(0,6); sbp.PaddingRight=UDim.new(0,6); sbp.Parent=sidebar
 
-    -- Content pane
-    local cpane = MkFrame({Color=THEME.BG, Size=UDim2.new(1,-SB_W,1,0), Pos=UDim2.fromOffset(SB_W,0), Name="Content", Parent=body, Radius=0})
+    local cpane = MkFrame({Color=THEME.BG, Size=UDim2.new(1,-SB_W,1,0), Pos=UDim2.fromOffset(SB_W,0), Name="Content", Parent=body, Radius=10})
+    cpane.ClipsDescendants = true
 
     EnableDrag(tb, win)
 
-    -- Window object
     local W = {}
     local tabs = {}; local activePage=nil; local activeTabBtn=nil
 
-    function W:Destroy() sg:Destroy() end
+    function W:Destroy() 
+        sg:Destroy() 
+        if _iconGui then pcall(function() _iconGui:Destroy() end) end
+        if _nh then pcall(function() _nh.Parent:Destroy() end) end
+    end
 
     function W:AddTab(cfg2)
         cfg2 = cfg2 or {}
@@ -327,7 +400,6 @@ function UILib.CreateWindow(cfg)
         local tc = Instance.new("UICorner"); tc.CornerRadius=UDim.new(0,6); tc.Parent=tabBtn
         local tp = Instance.new("UIPadding"); tp.PaddingLeft=UDim.new(0,8); tp.Parent=tabBtn
 
-        -- Scroll page
         local page = Instance.new("ScrollingFrame")
         page.Name = "Page_"..tname
         page.BackgroundTransparency = 1
@@ -337,6 +409,7 @@ function UILib.CreateWindow(cfg)
         page.ScrollBarThickness = 2
         page.ScrollBarImageColor3 = THEME.ACCENT
         page.Visible = false; page.BorderSizePixel = 0
+        page.ClipsDescendants = true
         page.Parent = cpane
         local pl = Instance.new("UIListLayout"); pl.SortOrder=Enum.SortOrder.LayoutOrder; pl.Padding=UDim.new(0,6); pl.Parent=page
         local pp = Instance.new("UIPadding"); pp.PaddingTop=UDim.new(0,8); pp.PaddingLeft=UDim.new(0,10); pp.PaddingRight=UDim.new(0,10); pp.PaddingBottom=UDim.new(0,8); pp.Parent=page
@@ -359,7 +432,6 @@ function UILib.CreateWindow(cfg)
         if #tabs==0 then activate() end
         table.insert(tabs,{btn=tabBtn,page=page})
 
-        -- Tab API
         local Tab = {}
 
         function Tab:AddSection(name)
@@ -369,7 +441,6 @@ function UILib.CreateWindow(cfg)
             return s
         end
 
-        -- ─ Button ────────────────────────────────────────────
         function Tab:AddButton(bc)
             bc=bc or {}
             local lbl=bc.Name or "Button"; local desc=bc.Desc or ""; local cb=bc.Callback or function()end
@@ -396,7 +467,6 @@ function UILib.CreateWindow(cfg)
             return row
         end
 
-        -- ─ Toggle ────────────────────────────────────────────
         function Tab:AddToggle(tc2)
             tc2=tc2 or {}
             local lbl=tc2.Name or "Toggle"; local desc=tc2.Desc or ""; local def=tc2.Default or false; local cb=tc2.Callback or function()end
@@ -426,7 +496,6 @@ function UILib.CreateWindow(cfg)
             return TO
         end
 
-        -- ─ Slider ─────────────────────────────────────────────
         function Tab:AddSlider(sc)
             sc=sc or {}
             local lbl=sc.Name or "Slider"; local desc=sc.Desc or ""; local mn=sc.Min or 0; local mx=sc.Max or 100
@@ -467,60 +536,112 @@ function UILib.CreateWindow(cfg)
             return SO
         end
 
-        -- ─ Dropdown ───────────────────────────────────────────
         function Tab:AddDropdown(dc)
             dc=dc or {}
             local lbl=dc.Name or "Dropdown"; local opts=dc.Options or {}; local cb=dc.Callback or function()end
             local desc=dc.Desc or ""; local rH=desc~="" and 42 or 28; local selectedText="None"
             local row=MkFrame({Color=THEME.BTN_IDLE, Size=UDim2.new(1,0,0,rH), Name="DD_"..lbl, Parent=page, Radius=6})
             local ip=Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,10); ip.PaddingRight=UDim.new(0,10); ip.Parent=row
-            MkLabel({Text=lbl, Size=11, Color=THEME.TEXT, FS=UDim2.new(1,-70,0,16), Pos=UDim2.fromOffset(0,6), Parent=row})
-            if desc~="" then MkLabel({Text=desc, Size=9, Color=THEME.TEXT_SUB, Font=Enum.Font.Gotham, FS=UDim2.new(1,0,0,13), Pos=UDim2.fromOffset(0,22), Parent=row}) end
-            local selLbl=MkLabel({Text=selectedText.." ▾", Size=10, Color=THEME.ACCENT, XA=Enum.TextXAlignment.Right, FS=UDim2.new(0,70,0,16), Pos=UDim2.new(1,-70,0,6), Name="SelLbl", Parent=row})
+            MkLabel({Text=lbl, Size=11, Color=THEME.TEXT, FS=UDim2.new(1,-100,0,16), Pos=UDim2.fromOffset(0,6), Parent=row})
+            if desc~="" then MkLabel({Text=desc, Size=9, Color=THEME.TEXT_SUB, Font=Enum.Font.Gotham, FS=UDim2.new(1,-100,0,13), Pos=UDim2.fromOffset(0,22), Parent=row}) end
+            local selLbl=MkLabel({Text=selectedText.."", Size=10, Color=THEME.ACCENT, XA=Enum.TextXAlignment.Right, FS=UDim2.new(0,100,0,16), Pos=UDim2.new(1,-100,0,6), Name="SelLbl", Parent=row})
 
-            local dropdown = nil
-            local open = false
+            local activeDropdown = nil
 
             local function BuildDropdown()
-                if dropdown then dropdown:Destroy() dropdown=nil end
-                open=not open
-                if not open then return end
+                if activeDropdown then 
+                    activeDropdown:Destroy() 
+                    activeDropdown = nil 
+                    return 
+                end
 
-                local n=#opts
-                local ddH=math.min(n,6)*22+4
-                dropdown=MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(1,0,0,ddH), Pos=UDim2.new(0,0,1,2), Name="DDList", Parent=row, Radius=6})
-                dropdown.ZIndex=10; dropdown.ClipsDescendants=true
-                local dll=Instance.new("UIListLayout"); dll.SortOrder=Enum.SortOrder.LayoutOrder; dll.Padding=UDim.new(0,1); dll.Parent=dropdown
-                local ddp=Instance.new("UIPadding"); ddp.PaddingTop=UDim.new(0,2); ddp.PaddingBottom=UDim.new(0,2); ddp.Parent=dropdown
+                local n = #opts
+                if n == 0 then return end
+
+                local ddH = math.min(n, 5) * 26 + 6
+                
+                local dropdown = MkFrame({
+                    Color = THEME.BG_OVERLAY,
+                    Size = UDim2.fromOffset(row.AbsoluteSize.X, ddH),
+                    Pos = UDim2.fromOffset(row.AbsolutePosition.X, row.AbsolutePosition.Y + row.AbsoluteSize.Y + 4),
+                    Name = "GlobalDDList",
+                    Parent = sg,
+                    Radius = 6
+                })
+                dropdown.ZIndex = 500
+                activeDropdown = dropdown
+
+                local outSt = Instance.new("UIStroke")
+                outSt.Color = THEME.ACCENT
+                outSt.Thickness = 1
+                outSt.Parent = dropdown
+
+                local scrollDD = Instance.new("ScrollingFrame")
+                scrollDD.Size = UDim2.new(1, 0, 1, 0)
+                scrollDD.BackgroundTransparency = 1
+                scrollDD.BorderSizePixel = 0
+                scrollDD.ScrollBarThickness = 3
+                scrollDD.ScrollBarImageColor3 = THEME.ACCENT
+                scrollDD.CanvasSize = UDim2.new(0, 0, 0, n * 26)
+                scrollDD.ZIndex = 501
+                scrollDD.Parent = dropdown
+
+                local dll = Instance.new("UIListLayout")
+                dll.SortOrder = Enum.SortOrder.LayoutOrder
+                dll.Padding = UDim.new(0, 2)
+                dll.Parent = scrollDD
 
                 for _, opt in ipairs(opts) do
-                    local ob=Instance.new("TextButton")
-                    ob.Text=opt; ob.Font=Enum.Font.Gotham; ob.TextSize=10
-                    ob.TextColor3=THEME.TEXT; ob.BackgroundColor3=THEME.BTN_IDLE
-                    ob.BackgroundTransparency=0.4; ob.AutoButtonColor=false
-                    ob.Size=UDim2.new(1,0,0,20); ob.TextXAlignment=Enum.TextXAlignment.Left; ob.ZIndex=11
-                    ob.Parent=dropdown
-                    local op=Instance.new("UIPadding"); op.PaddingLeft=UDim.new(0,8); op.Parent=ob; op.ZIndex=11
-                    ob.MouseEnter:Connect(function() TweenService:Create(ob,TI_FAST,{BackgroundTransparency=0, TextColor3=THEME.BTN_TEXT_HOV, BackgroundColor3=THEME.BTN_HOVER}):Play() end)
-                    ob.MouseLeave:Connect(function() TweenService:Create(ob,TI_FAST,{BackgroundTransparency=0.4, TextColor3=THEME.TEXT, BackgroundColor3=THEME.BTN_IDLE}):Play() end)
+                    local ob = Instance.new("TextButton")
+                    ob.Text = opt
+                    ob.Font = Enum.Font.GothamMedium
+                    ob.TextSize = 11
+                    ob.TextColor3 = THEME.TEXT
+                    ob.BackgroundColor3 = THEME.BTN_IDLE
+                    ob.BackgroundTransparency = 0.2
+                    ob.AutoButtonColor = false
+                    ob.Size = UDim2.new(1, 0, 0, 24)
+                    ob.TextXAlignment = Enum.TextXAlignment.Left
+                    ob.ZIndex = 502
+                    ob.Parent = scrollDD
+
+                    local op = Instance.new("UIPadding")
+                    op.PaddingLeft = UDim.new(0, 8)
+                    op.Parent = ob
+
+                    ob.MouseEnter:Connect(function() 
+                        TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0, TextColor3 = THEME.BTN_TEXT_HOV, BackgroundColor3 = THEME.BTN_HOVER}):Play() 
+                    end)
+                    ob.MouseLeave:Connect(function() 
+                        TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() 
+                    end)
                     ob.MouseButton1Click:Connect(function()
-                        selectedText=opt; selLbl.Text=opt.." ▾"
-                        pcall(cb,opt)
-                        open=false; dropdown:Destroy(); dropdown=nil
+                        selectedText = opt
+                        selLbl.Text = opt .. ""
+                        pcall(cb, opt)
+                        if activeDropdown then activeDropdown:Destroy() activeDropdown = nil end
                     end)
                 end
             end
 
-            local clDD=Instance.new("TextButton"); clDD.Text=""; clDD.BackgroundTransparency=1; clDD.Size=UDim2.new(1,0,0,28); clDD.AutoButtonColor=false; clDD.Parent=row
+            local clDD = Instance.new("TextButton")
+            clDD.Text = ""
+            clDD.BackgroundTransparency = 1
+            clDD.Size = UDim2.new(1, 0, 1, 0)
+            clDD.AutoButtonColor = false
+            clDD.Parent = row
             clDD.MouseButton1Click:Connect(BuildDropdown)
 
-            local DDObj={}
-            function DDObj:Refresh(newOpts) opts=newOpts end
+            local DDObj = {}
+            function DDObj:Refresh(newOpts) 
+                opts = newOpts 
+                if #opts == 0 then selectedText = "None"; selLbl.Text = "None" end
+                if activeDropdown then activeDropdown:Destroy() activeDropdown = nil end
+            end
             function DDObj:Get() return selectedText end
             return DDObj
         end
 
-        -- ─ TextInput ──────────────────────────────────────────
         function Tab:AddInput(ic)
             ic=ic or {}
             local lbl=ic.Name or "Input"; local desc=ic.Desc or ""; local ph=ic.Placeholder or "Type here..."; local cb=ic.Callback or function()end
@@ -537,7 +658,13 @@ function UILib.CreateWindow(cfg)
             tbx.BackgroundTransparency=1; tbx.Size=UDim2.new(1,-8,1,0); tbx.Position=UDim2.fromOffset(5,0)
             tbx.TextXAlignment=Enum.TextXAlignment.Left; tbx.ClearTextOnFocus=false; tbx.Parent=bxBG
             tbx.Focused:Connect(function() TweenService:Create(bxSt,TI_FAST,{Color=THEME.ACCENT}):Play() end)
-            tbx.FocusLost:Connect(function(enter) TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER}):Play(); if enter then pcall(cb,tbx.Text) end end)
+            
+            tbx:GetPropertyChangedSignal("Text"):Connect(function()
+                if tbx.Text ~= "" then
+                    pcall(cb, tbx.Text)
+                end
+            end)
+            tbx.FocusLost:Connect(function() TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER}):Play() end)
             local IO={}
             function IO:Get() return tbx.Text end
             function IO:Set(t) tbx.Text=t end
@@ -545,10 +672,10 @@ function UILib.CreateWindow(cfg)
         end
 
         return Tab
-    end -- AddTab
+    end
 
     return W
-end -- CreateWindow
+end
 
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -556,13 +683,12 @@ end -- CreateWindow
 -- ╚══════════════════════════════════════════════════════════╝
 
 local Utility = {}
-local _conns  = {}   -- keyed RunService connections
+local _conns  = {}
 
 local function killConn(key)
     if _conns[key] then pcall(function() _conns[key]:Disconnect() end); _conns[key]=nil end
 end
 
--- ── GetBoat (từ humanoid.SeatPart như bflua.lua) ─────────────
 function Utility.GetBoat()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -573,7 +699,6 @@ function Utility.GetBoat()
     return nil
 end
 
--- ── ForceStopBoat (loop 10 frames như bflua.lua) ─────────────
 function Utility.ForceStopBoat(boat)
     if not boat then return end
     task.spawn(function()
@@ -595,25 +720,30 @@ function Utility.ForceStopBoat(boat)
     end)
 end
 
--- ── ForceNoClipModel ─────────────────────────────────────────
-function Utility.ForceNoClipModel(model)
+function Utility.ForceNoClipModel(model, enable)
     if not model then return end
     for _, part in ipairs(model:GetDescendants()) do
         if part:IsA("BasePart") and not part:IsA("Seat") and not part:IsA("VehicleSeat") then
-            part.CanCollide = false
-            part.CanTouch   = true
+            part.CanCollide = not enable
         end
     end
 end
 
--- ── IsFrozenWatcherExist ─────────────────────────────────────
 function Utility.IsFrozenWatcher()
-    local npc    = workspace:FindFirstChild("Frozen Watcher",  true)
-    local island = workspace:FindFirstChild("FrozenDimension", true) or workspace:FindFirstChild("Frozen Island", true)
-    return (npc or island) and true or false
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Model") or v:IsA("Part") then
+            if v.Name == "Frozen Watcher" then
+                return true
+            end
+        end
+    end
+    local enemies = workspace:FindFirstChild("Enemies")
+    if enemies and enemies:FindFirstChild("Frozen Watcher") then
+        return true
+    end
+    return false
 end
 
--- ── OptimizeGraphics (như bflua.lua, destroy PostEffects) ────
 function Utility.OptimizeGraphics()
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 9e9
@@ -640,18 +770,18 @@ function Utility.OptimizeGraphics()
     UILib.Notify("🎮 Graphics", "Đã tối ưu đồ họa!", 4)
 end
 
--- ── WalkOnWater (global water part như bflua.lua) ─────────────
+-- Walk On Water Ảo
 local WaterPart = Instance.new("Part")
-WaterPart.Name            = "JesusWaterPart"
-WaterPart.Size            = Vector3.new(20000, 2, 20000)
+WaterPart.Name            = "WalkOnWaterPart"
+WaterPart.Size            = Vector3.new(200, 1, 200)
 WaterPart.Transparency    = 0.85
 WaterPart.Color           = Color3.fromRGB(0, 170, 255)
 WaterPart.Material        = Enum.Material.SmoothPlastic
 WaterPart.Anchored        = true
 WaterPart.CanCollide      = false
+WaterPart.CanTouch        = false
 WaterPart.Parent          = workspace
 
--- ── Webhook ───────────────────────────────────────────────────
 function Utility.SendWebhook(url, player)
     local req = (syn and syn.request) or (http and http.request) or http_request
                 or (fluxus and fluxus.request) or request
@@ -681,7 +811,6 @@ end
 -- ║          [SECTION 3] MAIN LOGIC & UI BINDINGS            ║
 -- ╚══════════════════════════════════════════════════════════╝
 
--- ── Settings ─────────────────────────────────────────────────
 local S = {
     BoatFlySpeed          = 220,
     BoatFlyHeight         = 195,
@@ -696,6 +825,8 @@ local S = {
     SelectedPlayer        = nil,
     WebhookEnabled        = true,
     WebhookURL            = "",
+    CustomWalkSpeed       = 16,
+    CustomJumpPower       = 50,
 }
 
 local WebhookSent            = false
@@ -704,33 +835,51 @@ local FindLeviathanToggle    = nil
 local TeleportConnection     = nil
 local BoatSpeedConnection    = nil
 
--- ── Icon Toggle Button (hilichurl_icon.webp) ─────────────────
--- NOTE: Roblox executor uses rbxasset or rbxhttp. We use a
--- decal image path.  Adjust to your actual asset id if needed.
-local ICON_URL = "rbxassetid://17853589662"  -- placeholder; swap with actual uploaded webp asset id
--- Alternatively support file:// loading via content if executor supports it.
-pcall(function()
-    ICON_URL = "file://C:/Users/Giang/Desktop/blox fruit script/hilichurl_icon.webp"
-end)
+-- Tên file ảnh PNG chuẩn xác 100%
+local ICON_URL = "https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/Hilichurl_icon.png"
 
 BuildIconToggle(ICON_URL)
 
--- ── Build Window ─────────────────────────────────────────────
 local Window = UILib.CreateWindow({
-    Title    = "⚡ Leviathan Hunter | Utility Hub",
-    Subtitle = "v3.0 · Sea Build",
+    Title    = "Hili Hub",
+    Subtitle = "made by Hilichurl",
 })
 
--- ═══════════════════════════════════════════════════════════
---  TAB 1 : Main Features
--- ═══════════════════════════════════════════════════════════
-local MainTab = Window:AddTab({ Name = "Main", Icon = "🚤" })
+-- HÀM TẮT DỌN DẸP SCRIPT TOÀN BỘ
+_G.UnloadScript = function()
+    S.FindLeviathanEnabled = false
+    S.BoatNoClipEnabled = false
+    S.PlayerNoClipEnabled = false
+    S.WalkOnWaterEnabled = false
+    S.EnableBoatSpeed = false
+    S.TeleportPlayerEnabled = false
+
+    killConn("findLev")
+    killConn("bspd")
+    killConn("telplr")
+    killConn("steppedLoop")
+    killConn("renderLoop")
+
+    local boat = Utility.GetBoat()
+    if boat then Utility.ForceStopBoat(boat) end
+
+    if LocalPlayer.Character then
+        Utility.ForceNoClipModel(LocalPlayer.Character, false)
+    end
+
+    if WaterPart then WaterPart:Destroy() end
+    Window:Destroy()
+    _G.UnloadScript = nil
+end
+
+-- TAB 1 : Main Features
+local MainTab = Window:AddTab({ Name = "Main", Icon = "" })
 
 MainTab:AddSection("Leviathan Finder")
 
 FindLeviathanToggle = MainTab:AddToggle({
     Name    = "Find Leviathan",
-    Desc    = "Bay thuyền tự động đi tìm Frozen Watcher",
+    Desc    = "Bay thuyền tự động đi tìm Frozen Dimension",
     Default = false,
     Callback = function(val)
         S.FindLeviathanEnabled = val
@@ -738,11 +887,6 @@ FindLeviathanToggle = MainTab:AddToggle({
         local boat = Utility.GetBoat()
 
         if val then
-            if Utility.IsFrozenWatcher() then
-                FindLeviathanToggle:Set(false)
-                UILib.Notify("Thông Báo","Đã xuất hiện Frozen Dimension!",5)
-                return
-            end
             if not LocalPlayer.Character or not boat then
                 FindLeviathanToggle:Set(false)
                 UILib.Notify("Lỗi","Bạn phải ngồi trên ghế lái thuyền!",3)
@@ -784,6 +928,7 @@ FindLeviathanToggle = MainTab:AddToggle({
                     if S.FindLeviathanEnabled and FindLeviathanToggle then FindLeviathanToggle:Set(false) end
                     return
                 end
+
                 local pos = seat.Position
                 local el  = os.clock() - t0
                 if el <= flyUpDur then
@@ -807,7 +952,7 @@ FindLeviathanToggle = MainTab:AddToggle({
 
 MainTab:AddSection("Fly Settings")
 
-local FlySpeedSlider = MainTab:AddSlider({
+MainTab:AddSlider({
     Name    = "Fly Speed",
     Desc    = "Tốc độ bay thuyền khi tìm Leviathan",
     Min     = 100, Max = 350, Default = 220,
@@ -815,9 +960,9 @@ local FlySpeedSlider = MainTab:AddSlider({
     Callback = function(v) S.BoatFlySpeed = v end,
 })
 
-local FlyHeightSlider = MainTab:AddSlider({
+MainTab:AddSlider({
     Name    = "Fly Height",
-    Desc    = "Độ cao bay ổn định sau khi đã lên",
+    Desc    = "Độ cao khi bay của thuyền khi tìm Leviathan",
     Min     = 20, Max = 300, Default = 195,
     Suffix  = " Y",
     Callback = function(v) S.BoatFlyHeight = v end,
@@ -827,7 +972,7 @@ MainTab:AddSection("Boat Speed")
 
 MainTab:AddToggle({
     Name    = "Enable Boat Speed",
-    Desc    = "Ghi đè MaxSpeed của ghế lái thuyền",
+    Desc    = "Chỉnh tốc độ của thuyền",
     Default = false,
     Callback = function(val)
         S.EnableBoatSpeed = val
@@ -852,7 +997,7 @@ MainTab:AddToggle({
     end,
 })
 
-local BoatSpeedSlider = MainTab:AddSlider({
+MainTab:AddSlider({
     Name    = "Boat Speed",
     Desc    = "Tốc độ tuỳ chỉnh của thuyền",
     Min     = 100, Max = 500, Default = 250,
@@ -860,37 +1005,36 @@ local BoatSpeedSlider = MainTab:AddSlider({
     Callback = function(v) S.CustomBoatSpeed = v end,
 })
 
--- ═══════════════════════════════════════════════════════════
---  TAB 2 : Teleport
--- ═══════════════════════════════════════════════════════════
-local TelTab = Window:AddTab({ Name = "Teleport", Icon = "🌀" })
+-- TAB 2 : Teleport
+local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
 TelTab:AddSection("Teleport to Player")
 
-local playerNames = {}
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LocalPlayer then table.insert(playerNames, p.Name) end
+local function GetPlayerList()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then table.insert(list, p.Name) end
+    end
+    return list
 end
 
 local PlayerDD = TelTab:AddDropdown({
     Name    = "Select Player",
     Desc    = "Chọn người chơi để teleport đến",
-    Options = playerNames,
+    Options = GetPlayerList(),
     Callback = function(opt)
         S.SelectedPlayer = Players:FindFirstChild(opt)
     end,
 })
 
-Players.PlayerAdded:Connect(function(p)
-    table.insert(playerNames, p.Name)
-    PlayerDD:Refresh(playerNames)
-end)
-Players.PlayerRemoving:Connect(function(p)
-    for i, n in ipairs(playerNames) do
-        if n==p.Name then table.remove(playerNames,i); break end
-    end
-    PlayerDD:Refresh(playerNames)
-end)
+TelTab:AddButton({
+    Name = "Refresh Player List",
+    Desc = "Cập nhật lại danh sách người chơi trong server",
+    Callback = function()
+        PlayerDD:Refresh(GetPlayerList())
+        UILib.Notify("Teleport", "Đã cập nhật danh sách người chơi!", 2)
+    end,
+})
 
 TelTab:AddToggle({
     Name    = "Teleport to Player",
@@ -921,41 +1065,24 @@ TelTab:AddToggle({
     end,
 })
 
-TelTab:AddSection("Server")
-
-TelTab:AddButton({
-    Name = "Rejoin Server",
-    Desc = "Thoát rồi vào lại cùng server",
-    Callback = function()
-        UILib.Notify("🔄 Rejoin","Đang rejoin...",3)
-        task.delay(1.5, function()
-            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-        end)
-    end,
-})
-
--- ═══════════════════════════════════════════════════════════
---  TAB 3 : Misc & Optimize
--- ═══════════════════════════════════════════════════════════
-local MiscTab = Window:AddTab({ Name = "Misc", Icon = "⚙️" })
+-- TAB 3 : Misc & Optimize
+local MiscTab = Window:AddTab({ Name = "Misc", Icon = "" })
 
 MiscTab:AddSection("Movement")
 
-local WalkSpeedSlider = MiscTab:AddSlider({
-    Name="Walk Speed", Desc="Tốc độ di chuyển (mặc định: 16)",
+MiscTab:AddSlider({
+    Name="Walk Speed", Desc="Tốc độ di chuyển",
     Min=16, Max=250, Default=16, Suffix=" sp",
     Callback=function(v)
-        local c=LocalPlayer.Character
-        if c then local h=c:FindFirstChildOfClass("Humanoid"); if h then h.WalkSpeed=v end end
+        S.CustomWalkSpeed = v
     end,
 })
 
-local JumpSlider = MiscTab:AddSlider({
-    Name="Jump Power", Desc="Lực nhảy (mặc định: 50)",
+MiscTab:AddSlider({
+    Name="Jump Power", Desc="Lực nhảy",
     Min=50, Max=500, Default=50, Suffix=" jp",
     Callback=function(v)
-        local c=LocalPlayer.Character
-        if c then local h=c:FindFirstChildOfClass("Humanoid"); if h then h.JumpPower=v end end
+        S.CustomJumpPower = v
     end,
 })
 
@@ -963,18 +1090,23 @@ MiscTab:AddSection("NoClip")
 
 MiscTab:AddToggle({
     Name="Player Noclip", Desc="Cho phép nhân vật xuyên qua vật thể", Default=false,
-    Callback=function(val) S.PlayerNoClipEnabled=val end,
+    Callback=function(val) 
+        S.PlayerNoClipEnabled = val
+        if not val and LocalPlayer.Character then
+            Utility.ForceNoClipModel(LocalPlayer.Character, false)
+        end
+    end,
 })
 
 MiscTab:AddSection("Water & AFK")
 
 MiscTab:AddToggle({
-    Name="Walk on Water (Jesus)", Desc="Đi được trên mặt nước", Default=true,
+    Name="Walk on Water", Desc="Tạo mặt phẳng ảo đứng trên nước", Default=true,
     Callback=function(val) S.WalkOnWaterEnabled=val end,
 })
 
 MiscTab:AddToggle({
-    Name="Anti-AFK", Desc="Ngăn bị kick khi AFK (không dùng Jump)", Default=true,
+    Name="Anti-AFK", Desc="Ngăn bị kick khi AFK", Default=true,
     Callback=function(val) S.AntiAFKEnabled=val end,
 })
 
@@ -982,109 +1114,116 @@ MiscTab:AddSection("Graphics")
 
 MiscTab:AddButton({
     Name="Boost FPS / Smooth Graphics",
-    Desc="Xoá hiệu ứng, tối ưu render ngay lập tức",
+    Desc="Xoá hiệu ứng, tối ưu render",
     Callback=function() Utility.OptimizeGraphics() end,
 })
 
-MiscTab:AddButton({
-    Name="Reset Character",
-    Desc="Respawn nhân vật ngay lập tức",
-    Callback=function() LocalPlayer:LoadCharacter() end,
-})
-
--- ═══════════════════════════════════════════════════════════
---  TAB 4 : Webhook Config
--- ═══════════════════════════════════════════════════════════
-local WhTab = Window:AddTab({ Name = "Webhook", Icon = "🔔" })
+-- TAB 4 : Webhook Config
+local WhTab = Window:AddTab({ Name = "Webhook", Icon = "" })
 
 WhTab:AddSection("Discord Webhook")
 
 WhTab:AddToggle({
-    Name="Webhook khi Leviathan Spawn",
-    Desc="Gửi thông báo Discord khi xuất hiện boss",
+    Name="Webhook Leviathan Spawn",
+    Desc="Gửi thông báo Discord khi xuất hiện Leviathan",
     Default=true,
     Callback=function(val) S.WebhookEnabled=val end,
 })
 
 WhTab:AddInput({
     Name="Discord Webhook URL",
-    Desc="Dán link webhook vào đây rồi nhấn Enter",
+    Desc="Dán link webhook vào đây",
     Placeholder="https://discord.com/api/webhooks/...",
     Callback=function(text)
-        S.WebhookURL=text
-        UILib.Notify("🔔 Webhook","URL đã được lưu!",3)
+        if string.find(text, "http") then
+            S.WebhookURL = text
+            UILib.Notify("Webhook", "Đã nhận Webhook URL thành công!", 3)
+        end
     end,
 })
 
 WhTab:AddSection("Manual Test")
 
 WhTab:AddButton({
-    Name="Test Webhook Now",
+    Name="Test Webhook",
     Desc="Gửi thử webhook để kiểm tra",
     Callback=function()
         if S.WebhookURL=="" then
             UILib.Notify("Lỗi","Chưa nhập Webhook URL!",3); return
         end
         Utility.SendWebhook(S.WebhookURL, LocalPlayer)
-        UILib.Notify("🔔 Webhook","Đã gửi test webhook!",3)
+        UILib.Notify("Webhook","Đã gửi test webhook!",3)
     end,
 })
 
 -- ═══════════════════════════════════════════════════════════
---  RUNTIME LOOPS (RunService)
+--  RUNTIME LOOPS
 -- ═══════════════════════════════════════════════════════════
 
--- Walk on Water (RenderStepped như bflua.lua)
-RunService.RenderStepped:Connect(function()
+_conns["renderLoop"] = RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local root = char.HumanoidRootPart
-        local hum  = char:FindFirstChildOfClass("Humanoid")
-        if hum and hum.SeatPart then
-            WaterPart.CanCollide = false; return
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        
+        if hum then
+            if S.CustomWalkSpeed ~= 16 then hum.WalkSpeed = S.CustomWalkSpeed end
+            if S.CustomJumpPower ~= 50 then hum.JumpPower = S.CustomJumpPower end
         end
-        if S.WalkOnWaterEnabled then
-            WaterPart.CFrame = CFrame.new(root.Position.X, -1, root.Position.Z)
-            WaterPart.CanCollide = root.Position.Y >= -5
-        else
-            WaterPart.CanCollide = false
+
+        if root and hum then
+            if hum.SeatPart then
+                WaterPart.CanCollide = false
+            elseif S.WalkOnWaterEnabled then
+                WaterPart.CFrame = CFrame.new(root.Position.X, -1, root.Position.Z)
+                WaterPart.CanCollide = (root.Position.Y >= -5)
+            else
+                WaterPart.CanCollide = false
+            end
         end
-    else
-        WaterPart.CanCollide = false
     end
 end)
 
--- NoClip (Stepped + RenderStepped)
-local function DoNoClip()
+_conns["steppedLoop"] = RunService.Stepped:Connect(function()
     if S.PlayerNoClipEnabled and LocalPlayer.Character then
-        Utility.ForceNoClipModel(LocalPlayer.Character)
+        Utility.ForceNoClipModel(LocalPlayer.Character, true)
     end
     if S.BoatNoClipEnabled or S.FindLeviathanEnabled then
-        if LocalPlayer.Character then Utility.ForceNoClipModel(LocalPlayer.Character) end
         local bt = Utility.GetBoat()
-        if bt then Utility.ForceNoClipModel(bt) end
+        if bt then Utility.ForceNoClipModel(bt, true) end
     end
-end
-RunService.Stepped:Connect(DoNoClip)
-RunService.RenderStepped:Connect(DoNoClip)
+end)
 
--- Leviathan spawn watch loop
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.1) do
         if Utility.IsFrozenWatcher() then
-            if not WebhookSent and S.WebhookEnabled and S.WebhookURL~="" then
-                WebhookSent = true
-                Utility.SendWebhook(S.WebhookURL, LocalPlayer)
+            if S.FindLeviathanEnabled then
+                local boat = Utility.GetBoat()
+                
+                if FindLeviathanConnection then
+                    FindLeviathanConnection:Disconnect()
+                    FindLeviathanConnection = nil
+                end
+                
+                if boat then Utility.ForceStopBoat(boat) end
+                
+                S.FindLeviathanEnabled = false
+                S.BoatNoClipEnabled = false
+                if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
+
+                if not WebhookSent and S.WebhookEnabled and S.WebhookURL ~= "" then
+                    WebhookSent = true
+                    Utility.SendWebhook(S.WebhookURL, LocalPlayer)
+                end
+
+                UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã phát hiện Frozen Watcher! Đã phanh thuyền.", 6)
             end
-            if S.FindLeviathanEnabled and FindLeviathanToggle then
-                FindLeviathanToggle:Set(false)
-                UILib.Notify("❄️ LEVIATHAN SPAWNED!","Phát hiện Frozen Watcher! Đã dừng thuyền.",6)
-            end
+        else
+            WebhookSent = false
         end
     end
 end)
 
--- Anti-AFK (VirtualUser như bflua.lua)
 local function SetupAntiAFK()
     if not S.AntiAFKEnabled then return end
     pcall(function() VirtualUser:CaptureController() end)
@@ -1097,17 +1236,6 @@ LocalPlayer.Idled:Connect(function()
     end
 end)
 
--- Reapply stats on respawn
-LocalPlayer.CharacterAdded:Connect(function(char)
-    task.wait(1)
-    local hum = char:WaitForChild("Humanoid", 5)
-    if hum then
-        hum.WalkSpeed = WalkSpeedSlider:Get()
-        hum.JumpPower = JumpSlider:Get()
-    end
-end)
-
--- ── Welcome toast ─────────────────────────────────────────────
 task.delay(0.6, function()
-    UILib.Notify("⚡ Leviathan Hub v3.0","Click icon Hilichurl để bật/tắt UI",5)
+    UILib.Notify("Hili Hub","Click icon Hilichurl để bật/tắt UI",5)
 end)
