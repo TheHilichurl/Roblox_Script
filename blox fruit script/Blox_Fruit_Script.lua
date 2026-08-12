@@ -773,7 +773,7 @@ end
 -- Walk On Water Ảo
 local WaterPart = Instance.new("Part")
 WaterPart.Name            = "WalkOnWaterPart"
-WaterPart.Size            = Vector3.new(200, 1, 200)
+WaterPart.Size            = Vector3.new(3, 1, 3)
 WaterPart.Transparency    = 0.85
 WaterPart.Color           = Color3.fromRGB(0, 170, 255)
 WaterPart.Material        = Enum.Material.SmoothPlastic
