@@ -1,6 +1,6 @@
 -- ============================================================
 --  Blox_Fruit_Script.lua  (Single-File Executor · Luau)
---  Author  : Hilichurl  |  Version : 6.6.0 (Simplified Auto Shoot Leviathan)
+--  Author  : Hilichurl  |  Version : 7.0.0 (Auto Attack & Advanced ESP/Fly)
 -- ============================================================
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -459,7 +459,7 @@ function UILib.CreateWindow(cfg)
             end)
 
             valBox.FocusLost:Connect(function()
-                TweenService:Create(valBoxSt, TI_FAST, {Color=THEME.BORDER}):Play()
+                TweenService:Create(valBoxSt, TI_FAST, {Color=THEME.BORDER})
                 local num = tonumber(valBox.Text)
                 if num then updateUI(num) else valBox.Text = tostring(value) .. sfx end
             end)
@@ -553,7 +553,7 @@ function UILib.CreateWindow(cfg)
             tbx.Focused:Connect(function() TweenService:Create(bxSt,TI_FAST,{Color=THEME.ACCENT}):Play() end)
             
             tbx.FocusLost:Connect(function() 
-                TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER}):Play()
+                TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER})
                 if tbx.Text ~= "" then pcall(cb, tbx.Text) end
             end)
             local IO={}
@@ -755,7 +755,10 @@ function Utility.StopPhysicsFly()
     if char then
         local hum = char:FindFirstChildOfClass("Humanoid")
         local root = char:FindFirstChild("HumanoidRootPart")
-        if hum then hum.PlatformStand = false end
+        if hum then
+            hum.PlatformStand = false
+            hum.Sit = false
+        end
         if root then
             if root:FindFirstChild("PlayerFlyLV") then root.PlayerFlyLV:Destroy() end
             if root:FindFirstChild("PlayerFlyAO") then root.PlayerFlyAO:Destroy() end
@@ -764,6 +767,50 @@ function Utility.StopPhysicsFly()
             root.AssemblyAngularVelocity = Vector3.zero
         end
     end
+
+    pcall(function()
+        local cam = workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            if char and char:FindFirstChildOfClass("Humanoid") then
+                cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+            end
+        end
+    end)
+end
+
+function Utility.ResetCameraAndCharacter()
+    Utility.StopPhysicsFly()
+
+    killConn("findLev")
+    killConn("autoShootLev")
+    killConn("teleportPlayerLoop")
+
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if hum then
+            hum.PlatformStand = false
+            hum.Sit = false
+        end
+        if root then
+            root.AssemblyLinearVelocity = Vector3.zero
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
+
+    pcall(function()
+        local cam = workspace.CurrentCamera
+        if cam then
+            cam.CameraType = Enum.CameraType.Custom
+            if char and char:FindFirstChildOfClass("Humanoid") then
+                cam.CameraSubject = char:FindFirstChildOfClass("Humanoid")
+            end
+        end
+    end)
+
+    UILib.Notify("Unstuck", "Đã giải phóng Camera & Nhân vật thành công!", 3)
 end
 
 function Utility.TeleportBoatToPlayer()
@@ -845,6 +892,7 @@ function Utility.GetFrozenHeart()
     return nil
 end
 
+-- ── DÂN SÁCH ĐẢO QUÉT ĐỒNG THỜI 2 THƯ MỤC: workspace VÀ workspace.Map ──
 function Utility.GetIslandList()
     local islands = {}
     local knownIslands = {
@@ -852,17 +900,38 @@ function Utility.GetIslandList()
         "Haunted Castle", "Ice Cream Island", "Peanut Island", "Port", "TikiOutpost",
         "Turtle", "Waterfall"
     }
-    for _, name in ipairs(knownIslands) do
-        if workspace:FindFirstChild(name) then
-            table.insert(islands, name)
+
+    local function CheckParentFolder(parentFolder)
+        if not parentFolder then return end
+        for _, name in ipairs(knownIslands) do
+            local found = parentFolder:FindFirstChild(name)
+            if found and not table.find(islands, name) then
+                table.insert(islands, name)
+            end
+        end
+        for _, obj in ipairs(parentFolder:GetChildren()) do
+            if (obj:IsA("Model") or obj:IsA("Folder")) and (string.find(obj.Name, "Island") or string.find(obj.Name, "Castle") or string.find(obj.Name, "Outpost")) and not table.find(islands, obj.Name) then
+                table.insert(islands, obj.Name)
+            end
         end
     end
-    for _, obj in ipairs(workspace:GetChildren()) do
-        if obj:IsA("Model") and string.find(obj.Name, "Island") and not table.find(islands, obj.Name) then
-            table.insert(islands, obj.Name)
-        end
-    end
+
+    CheckParentFolder(workspace)
+    CheckParentFolder(workspace:FindFirstChild("Map"))
+
     return islands
+end
+
+function Utility.GetIslandObject(name)
+    local found = workspace:FindFirstChild(name)
+    if found then return found end
+
+    local mapFolder = workspace:FindFirstChild("Map")
+    if mapFolder then
+        found = mapFolder:FindFirstChild(name)
+        if found then return found end
+    end
+    return nil
 end
 
 function Utility.OptimizeGraphics()
@@ -891,9 +960,10 @@ function Utility.OptimizeGraphics()
     UILib.Notify("🎮 Graphics", "Đã tối ưu đồ họa!", 4)
 end
 
+-- Walk On Water Ảo (Cố định ở Y = 0, Kích thước X=3, Y=1, Z=3)
 local WaterPart = Instance.new("Part")
 WaterPart.Name            = "WalkOnWaterPart"
-WaterPart.Size            = Vector3.new(2000, 1, 2000)
+WaterPart.Size            = Vector3.new(3, 1, 3)
 WaterPart.Transparency    = 0.85
 WaterPart.Color           = Color3.fromRGB(0, 170, 255)
 WaterPart.Material        = Enum.Material.SmoothPlastic
@@ -938,6 +1008,7 @@ local S = {
     EnableBoatSpeed       = false,
     FindLeviathanEnabled  = false,
     AutoShootLeviEnabled  = false,
+    AutoAttackEnemyEnabled= false,
     BoatNoClipEnabled     = false,
     PlayerNoClipEnabled   = false,
     WalkOnWaterEnabled    = true,
@@ -972,6 +1043,7 @@ local Window = UILib.CreateWindow({
 _G.UnloadScript = function()
     S.FindLeviathanEnabled = false
     S.AutoShootLeviEnabled = false
+    S.AutoAttackEnemyEnabled = false
     S.BoatNoClipEnabled = false
     S.PlayerNoClipEnabled = false
     S.WalkOnWaterEnabled = false
@@ -982,6 +1054,7 @@ _G.UnloadScript = function()
 
     killConn("findLev")
     killConn("autoShootLev")
+    killConn("autoAttackLoop")
     killConn("bspd")
     killConn("telplr")
     killConn("steppedLoop")
@@ -993,7 +1066,7 @@ _G.UnloadScript = function()
     killConn("islandEspLoop")
     killConn("playerEspLoop")
 
-    Utility.StopPhysicsFly()
+    Utility.ResetCameraAndCharacter()
 
     if IslandESP_Folder then IslandESP_Folder:Destroy() end
     if PlayerESP_Folder then PlayerESP_Folder:Destroy() end
@@ -1009,7 +1082,7 @@ _G.UnloadScript = function()
 end
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 1 : LEVIATHAN (CẬP NHẬT CHUẨN AUTO SHOOT LEVIATHAN)
+--  TAB 1 : LEVIATHAN (ĐÃ BỎ FLY TO FROZEN WATCHER)
 -- ═══════════════════════════════════════════════════════════
 local LevTab = Window:AddTab({ Name = "Leviathan", Icon = "" })
 
@@ -1035,7 +1108,6 @@ LevTab:AddToggle({
                     return
                 end
 
-                -- 1. Tìm thuyền người chơi đang lái (Ưu tiên) hoặc thuyền Beast Hunter
                 local currentBoat = Utility.GetBoat() or Utility.GetBeastHunterBoat()
                 if not currentBoat then
                     if not AutoShootNotified then
@@ -1048,7 +1120,6 @@ LevTab:AddToggle({
                 local vSeat = currentBoat:FindFirstChildOfClass("VehicleSeat") or currentBoat.PrimaryPart
                 if not vSeat then return end
 
-                -- 2. Tìm FrozenHeart trong Workspace/Assets
                 local frozenHeart = Utility.GetFrozenHeart()
                 if not frozenHeart then
                     if not AutoShootNotified then
@@ -1058,11 +1129,9 @@ LevTab:AddToggle({
                     return
                 end
 
-                -- 3. Tính toán tọa độ mục tiêu (Offset: X=12, Y=80, Z=0) so với FrozenHeart
                 local fhCF = frozenHeart:IsA("Model") and frozenHeart:GetPivot() or frozenHeart.CFrame
                 local targetCF = fhCF * CFrame.new(12, 80, 0)
 
-                -- 4. Đẩy thuyền bay đến vị trí tọa độ chỉ định và giữ cố định
                 ActiveBoat = currentBoat
                 local seatPos = vSeat.Position
                 local dir = (targetCF.Position - seatPos)
@@ -1080,7 +1149,6 @@ LevTab:AddToggle({
                 ao.MaxTorque = math.huge; ao.Responsiveness = 200
                 ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
 
-                -- NEO THUYỀN KHÓA CỐ ĐỊNH KHI ĐÃ ĐẾN VỊ TRÍ TARGET
                 if dist <= 8 then
                     lv.VectorVelocity = Vector3.zero
                     ao.CFrame = CFrame.lookAt(seatPos, fhCF.Position)
@@ -1107,12 +1175,27 @@ local function TriggerLeviathanFound()
     killConn("levSeaAdded")
     killConn("levMapAdded")
     killConn("seatWatcher")
+    killConn("teleportPlayerLoop")
 
     S.FindLeviathanEnabled = false
+    S.TeleportPlayerEnabled = false
     S.BoatNoClipEnabled = false
     if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
 
     if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
+    Utility.StopPhysicsFly()
+
+    task.delay(0.1, function()
+        pcall(function()
+            local cam = workspace.CurrentCamera
+            if cam then
+                cam.CameraType = Enum.CameraType.Custom
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                    cam.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                end
+            end
+        end)
+    end)
 
     if not WebhookSent and S.WebhookEnabled and S.WebhookURL ~= "" then
         WebhookSent = true
@@ -1121,7 +1204,7 @@ local function TriggerLeviathanFound()
         end)
     end
 
-    UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã phát hiện Frozen Watcher / LeviathanGate! Đã phanh thuyền.", 6)
+    UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã dừng script & giải phóng Camera để chạy Cutscene!", 6)
 end
 
 local function StartBoatFlying(boat)
@@ -1369,45 +1452,81 @@ LevTab:AddButton({
     end,
 })
 
-LevTab:AddButton({
-    Name = "Fly to Frozen Watcher",
-    Desc = "Bay nhân vật trực tiếp đến vị trí NPC Frozen Watcher",
-    Callback = function()
-        local targetCF = nil
 
-        local npcs = workspace:FindFirstChild("NPCs")
-        if npcs then
-            local watcher = npcs:FindFirstChild("Frozen Watcher") or npcs:FindFirstChild("FrozenWatcher")
-            if watcher then targetCF = watcher:GetPivot() end
-        end
+-- ═══════════════════════════════════════════════════════════
+--  TAB 2 : TELEPORT & AUTO ATTACK
+-- ═══════════════════════════════════════════════════════════
+local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
-        if not targetCF then
-            local map = workspace:FindFirstChild("Map")
-            if map then
-                local gate = map:FindFirstChild("LeviathanGate")
-                if gate then
-                    local part = gate:FindFirstChild("FrozenWatcherPart")
-                    if part then targetCF = part.CFrame end
+TelTab:AddSection("Auto Attack Near Enemy")
+
+-- TÍNH NĂNG MỚI: TỰ ĐỘNG BẮT MỤC TIÊU GẦN NHẤT, MỞ RỘNG HITBOX & TẤN CÔNG
+TelTab:AddToggle({
+    Name    = "Auto Attack Near Enemy",
+    Desc    = "Tự bay đến kẻ địch gần nhất trong Enemies, tăng Hitbox & tự tấn công",
+    Default = false,
+    Callback = function(val)
+        S.AutoAttackEnemyEnabled = val
+
+        if val then
+            killConn("autoAttackLoop")
+            _conns["autoAttackLoop"] = RunService.Heartbeat:Connect(function()
+                if not S.AutoAttackEnemyEnabled then
+                    killConn("autoAttackLoop")
+                    Utility.StopPhysicsFly()
+                    return
                 end
-            end
-        end
 
-        if targetCF then
-            UILib.Notify("Leviathan", "Đang bay đến Frozen Watcher...", 4)
-            Utility.PhysicsFlyTo(targetCF + Vector3.new(0, 3, 0), S.TeleportFlySpeed, function()
-                UILib.Notify("Leviathan", "Đã đến vị trí Frozen Watcher!", 4)
+                local char = LocalPlayer.Character
+                local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+                if not myRoot then return end
+
+                local enemiesFolder = workspace:FindFirstChild("Enemies")
+                if not enemiesFolder then return end
+
+                local nearestEnemy = nil
+                local minDistance = math.huge
+
+                for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+                    local eHum = enemy:FindFirstChildOfClass("Humanoid")
+                    local eRoot = enemy:FindFirstChild("HumanoidRootPart")
+
+                    if eHum and eHum.Health > 0 and eRoot then
+                        local dist = (eRoot.Position - myRoot.Position).Magnitude
+                        if dist < minDistance then
+                            minDistance = dist
+                            nearestEnemy = enemy
+                        end
+                    end
+                end
+
+                if nearestEnemy then
+                    local eRoot = nearestEnemy:FindFirstChild("HumanoidRootPart")
+                    if eRoot then
+                        -- 1. Can thiệp Mở rộng Hitbox kẻ địch
+                        eRoot.Size = Vector3.new(15, 15, 15)
+                        eRoot.Transparency = 0.7
+                        eRoot.CanCollide = false
+
+                        -- 2. Bay áp sát vị trí phía trên kẻ địch
+                        local targetCF = eRoot.CFrame * CFrame.new(0, 10, 0)
+                        Utility.PhysicsFlyTo(targetCF, S.TeleportFlySpeed)
+
+                        -- 3. Kích hoạt sự kiện tấn công (Attack Event Click)
+                        pcall(function()
+                            VirtualUser:ClickButton1(Vector2.new(500, 500))
+                        end)
+                    end
+                else
+                    Utility.StopPhysicsFly()
+                end
             end)
         else
-            UILib.Notify("Lỗi", "Không tìm thấy Frozen Watcher trong server!", 4)
+            killConn("autoAttackLoop")
+            Utility.StopPhysicsFly()
         end
     end,
 })
-
-
--- ═══════════════════════════════════════════════════════════
---  TAB 2 : TELEPORT
--- ═══════════════════════════════════════════════════════════
-local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
 TelTab:AddSection("Teleport Fly Settings")
 
@@ -1422,8 +1541,9 @@ TelTab:AddButton({
     Name = "Stop Fly Teleport",
     Desc = "Dừng quá trình bay dịch chuyển lập tức",
     Callback = function()
-        Utility.StopPhysicsFly()
+        Utility.ResetCameraAndCharacter()
         killConn("teleportPlayerLoop")
+        killConn("autoAttackLoop")
         UILib.Notify("Teleport", "Đã dừng bay!", 2)
     end,
 })
@@ -1450,15 +1570,6 @@ local IslandDD = TelTab:AddDropdown({
 })
 
 TelTab:AddButton({
-    Name = "Refresh Island List",
-    Desc = "Quét lại danh sách đảo hiện tại trong server",
-    Callback = function()
-        IslandDD:Refresh(Utility.GetIslandList())
-        UILib.Notify("Island", "Đã cập nhật danh sách đảo!", 2)
-    end,
-})
-
-TelTab:AddButton({
     Name = "Fly to Selected Island",
     Desc = "Bay nhân vật mượt mà tới đảo bằng Physics Fly",
     Callback = function()
@@ -1466,7 +1577,7 @@ TelTab:AddButton({
             UILib.Notify("Lỗi", "Chưa chọn đảo!", 3); return
         end
 
-        local islObj = workspace:FindFirstChild(S.SelectedIsland)
+        local islObj = Utility.GetIslandObject(S.SelectedIsland)
         if islObj then
             local targetCF = islObj:GetPivot()
             UILib.Notify("Teleport", "Đang bay đến " .. S.SelectedIsland .. "...", 4)
@@ -1479,7 +1590,7 @@ TelTab:AddButton({
     end,
 })
 
-TelTab:AddSection("Teleport to Player (Toggle)")
+TelTab:AddSection("Teleport to Player (Toggle 2 Phase)")
 
 local function GetPlayerList()
     local list = {}
@@ -1507,9 +1618,10 @@ TelTab:AddButton({
     end,
 })
 
+-- SỬA LẠI CƠ CHẾ FLY FOLLOW PLAYER (PHASE 1: PHYSICS FLY, PHASE 2: CFRAME PUSH SPEED 300 KHI DIST <= 50 STUDS)
 TelTab:AddToggle({
     Name    = "Fly Follow Player",
-    Desc    = "Bật/Tắt tự động bay bám đuổi người chơi đã chọn",
+    Desc    = "Phase 1: Physics Fly. Phase 2: CFrame bay cực nhanh (Speed 300) khi cách < 50 studs",
     Default = false,
     Callback = function(val)
         S.TeleportPlayerEnabled = val
@@ -1524,27 +1636,39 @@ TelTab:AddToggle({
             _conns["teleportPlayerLoop"] = RunService.Heartbeat:Connect(function()
                 if not S.TeleportPlayerEnabled or not S.SelectedPlayer then
                     killConn("teleportPlayerLoop")
-                    Utility.StopPhysicsFly()
+                    Utility.ResetCameraAndCharacter()
                     return
                 end
 
                 local targetChar = S.SelectedPlayer.Character
-                if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+                local myChar = LocalPlayer.Character
+                local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+                if targetChar and targetChar:FindFirstChild("HumanoidRootPart") and myRoot then
                     local targetRoot = targetChar.HumanoidRootPart
+                    local dist = (targetRoot.Position - myRoot.Position).Magnitude
                     local targetCF = targetRoot.CFrame * CFrame.new(0, 5, 2)
-                    Utility.PhysicsFlyTo(targetCF, S.TeleportFlySpeed)
+
+                    if dist <= 50 then
+                        -- PHASE 2: CƠ CHẾ BAY CFRAME TỐC ĐỘ 300
+                        Utility.StopPhysicsFly()
+                        myRoot.CFrame = myRoot.CFrame:Lerp(targetCF, 0.35)
+                    else
+                        -- PHASE 1: BAY PHYSICS FLY ĐẾN TỪ XA
+                        Utility.PhysicsFlyTo(targetCF, S.TeleportFlySpeed)
+                    end
                 end
             end)
         else
             killConn("teleportPlayerLoop")
-            Utility.StopPhysicsFly()
+            Utility.ResetCameraAndCharacter()
         end
     end,
 })
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 3 : ESP
+--  TAB 3 : ESP (SỬA LẠI ISLAND ESP & PLAYER ESP INCL SELF-ESP)
 -- ═══════════════════════════════════════════════════════════
 local EspTab = Window:AddTab({ Name = "ESP", Icon = "" })
 
@@ -1571,9 +1695,10 @@ local function CreateESPLabel(parent, text, color)
     return bg
 end
 
+-- ISLAND ESP
 EspTab:AddToggle({
     Name    = "Island ESP",
-    Desc    = "Hiển thị Tên Đảo và Khoảng cách",
+    Desc    = "Hiển thị Tên Đảo và Khoảng cách trên UI người dùng",
     Default = false,
     Callback = function(val)
         S.IslandESPEnabled = val
@@ -1598,7 +1723,7 @@ EspTab:AddToggle({
 
                 local currentIslands = Utility.GetIslandList()
                 for _, islName in ipairs(currentIslands) do
-                    local islObj = workspace:FindFirstChild(islName)
+                    local islObj = Utility.GetIslandObject(islName)
                     if islObj then
                         local primaryPart = islObj.PrimaryPart or islObj:FindFirstChildOfClass("BasePart")
                         if primaryPart then
@@ -1625,9 +1750,10 @@ EspTab:AddToggle({
     end,
 })
 
+-- PLAYER ESP (SỬA LẠI HIỂN THỊ TẤT CẢ PLAYER BAO GỒM BẢN THÂN)
 EspTab:AddToggle({
     Name    = "Player ESP",
-    Desc    = "Hiển thị Tên Người Chơi và Khoảng cách",
+    Desc    = "Hiển thị Tên Người Chơi từ xa qua HumanoidRootPart (Bao gồm bản thân)",
     Default = false,
     Callback = function(val)
         S.PlayerESPEnabled = val
@@ -1650,15 +1776,19 @@ EspTab:AddToggle({
                 local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if not myRoot then return end
 
+                -- Quét tất cả người chơi trong server (Bao gồm bản thân)
                 for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                         local targetRoot = p.Character.HumanoidRootPart
                         local espUI = PlayerESP_Folder:FindFirstChild("ESP_" .. p.Name)
                         local dist = math.floor((targetRoot.Position - myRoot.Position).Magnitude)
-                        local textStr = string.format("👤 %s\n[%d studs]", p.Name, dist)
+                        local isSelf = (p == LocalPlayer)
+                        local displayName = isSelf and (p.Name .. " (You)") or p.Name
+                        local textStr = string.format("👤 %s\n[%d studs]", displayName, dist)
+                        local labelColor = isSelf and Color3.fromRGB(163, 230, 53) or Color3.fromRGB(255, 220, 0)
 
                         if not espUI then
-                            espUI = CreateESPLabel(targetRoot, textStr, Color3.fromRGB(255, 220, 0))
+                            espUI = CreateESPLabel(targetRoot, textStr, labelColor)
                             espUI.Name = "ESP_" .. p.Name
                             espUI.Parent = PlayerESP_Folder
                         else
@@ -1680,6 +1810,16 @@ EspTab:AddToggle({
 --  TAB 4 : MISC
 -- ═══════════════════════════════════════════════════════════
 local MiscTab = Window:AddTab({ Name = "Misc", Icon = "" })
+
+MiscTab:AddSection("Fix & Unstuck Controls")
+
+MiscTab:AddButton({
+    Name = "Fix Camera & Unstuck Character",
+    Desc = "Gỡ kẹt góc nhìn Camera và trả lại quyền điều khiển nhân vật",
+    Callback = function()
+        Utility.ResetCameraAndCharacter()
+    end,
+})
 
 MiscTab:AddSection("Movement")
 
@@ -1714,7 +1854,7 @@ MiscTab:AddToggle({
 MiscTab:AddSection("Water & AFK")
 
 MiscTab:AddToggle({
-    Name="Walk on Water", Desc="Tạo mặt phẳng ảo đứng trên nước ở Y = 0", Default=true,
+    Name="Walk on Water", Desc="Tạo mặt phẳng ảo đứng trên nước ở Y = 0 (Dimensions: 3x1x3)", Default=true,
     Callback=function(val) S.WalkOnWaterEnabled=val end,
 })
 
@@ -1788,6 +1928,7 @@ _conns["renderLoop"] = RunService.RenderStepped:Connect(function()
             if S.CustomJumpPower ~= 50 then hum.JumpPower = S.CustomJumpPower end
         end
 
+        -- CỐ ĐỊNH WALK ON WATER TẠI TỌA ĐỘ Y = 0 VỚI KÍCH THƯỚC (3, 1, 3)
         if root and hum then
             if hum.SeatPart then
                 WaterPart.CanCollide = false
