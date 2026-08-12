@@ -1,7 +1,6 @@
 -- ============================================================
 --  Blox_Fruit_Script.lua  (Single-File Executor · Luau)
---  Author  : Hilichurl  |  Version : 4.0.0
---  Rules   : .cursorrules  |  Logic ref : bflua.lua
+--  Author  : Hilichurl  |  Version : 4.1.0 (Optimized)
 -- ============================================================
 
 -- ╔══════════════════════════════════════════════════════════╗
@@ -73,12 +72,11 @@ local function ProtectGui(gui)
     if not ok then gui.Parent = CoreGui end
 end
 
--- ── Helper Tải & Hiển Thị Ảnh Cục Bộ Chuẩn Tên File ────────────
+-- ── Helper Tải & Hiển Thị Ảnh Cục Bộ ──────────────────────────
 local function GetOnlineImage(url, fileName)
     if not url or url == "" then return "" end
     local path = fileName or "Hilichurl_icon.png"
     
-    -- Xóa file cũ nếu lỡ lưu sai định dạng webp trước đó
     if isfile("hilichurl_icon.webp") then pcall(function() delfile("hilichurl_icon.webp") end) end
     if isfile("hilichurl_icon.png")  then pcall(function() delfile("hilichurl_icon.png") end)  end
 
@@ -272,68 +270,36 @@ function UILib.CreateWindow(cfg)
     local tb = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(1,0,0,TH), Name="TitleBar", Parent=win, Radius=10})
     
     local tbMask = Instance.new("Frame")
-    tbMask.Name = "TitleBarMask"
-    tbMask.BackgroundColor3 = THEME.BG_OVERLAY
-    tbMask.BorderSizePixel = 0
-    tbMask.Size = UDim2.new(1, 0, 0, 10)
-    tbMask.Position = UDim2.new(0, 0, 1, -10)
-    tbMask.Parent = tb
+    tbMask.Name = "TitleBarMask"; tbMask.BackgroundColor3 = THEME.BG_OVERLAY; tbMask.BorderSizePixel = 0
+    tbMask.Size = UDim2.new(1, 0, 0, 10); tbMask.Position = UDim2.new(0, 0, 1, -10); tbMask.Parent = tb
 
     local strip = Instance.new("Frame")
-    strip.Name = "AccentStrip"
-    strip.BackgroundColor3 = THEME.ACCENT
-    strip.BorderSizePixel = 0
-    strip.Size = UDim2.new(0, 3, 1, -4)
-    strip.Position = UDim2.fromOffset(2, 2)
-    strip.Parent = tb
+    strip.Name = "AccentStrip"; strip.BackgroundColor3 = THEME.ACCENT; strip.BorderSizePixel = 0
+    strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.fromOffset(2, 2); strip.Parent = tb
     
-    local stripCorner = Instance.new("UICorner")
-    stripCorner.CornerRadius = UDim.new(0, 4)
-    stripCorner.Parent = strip
+    local stripCorner = Instance.new("UICorner"); stripCorner.CornerRadius = UDim.new(0, 4); stripCorner.Parent = strip
 
     local titleContainer = Instance.new("Frame")
-    titleContainer.Size = UDim2.new(1, -100, 1, 0)
-    titleContainer.Position = UDim2.fromOffset(12, 0)
-    titleContainer.BackgroundTransparency = 1
-    titleContainer.Parent = tb
+    titleContainer.Size = UDim2.new(1, -100, 1, 0); titleContainer.Position = UDim2.fromOffset(12, 0)
+    titleContainer.BackgroundTransparency = 1; titleContainer.Parent = tb
 
     local titleListLayout = Instance.new("UIListLayout")
-    titleListLayout.FillDirection = Enum.FillDirection.Horizontal
-    titleListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    titleListLayout.Padding = UDim.new(0, 8)
-    titleListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    titleListLayout.Parent = titleContainer
+    titleListLayout.FillDirection = Enum.FillDirection.Horizontal; titleListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    titleListLayout.Padding = UDim.new(0, 8); titleListLayout.SortOrder = Enum.SortOrder.LayoutOrder; titleListLayout.Parent = titleContainer
 
     local tLbl = Instance.new("TextLabel")
-    tLbl.BackgroundTransparency = 1
-    tLbl.TextColor3 = THEME.TEXT
-    tLbl.Text = title
-    tLbl.Font = Enum.Font.GothamBold
-    tLbl.TextSize = 13
-    tLbl.AutomaticSize = Enum.AutomaticSize.X
-    tLbl.Size = UDim2.new(0, 0, 1, 0)
-    tLbl.LayoutOrder = 1
-    tLbl.Parent = titleContainer
+    tLbl.BackgroundTransparency = 1; tLbl.TextColor3 = THEME.TEXT; tLbl.Text = title; tLbl.Font = Enum.Font.GothamBold
+    tLbl.TextSize = 13; tLbl.AutomaticSize = Enum.AutomaticSize.X; tLbl.Size = UDim2.new(0, 0, 1, 0); tLbl.LayoutOrder = 1; tLbl.Parent = titleContainer
 
     local subLbl = Instance.new("TextLabel")
-    subLbl.BackgroundTransparency = 1
-    subLbl.TextColor3 = THEME.TEXT_SUB
-    subLbl.Text = sub
-    subLbl.Font = Enum.Font.Gotham
-    subLbl.TextSize = 10
-    subLbl.AutomaticSize = Enum.AutomaticSize.X
-    subLbl.Size = UDim2.new(0, 0, 1, 0)
-    subLbl.LayoutOrder = 2
-    subLbl.Parent = titleContainer
+    subLbl.BackgroundTransparency = 1; subLbl.TextColor3 = THEME.TEXT_SUB; subLbl.Text = sub; subLbl.Font = Enum.Font.Gotham
+    subLbl.TextSize = 10; subLbl.AutomaticSize = Enum.AutomaticSize.X; subLbl.Size = UDim2.new(0, 0, 1, 0); subLbl.LayoutOrder = 2; subLbl.Parent = titleContainer
 
     local function MkWinBtn(icon, xOff, bgColor)
         local b = Instance.new("TextButton")
-        b.Text=icon; b.Font=Enum.Font.GothamBold; b.TextSize=11
-        b.TextColor3=THEME.TEXT_SUB; b.BackgroundColor3=bgColor
-        b.BackgroundTransparency=1; b.AutoButtonColor=false
-        b.Size=UDim2.fromOffset(24,24)
-        b.Position=UDim2.new(1, xOff, 0.5, -12)
-        b.Parent=tb
+        b.Text=icon; b.Font=Enum.Font.GothamBold; b.TextSize=11; b.TextColor3=THEME.TEXT_SUB; b.BackgroundColor3=bgColor
+        b.BackgroundTransparency=1; b.AutoButtonColor=false; b.Size=UDim2.fromOffset(24,24)
+        b.Position=UDim2.new(1, xOff, 0.5, -12); b.Parent=tb
         Instance.new("UICorner").Parent=b
         b.MouseEnter:Connect(function() TweenService:Create(b,TI_FAST,{BackgroundTransparency=0, TextColor3=Color3.new(1,1,1)}):Play() end)
         b.MouseLeave:Connect(function() TweenService:Create(b,TI_FAST,{BackgroundTransparency=1, TextColor3=THEME.TEXT_SUB}):Play() end)
@@ -357,12 +323,8 @@ function UILib.CreateWindow(cfg)
     local body = MkFrame({Color=THEME.BG, Size=UDim2.new(1,0,1,-TH), Pos=UDim2.fromOffset(0,TH), Name="Body", Parent=win, Radius=10})
     
     local bodyMask = Instance.new("Frame")
-    bodyMask.Name = "BodyMask"
-    bodyMask.BackgroundColor3 = THEME.BG
-    bodyMask.BorderSizePixel = 0
-    bodyMask.Size = UDim2.new(1, 0, 0, 10)
-    bodyMask.Position = UDim2.new(0, 0, 0, 0)
-    bodyMask.Parent = body
+    bodyMask.Name = "BodyMask"; bodyMask.BackgroundColor3 = THEME.BG; bodyMask.BorderSizePixel = 0
+    bodyMask.Size = UDim2.new(1, 0, 0, 10); bodyMask.Position = UDim2.new(0, 0, 0, 0); bodyMask.Parent = body
 
     local sidebar = MkFrame({Color=THEME.BG_OVERLAY, Size=UDim2.new(0,SB_W,1,0), Name="Sidebar", Parent=body, Radius=10})
     local sbll = Instance.new("UIListLayout"); sbll.SortOrder=Enum.SortOrder.LayoutOrder; sbll.Padding=UDim.new(0,3); sbll.Parent=sidebar
@@ -388,29 +350,18 @@ function UILib.CreateWindow(cfg)
         local ticon = cfg2.Icon or ""
 
         local tabBtn = Instance.new("TextButton")
-        tabBtn.Name = "Tab_"..tname
-        tabBtn.Text = (ticon~="" and ticon.."  " or "")..tname
-        tabBtn.Font = Enum.Font.GothamSemibold; tabBtn.TextSize = 11
-        tabBtn.TextColor3 = THEME.TEXT_SUB
-        tabBtn.BackgroundColor3 = THEME.TAB_IDLE
-        tabBtn.AutoButtonColor = false
-        tabBtn.Size = UDim2.new(1,0,0,28)
-        tabBtn.TextXAlignment = Enum.TextXAlignment.Left
-        tabBtn.Parent = sidebar
+        tabBtn.Name = "Tab_"..tname; tabBtn.Text = (ticon~="" and ticon.."  " or "")..tname
+        tabBtn.Font = Enum.Font.GothamSemibold; tabBtn.TextSize = 11; tabBtn.TextColor3 = THEME.TEXT_SUB
+        tabBtn.BackgroundColor3 = THEME.TAB_IDLE; tabBtn.AutoButtonColor = false; tabBtn.Size = UDim2.new(1,0,0,28)
+        tabBtn.TextXAlignment = Enum.TextXAlignment.Left; tabBtn.Parent = sidebar
         local tc = Instance.new("UICorner"); tc.CornerRadius=UDim.new(0,6); tc.Parent=tabBtn
         local tp = Instance.new("UIPadding"); tp.PaddingLeft=UDim.new(0,8); tp.Parent=tabBtn
 
         local page = Instance.new("ScrollingFrame")
-        page.Name = "Page_"..tname
-        page.BackgroundTransparency = 1
-        page.Size = UDim2.new(1,0,1,0)
-        page.CanvasSize = UDim2.new(0,0,0,0)
-        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        page.ScrollBarThickness = 2
-        page.ScrollBarImageColor3 = THEME.ACCENT
-        page.Visible = false; page.BorderSizePixel = 0
-        page.ClipsDescendants = true
-        page.Parent = cpane
+        page.Name = "Page_"..tname; page.BackgroundTransparency = 1; page.Size = UDim2.new(1,0,1,0)
+        page.CanvasSize = UDim2.new(0,0,0,0); page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.ScrollBarThickness = 2; page.ScrollBarImageColor3 = THEME.ACCENT
+        page.Visible = false; page.BorderSizePixel = 0; page.ClipsDescendants = true; page.Parent = cpane
         local pl = Instance.new("UIListLayout"); pl.SortOrder=Enum.SortOrder.LayoutOrder; pl.Padding=UDim.new(0,6); pl.Parent=page
         local pp = Instance.new("UIPadding"); pp.PaddingTop=UDim.new(0,8); pp.PaddingLeft=UDim.new(0,10); pp.PaddingRight=UDim.new(0,10); pp.PaddingBottom=UDim.new(0,8); pp.Parent=page
 
@@ -496,6 +447,7 @@ function UILib.CreateWindow(cfg)
             return TO
         end
 
+        -- [YÊU CẦU 3] SLIDER KẾT HỢP INPUT BOX HIỂN THỊ & NHẬP GIÁ TRỊ TRỰC TIẾP
         function Tab:AddSlider(sc)
             sc=sc or {}
             local lbl=sc.Name or "Slider"; local desc=sc.Desc or ""; local mn=sc.Min or 0; local mx=sc.Max or 100
@@ -503,9 +455,25 @@ function UILib.CreateWindow(cfg)
             local rH=desc~="" and 58 or 44; local value=math.clamp(def,mn,mx)
             local row=MkFrame({Color=THEME.BTN_IDLE, Size=UDim2.new(1,0,0,rH), Name="Sl_"..lbl, Parent=page, Radius=6})
             local ip=Instance.new("UIPadding"); ip.PaddingLeft=UDim.new(0,10); ip.PaddingRight=UDim.new(0,10); ip.Parent=row
-            local vLbl=MkLabel({Text=tostring(value)..sfx, Size=11, Color=THEME.ACCENT, XA=Enum.TextXAlignment.Right, FS=UDim2.new(0,50,0,16), Pos=UDim2.new(1,-50,0,6), Name="VL", Parent=row})
-            MkLabel({Text=lbl, Size=11, Color=THEME.TEXT, FS=UDim2.new(1,-58,0,16), Pos=UDim2.fromOffset(0,6), Parent=row})
-            if desc~="" then MkLabel({Text=desc, Size=9, Color=THEME.TEXT_SUB, Font=Enum.Font.Gotham, FS=UDim2.new(1,0,0,12), Pos=UDim2.fromOffset(0,22), Parent=row}) end
+            
+            MkLabel({Text=lbl, Size=11, Color=THEME.TEXT, FS=UDim2.new(1,-65,0,16), Pos=UDim2.fromOffset(0,6), Parent=row})
+            if desc~="" then MkLabel({Text=desc, Size=9, Color=THEME.TEXT_SUB, Font=Enum.Font.Gotham, FS=UDim2.new(1,-65,0,12), Pos=UDim2.fromOffset(0,22), Parent=row}) end
+            
+            -- Ô Input Box kết hợp hiển thị giá trị
+            local valBoxBG = MkFrame({Color=Color3.fromRGB(10,10,14), Size=UDim2.fromOffset(55, 18), Pos=UDim2.new(1,-55,0,5), Name="ValBoxBG", Parent=row, Radius=4})
+            local valBoxSt = Instance.new("UIStroke"); valBoxSt.Color=THEME.BORDER; valBoxSt.Thickness=1; valBoxSt.Parent=valBoxBG
+            
+            local valBox = Instance.new("TextBox")
+            valBox.Size = UDim2.new(1,0,1,0)
+            valBox.BackgroundTransparency = 1
+            valBox.Text = tostring(value) .. sfx
+            valBox.TextColor3 = THEME.ACCENT
+            valBox.Font = Enum.Font.GothamBold
+            valBox.TextSize = 10
+            valBox.TextXAlignment = Enum.TextXAlignment.Center
+            valBox.ClearTextOnFocus = false
+            valBox.Parent = valBoxBG
+
             local tY=desc~="" and 38 or 26
             local track=MkFrame({Color=THEME.SLIDER_TRACK, Size=UDim2.new(1,0,0,5), Pos=UDim2.fromOffset(0,tY), Name="Tr", Parent=row, Radius=2})
             local fp=(value-mn)/(mx-mn)
@@ -513,14 +481,23 @@ function UILib.CreateWindow(cfg)
             local thumb=MkFrame({Color=Color3.new(1,1,1), Size=UDim2.fromOffset(11,11), Pos=UDim2.new(fp,-5,0.5,-5), Name="Th", Parent=track, Radius=5})
             local ts=Instance.new("UIStroke"); ts.Color=THEME.ACCENT; ts.Thickness=1.2; ts.Parent=thumb
             local dSlider=false
+
+            local function updateUI(val)
+                value = math.clamp(val, mn, mx)
+                local p = (value - mn) / (mx - mn)
+                fill.Size = UDim2.new(p, 0, 1, 0)
+                thumb.Position = UDim2.new(p, -5, 0.5, -5)
+                valBox.Text = tostring(value) .. sfx
+                pcall(cb, value)
+            end
+
             local function updSl(ax)
                 local rx=math.clamp(ax-track.AbsolutePosition.X,0,track.AbsoluteSize.X)
                 local p=rx/track.AbsoluteSize.X
-                value=math.clamp(math.floor(mn+p*(mx-mn)+0.5),mn,mx)
-                p=(value-mn)/(mx-mn)
-                fill.Size=UDim2.new(p,0,1,0); thumb.Position=UDim2.new(p,-5,0.5,-5)
-                vLbl.Text=tostring(value)..sfx; pcall(cb,value)
+                local v=math.floor(mn+p*(mx-mn)+0.5)
+                updateUI(v)
             end
+
             track.InputBegan:Connect(function(i)
                 if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dSlider=true; updSl(i.Position.X) end
             end)
@@ -530,8 +507,24 @@ function UILib.CreateWindow(cfg)
             UserInputService.InputEnded:Connect(function(i)
                 if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then dSlider=false end
             end)
+
+            valBox.Focused:Connect(function()
+                valBox.Text = tostring(value)
+                TweenService:Create(valBoxSt, TI_FAST, {Color=THEME.ACCENT}):Play()
+            end)
+
+            valBox.FocusLost:Connect(function()
+                TweenService:Create(valBoxSt, TI_FAST, {Color=THEME.BORDER}):Play()
+                local num = tonumber(valBox.Text)
+                if num then
+                    updateUI(num)
+                else
+                    valBox.Text = tostring(value) .. sfx
+                end
+            end)
+
             local SO={}
-            function SO:Set(v) value=math.clamp(v,mn,mx); local p=(value-mn)/(mx-mn); fill.Size=UDim2.new(p,0,1,0); thumb.Position=UDim2.new(p,-5,0.5,-5); vLbl.Text=tostring(value)..sfx end
+            function SO:Set(v) updateUI(v) end
             function SO:Get() return value end
             return SO
         end
@@ -549,94 +542,54 @@ function UILib.CreateWindow(cfg)
             local activeDropdown = nil
 
             local function BuildDropdown()
-                if activeDropdown then 
-                    activeDropdown:Destroy() 
-                    activeDropdown = nil 
-                    return 
-                end
-
+                if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil; return end
                 local n = #opts
                 if n == 0 then return end
 
                 local ddH = math.min(n, 5) * 26 + 6
-                
                 local dropdown = MkFrame({
                     Color = THEME.BG_OVERLAY,
                     Size = UDim2.fromOffset(row.AbsoluteSize.X, ddH),
                     Pos = UDim2.fromOffset(row.AbsolutePosition.X, row.AbsolutePosition.Y + row.AbsoluteSize.Y + 4),
-                    Name = "GlobalDDList",
-                    Parent = sg,
-                    Radius = 6
+                    Name = "GlobalDDList", Parent = sg, Radius = 6
                 })
-                dropdown.ZIndex = 500
-                activeDropdown = dropdown
+                dropdown.ZIndex = 500; activeDropdown = dropdown
 
-                local outSt = Instance.new("UIStroke")
-                outSt.Color = THEME.ACCENT
-                outSt.Thickness = 1
-                outSt.Parent = dropdown
+                local outSt = Instance.new("UIStroke"); outSt.Color = THEME.ACCENT; outSt.Thickness = 1; outSt.Parent = dropdown
 
                 local scrollDD = Instance.new("ScrollingFrame")
-                scrollDD.Size = UDim2.new(1, 0, 1, 0)
-                scrollDD.BackgroundTransparency = 1
-                scrollDD.BorderSizePixel = 0
-                scrollDD.ScrollBarThickness = 3
-                scrollDD.ScrollBarImageColor3 = THEME.ACCENT
-                scrollDD.CanvasSize = UDim2.new(0, 0, 0, n * 26)
-                scrollDD.ZIndex = 501
-                scrollDD.Parent = dropdown
+                scrollDD.Size = UDim2.new(1, 0, 1, 0); scrollDD.BackgroundTransparency = 1; scrollDD.BorderSizePixel = 0
+                scrollDD.ScrollBarThickness = 3; scrollDD.ScrollBarImageColor3 = THEME.ACCENT
+                scrollDD.CanvasSize = UDim2.new(0, 0, 0, n * 26); scrollDD.ZIndex = 501; scrollDD.Parent = dropdown
 
-                local dll = Instance.new("UIListLayout")
-                dll.SortOrder = Enum.SortOrder.LayoutOrder
-                dll.Padding = UDim.new(0, 2)
-                dll.Parent = scrollDD
+                local dll = Instance.new("UIListLayout"); dll.SortOrder = Enum.SortOrder.LayoutOrder; dll.Padding = UDim.new(0, 2); dll.Parent = scrollDD
 
                 for _, opt in ipairs(opts) do
                     local ob = Instance.new("TextButton")
-                    ob.Text = opt
-                    ob.Font = Enum.Font.GothamMedium
-                    ob.TextSize = 11
-                    ob.TextColor3 = THEME.TEXT
-                    ob.BackgroundColor3 = THEME.BTN_IDLE
-                    ob.BackgroundTransparency = 0.2
-                    ob.AutoButtonColor = false
-                    ob.Size = UDim2.new(1, 0, 0, 24)
-                    ob.TextXAlignment = Enum.TextXAlignment.Left
-                    ob.ZIndex = 502
-                    ob.Parent = scrollDD
+                    ob.Text = opt; ob.Font = Enum.Font.GothamMedium; ob.TextSize = 11; ob.TextColor3 = THEME.TEXT
+                    ob.BackgroundColor3 = THEME.BTN_IDLE; ob.BackgroundTransparency = 0.2; ob.AutoButtonColor = false
+                    ob.Size = UDim2.new(1, 0, 0, 24); ob.TextXAlignment = Enum.TextXAlignment.Left; ob.ZIndex = 502; ob.Parent = scrollDD
 
-                    local op = Instance.new("UIPadding")
-                    op.PaddingLeft = UDim.new(0, 8)
-                    op.Parent = ob
+                    local op = Instance.new("UIPadding"); op.PaddingLeft = UDim.new(0, 8); op.Parent = ob
 
-                    ob.MouseEnter:Connect(function() 
-                        TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0, TextColor3 = THEME.BTN_TEXT_HOV, BackgroundColor3 = THEME.BTN_HOVER}):Play() 
-                    end)
-                    ob.MouseLeave:Connect(function() 
-                        TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() 
-                    end)
+                    ob.MouseEnter:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0, TextColor3 = THEME.BTN_TEXT_HOV, BackgroundColor3 = THEME.BTN_HOVER}):Play() end)
+                    ob.MouseLeave:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() end)
                     ob.MouseButton1Click:Connect(function()
-                        selectedText = opt
-                        selLbl.Text = opt .. ""
+                        selectedText = opt; selLbl.Text = opt .. ""
                         pcall(cb, opt)
-                        if activeDropdown then activeDropdown:Destroy() activeDropdown = nil end
+                        if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil end
                     end)
                 end
             end
 
-            local clDD = Instance.new("TextButton")
-            clDD.Text = ""
-            clDD.BackgroundTransparency = 1
-            clDD.Size = UDim2.new(1, 0, 1, 0)
-            clDD.AutoButtonColor = false
-            clDD.Parent = row
+            local clDD = Instance.new("TextButton"); clDD.Text = ""; clDD.BackgroundTransparency = 1; clDD.Size = UDim2.new(1, 0, 1, 0); clDD.AutoButtonColor = false; clDD.Parent = row
             clDD.MouseButton1Click:Connect(BuildDropdown)
 
             local DDObj = {}
             function DDObj:Refresh(newOpts) 
                 opts = newOpts 
                 if #opts == 0 then selectedText = "None"; selLbl.Text = "None" end
-                if activeDropdown then activeDropdown:Destroy() activeDropdown = nil end
+                if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil end
             end
             function DDObj:Get() return selectedText end
             return DDObj
@@ -659,12 +612,10 @@ function UILib.CreateWindow(cfg)
             tbx.TextXAlignment=Enum.TextXAlignment.Left; tbx.ClearTextOnFocus=false; tbx.Parent=bxBG
             tbx.Focused:Connect(function() TweenService:Create(bxSt,TI_FAST,{Color=THEME.ACCENT}):Play() end)
             
-            tbx:GetPropertyChangedSignal("Text"):Connect(function()
-                if tbx.Text ~= "" then
-                    pcall(cb, tbx.Text)
-                end
+            tbx.FocusLost:Connect(function() 
+                TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER}):Play()
+                if tbx.Text ~= "" then pcall(cb, tbx.Text) end
             end)
-            tbx.FocusLost:Connect(function() TweenService:Create(bxSt,TI_FAST,{Color=THEME.BORDER}):Play() end)
             local IO={}
             function IO:Get() return tbx.Text end
             function IO:Set(t) tbx.Text=t end
@@ -685,9 +636,44 @@ end
 local Utility = {}
 local _conns  = {}
 
+-- Quản lý bộ nhớ Cache Parts dùng cho NoClip (Tối ưu hóa tài nguyên)
+local CharacterParts = {}
+local BoatParts = {}
+
 local function killConn(key)
     if _conns[key] then pcall(function() _conns[key]:Disconnect() end); _conns[key]=nil end
 end
+
+-- Cập nhật danh sách Parts nhân vật
+local function UpdateCharacterCache()
+    table.clear(CharacterParts)
+    local char = LocalPlayer.Character
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and not part:IsA("Seat") and not part:IsA("VehicleSeat") then
+                table.insert(CharacterParts, part)
+            end
+        end
+    end
+end
+
+-- Cập nhật danh sách Parts của thuyền
+local function UpdateBoatCache(boat)
+    table.clear(BoatParts)
+    if boat then
+        for _, part in ipairs(boat:GetDescendants()) do
+            if part:IsA("BasePart") and not part:IsA("Seat") and not part:IsA("VehicleSeat") then
+                table.insert(BoatParts, part)
+            end
+        end
+    end
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    UpdateCharacterCache()
+end)
+if LocalPlayer.Character then UpdateCharacterCache() end
 
 function Utility.GetBoat()
     local char = LocalPlayer.Character
@@ -720,25 +706,14 @@ function Utility.ForceStopBoat(boat)
     end)
 end
 
-function Utility.ForceNoClipModel(model, enable)
-    if not model then return end
-    for _, part in ipairs(model:GetDescendants()) do
-        if part:IsA("BasePart") and not part:IsA("Seat") and not part:IsA("VehicleSeat") then
-            part.CanCollide = not enable
-        end
-    end
-end
-
+-- [YÊU CẦU 1] TỐI ƯU HÀM ISFROZENWATCHER KHI KIỂM TRA FOLDER NPC
 function Utility.IsFrozenWatcher()
-    for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("Model") or v:IsA("Part") then
-            if v.Name == "Frozen Watcher" then
-                return true
-            end
-        end
+    local npcFolder = workspace:FindFirstChild("NPC")
+    if npcFolder and npcFolder:FindFirstChild("Frozen Watcher") then
+        return true
     end
-    local enemies = workspace:FindFirstChild("Enemies")
-    if enemies and enemies:FindFirstChild("Frozen Watcher") then
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    if enemiesFolder and enemiesFolder:FindFirstChild("Frozen Watcher") then
         return true
     end
     return false
@@ -835,7 +810,6 @@ local FindLeviathanToggle    = nil
 local TeleportConnection     = nil
 local BoatSpeedConnection    = nil
 
--- Tên file ảnh PNG chuẩn xác 100%
 local ICON_URL = "https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/Hilichurl_icon.png"
 
 BuildIconToggle(ICON_URL)
@@ -859,13 +833,13 @@ _G.UnloadScript = function()
     killConn("telplr")
     killConn("steppedLoop")
     killConn("renderLoop")
+    killConn("leviathanCheckLoop")
 
     local boat = Utility.GetBoat()
     if boat then Utility.ForceStopBoat(boat) end
 
-    if LocalPlayer.Character then
-        Utility.ForceNoClipModel(LocalPlayer.Character, false)
-    end
+    table.clear(CharacterParts)
+    table.clear(BoatParts)
 
     if WaterPart then WaterPart:Destroy() end
     Window:Destroy()
@@ -876,6 +850,38 @@ end
 local MainTab = Window:AddTab({ Name = "Main", Icon = "" })
 
 MainTab:AddSection("Leviathan Finder")
+
+-- [YÊU CẦU 4] QUẢN LÝ VÒNG LẶP CHECK LEVIATHAN CHỈ KHI KÍCH HOẠT TÍNH NĂNG
+local function StartLeviathanWatcherLoop()
+    killConn("leviathanCheckLoop")
+    _conns["leviathanCheckLoop"] = task.spawn(function()
+        while S.FindLeviathanEnabled do
+            task.wait(0.1)
+            if Utility.IsFrozenWatcher() then
+                local boat = Utility.GetBoat()
+                
+                if FindLeviathanConnection then
+                    FindLeviathanConnection:Disconnect()
+                    FindLeviathanConnection = nil
+                end
+                
+                if boat then Utility.ForceStopBoat(boat) end
+                
+                S.FindLeviathanEnabled = false
+                S.BoatNoClipEnabled = false
+                if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
+
+                if not WebhookSent and S.WebhookEnabled and S.WebhookURL ~= "" then
+                    WebhookSent = true
+                    Utility.SendWebhook(S.WebhookURL, LocalPlayer)
+                end
+
+                UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã phát hiện Frozen Watcher! Đã phanh thuyền.", 6)
+                break
+            end
+        end
+    end)
+end
 
 FindLeviathanToggle = MainTab:AddToggle({
     Name    = "Find Leviathan",
@@ -892,6 +898,10 @@ FindLeviathanToggle = MainTab:AddToggle({
                 UILib.Notify("Lỗi","Bạn phải ngồi trên ghế lái thuyền!",3)
                 return
             end
+
+            UpdateBoatCache(boat)
+            WebhookSent = false
+            StartLeviathanWatcherLoop()
 
             local seat = boat:FindFirstChildOfClass("VehicleSeat") or boat.PrimaryPart
             if not seat then return end
@@ -943,7 +953,8 @@ FindLeviathanToggle = MainTab:AddToggle({
             end)
             _conns["findLev"] = FindLeviathanConnection
         else
-            if FindLeviathanConnection then FindLeviathanConnection:Disconnect(); FindLeviathanConnection=nil end
+            killConn("findLev")
+            killConn("leviathanCheckLoop")
             Utility.ForceStopBoat(boat)
             S.BoatNoClipEnabled = false
         end
@@ -1073,17 +1084,13 @@ MiscTab:AddSection("Movement")
 MiscTab:AddSlider({
     Name="Walk Speed", Desc="Tốc độ di chuyển",
     Min=16, Max=250, Default=16, Suffix=" sp",
-    Callback=function(v)
-        S.CustomWalkSpeed = v
-    end,
+    Callback=function(v) S.CustomWalkSpeed = v end,
 })
 
 MiscTab:AddSlider({
     Name="Jump Power", Desc="Lực nhảy",
     Min=50, Max=500, Default=50, Suffix=" jp",
-    Callback=function(v)
-        S.CustomJumpPower = v
-    end,
+    Callback=function(v) S.CustomJumpPower = v end,
 })
 
 MiscTab:AddSection("NoClip")
@@ -1092,8 +1099,12 @@ MiscTab:AddToggle({
     Name="Player Noclip", Desc="Cho phép nhân vật xuyên qua vật thể", Default=false,
     Callback=function(val) 
         S.PlayerNoClipEnabled = val
-        if not val and LocalPlayer.Character then
-            Utility.ForceNoClipModel(LocalPlayer.Character, false)
+        if val then
+            UpdateCharacterCache()
+        else
+            for _, part in ipairs(CharacterParts) do
+                if part and part.Parent then part.CanCollide = true end
+            end
         end
     end,
 })
@@ -1184,42 +1195,27 @@ _conns["renderLoop"] = RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- [YÊU CẦU 2] TỐI ƯU NOCLIP: DUYỆT BẢNG CACHE DÙNG SẴN THAY VÌ GETDESCENDANTS CONTINUOUSLY
 _conns["steppedLoop"] = RunService.Stepped:Connect(function()
-    if S.PlayerNoClipEnabled and LocalPlayer.Character then
-        Utility.ForceNoClipModel(LocalPlayer.Character, true)
-    end
-    if S.BoatNoClipEnabled or S.FindLeviathanEnabled then
-        local bt = Utility.GetBoat()
-        if bt then Utility.ForceNoClipModel(bt, true) end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(0.1) do
-        if Utility.IsFrozenWatcher() then
-            if S.FindLeviathanEnabled then
-                local boat = Utility.GetBoat()
-                
-                if FindLeviathanConnection then
-                    FindLeviathanConnection:Disconnect()
-                    FindLeviathanConnection = nil
-                end
-                
-                if boat then Utility.ForceStopBoat(boat) end
-                
-                S.FindLeviathanEnabled = false
-                S.BoatNoClipEnabled = false
-                if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
-
-                if not WebhookSent and S.WebhookEnabled and S.WebhookURL ~= "" then
-                    WebhookSent = true
-                    Utility.SendWebhook(S.WebhookURL, LocalPlayer)
-                end
-
-                UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã phát hiện Frozen Watcher! Đã phanh thuyền.", 6)
+    if S.PlayerNoClipEnabled then
+        for i = #CharacterParts, 1, -1 do
+            local part = CharacterParts[i]
+            if part and part.Parent then
+                part.CanCollide = false
+            else
+                table.remove(CharacterParts, i)
             end
-        else
-            WebhookSent = false
+        end
+    end
+
+    if S.BoatNoClipEnabled or S.FindLeviathanEnabled then
+        for i = #BoatParts, 1, -1 do
+            local part = BoatParts[i]
+            if part and part.Parent then
+                part.CanCollide = false
+            else
+                table.remove(BoatParts, i)
+            end
         end
     end
 end)
