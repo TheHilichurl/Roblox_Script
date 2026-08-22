@@ -1,16 +1,15 @@
 --[[
     ================================================================
-    =  Luraph VM JSON Chunk Exporter (Multipart Attachment Mode)   =
-    =  Gửi File JSON đính kèm (File Attachment) qua Discord Webhook=
+    =  Luraph VM JSON Chunk Exporter (Boundary Markers Mode)       =
+    =  Gửi File JSON đính kèm có ký hiệu phân đoạn nối file        =
     =                                                              =
-    =  ĐẶC ĐIỂM:                                                   =
-    =   1. Toàn bộ Bytecode, Functions, Constants, Strings được    =
-    =      đóng gói thành định dạng JSON chuẩn.                    =
-    =   2. Chia thành các file JSON (mỗi file tối đa ~7MB để an    =
-    =      toàn với giới hạn 8MB của Discord và tránh lag RAM).    =
-    =   3. Gửi thẳng file JSON đính kèm (.json) qua Webhook.       =
-    =   4. Trên PC chỉ cần 1 script Python nhỏ là gộp lại thành   =
-    =      1 file Bytecode hoàn chỉnh 100%!                        =
+    =  QUY TẮC PHÂN ĐOẠN ĐƯỢC THIẾT LẬP:                           =
+    =   • Nếu chỉ có 1 file duy nhất:                              =
+    =       |Start| <dữ liệu JSON> |End|                           =
+    =   • Nếu có từ 2 file trở lên:                                =
+    =       - File 1:            |Start| <dữ liệu JSON> |Continue| =
+    =       - File giữa (2, 3..):|Continue| <dữ liệu> |Continue|   =
+    =       - File cuối cùng:    |Continue| <dữ liệu JSON> |End|   =
     ================================================================
 --]]
 
@@ -21,11 +20,11 @@ local CONFIG = {
     -- Discord Webhook URL
     WebhookURL = "https://discord.com/api/webhooks/1540742443459416074/OoigNnHKVnNmTh9unbAqX4hEyE7o7e2p9HM7P5Hob1_cEemOFY_0OMIE9SbO9JHGhKI5",
 
-    -- Tên file xuất ra trên Discord (ví dụ: BananaCat_Part1.json)
+    -- Tên file xuất ra trên Discord (ví dụ: BytecodeDump_Part1_of_N.json)
     FileBaseName = "BytecodeDump",
 
-    -- Kích thước tối đa mỗi file JSON (Byte). 
-    -- 7 * 1024 * 1024 = 7.340.032 Bytes (~7MB an toàn dưới mốc 8MB của Discord)
+    -- Kích thước tối đa mỗi file JSON (Byte).
+    -- 7 * 1024 * 1024 = ~7MB (an toàn tuyệt đối dưới hạn mức 8MB Discord)
     MaxFileSizeLimit = 7 * 1024 * 1024,
 
     -- Lọc độ dài chuỗi tối thiểu
@@ -88,7 +87,7 @@ local function sendDiscordFile(filename, fileContent, partIndex, totalParts)
         '',
         jsonEncode({
             username = "Luraph Bytecode Exporter",
-            content = ("📦 **[Bytecode File Attachment %d/%d]**\n📄 Tên file: `%s`\n📊 Kích thước: `%.2f MB`"):format(
+            content = ("📦 **[Tệp Bytecode Đính Kèm %d/%d]**\n📄 Tên file: `%s`\n📊 Kích thước: `%.2f MB`"):format(
                 partIndex, totalParts, filename, #fileContent / (1024 * 1024)
             )
         }),
@@ -253,14 +252,13 @@ local function captureMemory()
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  BỘ CHIA FILE JSON & GỬI TỰ ĐỘNG                  ║
+-- ║  BỘ CHIA FILE JSON & ĐÍNH KÈM THẺ NỐI             ║
 -- ╚═══════════════════════════════════════════════════╝
 local function buildAndExportJSON()
     print("[Exporter] 🚀 Đang khởi tạo toàn bộ Snapshot...")
     captureMemory()
     print(("[Exporter] Đã gom được %d hàm và %d chuỗi. Bắt đầu đóng gói JSON..."):format(DumpVault.TotalFuncCount, DumpVault.TotalStringCount))
 
-    -- Đóng gói dữ liệu thành các packages nhỏ nếu quá lớn
     local allFunctions = DumpVault.Functions
     local allStrings = DumpVault.Strings
 
@@ -273,28 +271,24 @@ local function buildAndExportJSON()
             total_strings = DumpVault.TotalStringCount,
         },
         functions = {},
-        strings = (allStrings) -- Đưa strings vào gói đầu tiên
+        strings = (allStrings)
     }
-
-    local currentPackageSize = 0
 
     for i = 1, #allFunctions do
         local fnObj = allFunctions[i]
         table.insert(currentPackage.functions, fnObj)
         
-        -- Cứ mỗi 150 hàm, kiểm tra dung lượng chuỗi JSON một lần
         if i % 150 == 0 or i == #allFunctions then
             local testJson = jsonEncode(currentPackage)
             if #testJson >= CONFIG.MaxFileSizeLimit or i == #allFunctions then
                 table.insert(jsonPackages, testJson)
-                -- Tạo package mới cho các hàm tiếp theo
                 currentPackage = {
                     metadata = {
                         session_id = tostring(math.floor(tick())),
                         part = #jsonPackages + 1,
                     },
                     functions = {},
-                    strings = {} -- Các gói sau không cần gửi lại strings
+                    strings = {}
                 }
             end
         end
@@ -305,15 +299,33 @@ local function buildAndExportJSON()
     end
 
     local totalParts = #jsonPackages
-    print(("[Exporter] Đã phân tách thành %d file JSON (< 7MB/file). Bắt đầu truyền dữ liệu..."):format(totalParts))
+    print(("[Exporter] Đã chia thành %d file. Đang gắn các thẻ nối [Start/Continue/End]..."):format(totalParts))
 
-    for partIdx, jsonStr in ipairs(jsonPackages) do
+    -- ÁP DỤNG QUY TẮC ĐÍNH KÈM THẺ NỐI (|Start|, |Continue|, |End|)
+    for partIdx = 1, totalParts do
+        local rawJson = jsonPackages[partIdx]
+        local markedContent = ""
+
+        if totalParts == 1 then
+            -- Trường hợp chỉ có 1 file duy nhất
+            markedContent = "|Start|\n" .. rawJson .. "\n|End|"
+        elseif partIdx == 1 then
+            -- File đầu tiên
+            markedContent = "|Start|\n" .. rawJson .. "\n|Continue|"
+        elseif partIdx == totalParts then
+            -- File cuối cùng
+            markedContent = "|Continue|\n" .. rawJson .. "\n|End|"
+        else
+            -- Các file ở giữa (Part 2, 3...)
+            markedContent = "|Continue|\n" .. rawJson .. "\n|Continue|"
+        end
+
         local fileName = ("%s_Part%d_of_%d.json"):format(CONFIG.FileBaseName, partIdx, totalParts)
-        sendDiscordFile(fileName, jsonStr, partIdx, totalParts)
+        sendDiscordFile(fileName, markedContent, partIdx, totalParts)
         if task and task.wait then task.wait(2.5) elseif wait then wait(2.5) end
     end
 
-    print("[Exporter] 🎉 ĐÃ TRUYỀN TOÀN BỘ FILE BYTECODE JSON XONG!")
+    print("[Exporter] 🎉 ĐÃ TRUYỀN TOÀN BỘ FILE BYTECODE JSON KÈM THẺ NỐI XONG!")
 end
 
 -- ╔═══════════════════════════════════════════════════╗
@@ -345,7 +357,7 @@ local function createExportUI()
         local title = Instance.new("TextLabel", frame)
         title.Size = UDim2.new(1, 0, 0, 24)
         title.Position = UDim2.new(0, 0, 0, 4)
-        title.Text = "📁 Luraph JSON Exporter (7MB Chunks)"
+        title.Text = "📁 Luraph JSON Exporter"
         title.TextColor3 = Color3.fromRGB(255, 255, 255)
         title.Font = Enum.Font.GothamBold
         title.TextSize = 11
@@ -393,6 +405,6 @@ end
 
 -- Khởi động
 print("==================================================")
-print("  Luraph JSON Chunk Exporter - SẴN SÀNG          ")
+print("  Luraph JSON Chunk Exporter (Tagged) - SẴN SÀNG  ")
 print("==================================================")
 createExportUI()
