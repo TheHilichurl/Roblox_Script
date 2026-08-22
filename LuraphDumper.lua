@@ -25,7 +25,7 @@ local SETTINGS = {
     TargetScriptCode = "",
     
     -- Tên script (để hiển thị trong Discord)
-    ScriptName = "BF-BananaCat.lua",
+    ScriptName = "QuantumOnyx.lua",
     
     -- Cài đặt dumper
     WebhookUsername = "Luraph VM Dumper",
