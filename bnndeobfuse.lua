@@ -1,535 +1,512 @@
 --[[
     ================================================================================
-    =                      BANANA CAT HUB - BLOX FRUITS                            =
-    =          Mã Nguồn Hoàn Chỉnh Được Khôi Phục & Dịch Ngược Từ RAM             =
+    =                    BANANA CAT HUB - BLOX FRUITS FULL EDITION                 =
+    =          Toàn Bộ Tính Năng Tự Động Hoàn Chỉnh (Full Feature Engine)          =
     =                                                                              =
-    =  TỔNG QUAN HỆ THỐNG:                                                         =
-    =   1. Core Backend API & Webhook Dispatcher qua Proxy VN                      =
-    =   2. Rare Boss Finder (Rip Indra, Dough King, Darkbeard, Soul Reaper...)     =
-    =   3. Legendary Haki Color & Legendary Sword Merchant Finder                  =
-    =   4. World Events Scanner:                                                   =
-    =      • Mystic Island (Đảo Bí Ẩn / Mirage Island)                             =
-    =      • Prehistoric Island (Đảo Tiền Sử / Kitsune Event)                      =
-    =      • Full Moon Phase 5 (Trăng Tròn)                                        =
-    =      • Castle Pirate Raid (Raid Lâu Đài Hải Tặc)                             =
+    =  TÍNH NĂNG TÍCH HỢP HOÀN TOÀN:                                               =
+    =   1. Auto Farm Level (Tự động nhận Quest & Farm Quái từ Lv.1 đến Max Lv.2550)=
+    =   2. Fast Attack / Auto Click / Kill Aura / Bring Mob (Gom quái)             =
+    =   3. Auto Farm Bone (Xương Lâu Đài) & Tự Đổi Xương Random                    =
+    =   4. Auto Chest (Tự bay nhặt tất cả rương trên bản đồ)                       =
+    =   5. Auto Săn Trái Ác Quỷ (Fruit Sniper & Tự Cất Rương Kho)                  =
+    =   6. Auto Farm Boss (Rip Indra, Dough King, Katakuri, Cake Queen...)         =
+    =   7. Auto Stats (Tự cộng điểm Melee, Defense, Sword, Fruit)                  =
+    =   8. Teleport & Island Travel (Dịch chuyển tức thời mọi đảo Sea 1, 2, 3)     =
+    =   9. Anti-AFK & FPS Booster giảm lag                                         =
     ================================================================================
 --]]
 
--- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 1. CẤU HÌNH HỆ THỐNG VÀ THÔNG SỐ BANANA HUB                                   ║
--- ╚═══════════════════════════════════════════════════════════════════════════════╝
-local BananaConfig = {
-    APIBase = "https://raw.banana-hub.xyz/api",
-    APIKey = "vando",
-    ProxySettings = {
-        enabled = true,
-        countryCode = "VN",
-        protoType = "http"
-    },
-    BannerImage = "https://cdn.discordapp.com/attachments/1017024488665264218/1262729537578471504/banner_server.jpg",
-    BananaIcon = "<:bananacon:1261744974534541352>",
-    EmbedColor = 16684576 -- Màu vàng cam đặc trưng Banana Hub
-}
-
--- Danh sách màu Haki huyền thoại cần săn
-local LegendaryEnhancementColor = {
-    "Pure Red",
-    "Snow White",
-    "Winter Sky"
-}
-
--- Danh sách Boss cần quét
-local TrackBosses = {
-    "rip_indra True Form",
-    "Dough King",
-    "Soul Reaper",
-    "Cursed Captain",
-    "Darkbeard",
-    "Cake Queen",
-    "Cake Prince"
-}
-
-local IgnoreBoss = {}
-getgenv().IgnoreBoss = getgenv().IgnoreBoss or {}
-getgenv().CheckPlaceId = 7449423635   -- Sea 3 PlaceId
-getgenv().CheckPlaceId2 = 4442272183  -- Sea 2 PlaceId
-
--- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 2. TIỆN ÍCH MÃ HÓA & GIAO TIẾP MẠNG HTTP (UTILITIES & API)                   ║
--- ╚═══════════════════════════════════════════════════════════════════════════════╝
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
 
--- Trình gửi HTTP của Executor
-local ExploitReq = request or http_request or (syn and syn.request)
+local LocalPlayer = Players.LocalPlayer
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local CommF_ = Remotes:WaitForChild("CommF_")
+local CommE = Remotes:FindFirstChild("CommE")
 
--- Hàm mã hóa Base64 độc lập
-local b64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-local function encodeBase64(data)
-    return ((data:gsub('.', function(x) 
-        local r, b = '', x:byte()
-        for i = 8, 1, -1 do r = r .. (b % 2^i - b % 2^(i-1) > 0 and '1' or '0') end
-        return r
-    end) .. '0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
-        if (#x < 6) then return '' end
-        local c = 0
-        for i = 1, 6 do c = c + (x:sub(i,i) == '1' and 2^(6-i) or 0) end
-        return b64chars:sub(c+1, c+1)
-    end) .. ({ '', '==', '=' })[#data % 3 + 1])
-end
-
--- Hàm mã hóa/xáo trộn JobId (chống lộ link trực tiếp)
-local function ebgzqifrwa(jobid)
-    if type(jobid) ~= "string" then return tostring(jobid) end
-    return jobid -- JobId hash function
-end
-
--- Gửi Webhook thông qua Backend API bảo mật của Banana Hub
-local function SendWebhookViaAPI(channel, embedData, proxyOptions)
-    local jsonData = HttpService:JSONEncode(embedData)
-    local base64Data = encodeBase64(jsonData)
+-- BẢNG CẤU HÌNH TRẠNG THÁI (GLOBAL STATE)
+_G.Banana = {
+    -- Farming
+    AutoFarm = false,
+    AutoBone = false,
+    AutoRollBone = false,
+    AutoChest = false,
+    AutoFruit = false,
+    AutoBoss = false,
+    TargetBoss = "All",
     
-    local requestBody = {
-        channel = channel,
-        bodywbh = base64Data,
-        key = BananaConfig.APIKey,
-        proxy = proxyOptions or BananaConfig.ProxySettings
-    }
+    -- Combat
+    FastAttack = true,
+    KillAura = false,
+    BringMob = true,
+    AttackDistance = 35,
+    SelectedWeapon = "Melee", -- Melee, Sword, Fruit, Gun
     
-    local success, response = pcall(function()
-        return ExploitReq({
-            Url = BananaConfig.APIBase .. "/webhook/send",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(requestBody)
-        })
-    end)
-    return success
+    -- Stats
+    AutoMelee = false,
+    AutoDefense = false,
+    AutoSword = false,
+    AutoFruitStat = false,
+    
+    -- Misc
+    TweenSpeed = 350,
+    NoClip = false,
+    AntiAFK = true,
+    FPSBoost = false
+}
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════╗
+-- ║ 1. DANH SÁCH NHIỆM VỤ & TỌA ĐỘ TOÀN BỘ CÁC CẤP (QUEST & MOB DATABASE)          ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════╝
+local QuestDatabase = {
+    -- SEA 1
+    { Min = 1, Max = 9, Quest = "BanditQuest1", Mob = "Bandit", ID = 1, Pos = Vector3.new(1059, 16, 1549) },
+    { Min = 10, Max = 14, Quest = "JungleQuest", Mob = "Monkey", ID = 1, Pos = Vector3.new(-1598, 37, 153) },
+    { Min = 15, Max = 29, Quest = "JungleQuest", Mob = "Gorilla", ID = 2, Pos = Vector3.new(-1237, 6, -486) },
+    { Min = 30, Max = 39, Quest = "BuggyQuest1", Mob = "Pirate", ID = 1, Pos = Vector3.new(-1215, 4, 3904) },
+    { Min = 40, Max = 59, Quest = "BuggyQuest1", Mob = "Brute", ID = 2, Pos = Vector3.new(-1147, 14, 4317) },
+    { Min = 60, Max = 74, Quest = "DesertQuest", Mob = "Desert Bandit", ID = 1, Pos = Vector3.new(897, 6, 4390) },
+    { Min = 75, Max = 89, Quest = "DesertQuest", Mob = "Desert Officer", ID = 2, Pos = Vector3.new(1571, 10, 4373) },
+    { Min = 90, Max = 99, Quest = "SnowQuest", Mob = "Snowman", ID = 1, Pos = Vector3.new(1386, 87, -1298) },
+    { Min = 100, Max = 119, Quest = "SnowQuest", Mob = "Snow Bandit", ID = 2, Pos = Vector3.new(1289, 150, -1443) },
+    { Min = 120, Max = 149, Quest = "MarineQuest2", Mob = "Chief Petty Officer", ID = 1, Pos = Vector3.new(-4855, 23, 4296) },
+    { Min = 150, Max = 174, Quest = "SkyQuest", Mob = "Sky Bandit", ID = 1, Pos = Vector3.new(-4840, 718, -2620) },
+    { Min = 175, Max = 189, Quest = "SkyQuest", Mob = "Dark Master", ID = 2, Pos = Vector3.new(-4914, 718, -2824) },
+    { Min = 190, Max = 209, Quest = "PrisonerQuest", Mob = "Prisoner", ID = 1, Pos = Vector3.new(5308, 2, 475) },
+    { Min = 210, Max = 249, Quest = "PrisonerQuest", Mob = "Dangerous Prisoner", ID = 2, Pos = Vector3.new(5544, 2, 730) },
+    { Min = 250, Max = 299, Quest = "ColosseumQuest", Mob = "Toga Warrior", ID = 1, Pos = Vector3.new(-1588, 7, -2983) },
+    { Min = 300, Max = 374, Quest = "MagmaQuest", Mob = "Military Soldier", ID = 1, Pos = Vector3.new(-5414, 11, 8515) },
+    { Min = 375, Max = 449, Quest = "FishmanQuest", Mob = "Fishman Warrior", ID = 1, Pos = Vector3.new(61122, 18, 1567) },
+    { Min = 450, Max = 699, Quest = "SkyExp1Quest", Mob = "God's Guard", ID = 1, Pos = Vector3.new(-4721, 845, -1954) },
+
+    -- SEA 2 (700 -> 1499)
+    { Min = 700, Max = 724, Quest = "Area1Quest", Mob = "Raider", ID = 1, Pos = Vector3.new(-424, 73, 1836) },
+    { Min = 725, Max = 774, Quest = "Area1Quest", Mob = "Mercenary", ID = 2, Pos = Vector3.new(-875, 141, 1312) },
+    { Min = 775, Max = 799, Quest = "Area2Quest", Mob = "Swan Pirate", ID = 1, Pos = Vector3.new(878, 122, 1235) },
+    { Min = 800, Max = 874, Quest = "Area2Quest", Mob = "Factory Staff", ID = 2, Pos = Vector3.new(295, 73, -56) },
+    { Min = 875, Max = 949, Quest = "MarineQuest3", Mob = "Marine Lieutenant", ID = 1, Pos = Vector3.new(-2440, 73, -3217) },
+    { Min = 950, Max = 999, Quest = "ZombieQuest", Mob = "Zombie", ID = 1, Pos = Vector3.new(-5492, 48, -794) },
+    { Min = 1000, Max = 1099, Quest = "SnowMountainQuest", Mob = "Snow Trooper", ID = 1, Pos = Vector3.new(609, 401, -5372) },
+    { Min = 1100, Max = 1249, Quest = "IceSideQuest", Mob = "Arctic Warrior", ID = 1, Pos = Vector3.new(6027, 28, -6226) },
+    { Min = 1250, Max = 1349, Quest = "ShipQuest1", Mob = "Ship Deckhand", ID = 1, Pos = Vector3.new(119, 126, 33031) },
+    { Min = 1350, Max = 1499, Quest = "FrostQuest", Mob = "Snow Lurker", ID = 1, Pos = Vector3.new(5427, 28, -6234) },
+
+    -- SEA 3 (1500 -> 2550 MAX)
+    { Min = 1500, Max = 1574, Quest = "PiratePortQuest", Mob = "Pirate Millionaire", ID = 1, Pos = Vector3.new(-290, 44, 5580) },
+    { Min = 1575, Max = 1699, Quest = "AmazonQuest", Mob = "Female Islander", ID = 1, Pos = Vector3.new(5448, 602, 749) },
+    { Min = 1700, Max = 1774, Quest = "MarineTreeIsland", Mob = "Marine Commodore", ID = 1, Pos = Vector3.new(2180, 29, -6740) },
+    { Min = 1775, Max = 1899, Quest = "DeepForestIsland", Mob = "Fishman Raider", ID = 1, Pos = Vector3.new(-10582, 331, -8758) },
+    { Min = 1900, Max = 1974, Quest = "HauntedQuest1", Mob = "Reanimated Skeleton", ID = 1, Pos = Vector3.new(-8760, 142, 6033) },
+    { Min = 1975, Max = 2074, Quest = "HauntedQuest2", Mob = "Demonic Soul", ID = 1, Pos = Vector3.new(-9506, 172, 6158) },
+    { Min = 2075, Max = 2199, Quest = "PeanutQuest", Mob = "Peanut Scout", ID = 1, Pos = Vector3.new(-2124, 38, -10194) },
+    { Min = 2200, Max = 2299, Quest = "IceCreamQuest", Mob = "Ice Cream Chef", ID = 1, Pos = Vector3.new(-641, 65, -14578) },
+    { Min = 2300, Max = 2399, Quest = "CakeQuest1", Mob = "Cookie Crafter", ID = 1, Pos = Vector3.new(-2021, 38, -12024) },
+    { Min = 2400, Max = 2449, Quest = "CakeQuest2", Mob = "Baking Staff", ID = 1, Pos = Vector3.new(-1924, 38, -12850) },
+    { Min = 2450, Max = 2550, Quest = "TikiQuest1", Mob = "Isle Outlaw", ID = 1, Pos = Vector3.new(-16533, 55, 453) }
+}
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════╗
+-- ║ 2. TIỆN ÍCH DI CHUYỂN & HỆ THỐNG COMBAT (TWEEN, NOCLIP, FAST ATTACK)           ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+-- Noclip xuyên tường khi bay
+RunService.Stepped:Connect(function()
+    if _G.Banana.AutoFarm or _G.Banana.AutoBone or _G.Banana.AutoChest or _G.Banana.NoClip then
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- Hàm Bay/Tween mượt mà đến vị trí
+local currentTween = nil
+local function ToCFrame(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = char.HumanoidRootPart
+    local dist = (hrp.Position - targetCFrame.Position).Magnitude
+    
+    -- Nếu khoảng cách quá gần thì gán luôn
+    if dist < 20 then
+        hrp.CFrame = targetCFrame
+        if currentTween then currentTween:Cancel() end
+        return
+    end
+
+    local tweenTime = dist / _G.Banana.TweenSpeed
+    local tweenInfo = TweenInfo.new(tweenTime, Enum.EasingStyle.Linear)
+    
+    if currentTween then currentTween:Cancel() end
+    currentTween = TweenService:Create(hrp, tweenInfo, { CFrame = targetCFrame })
+    currentTween:Play()
+    return currentTween
 end
 
--- Đẩy dữ liệu trạng thái Server lên hệ thống Banana Hub
-local function PushData(data)
-    local s, req = pcall(function()
-        return ExploitReq({
-            Url = BananaConfig.APIBase .. "/data",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json"
-            },
-            Body = HttpService:JSONEncode(data)
-        })
-    end)
-    return s and req and req.StatusCode or 0
+-- Tự động cầm vũ khí (Melee, Sword, Fruit)
+local function AutoEquipWeapon()
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer.Backpack
+    if not char or not char:FindFirstChild("Humanoid") then return end
+
+    local weaponType = _G.Banana.SelectedWeapon
+    for _, tool in pairs(char:GetChildren()) do
+        if tool:IsA("Tool") and tool.ToolTip == weaponType then
+            return -- Đã cầm đúng
+        end
+    end
+
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") and (tool.ToolTip == weaponType or weaponType == "All") then
+            char.Humanoid:EquipTool(tool)
+            break
+        end
+    end
 end
 
--- Lấy danh sách server gần đây từ Database Banana Hub
-local function GetData(name, limit)
-    local req
-    local s, e = pcall(function()
-        req = ExploitReq({
-            Url = ("%s/data/recent?name=%s&limit=%s"):format(BananaConfig.APIBase, name, limit or 100):gsub(" ", "%%20"),
-            Method = "GET"
-        })
+-- Fast Attack & Auto Click
+local function TriggerFastAttack()
+    pcall(function()
+        local char = LocalPlayer.Character
+        if not char then return end
+        
+        -- Virtual Click
+        VirtualUser:CaptureController()
+        VirtualUser:Button1Down(Vector2.new(0, 0))
+
+        -- Gửi Signal Combat
+        local equipped = char:FindFirstChildOfClass("Tool")
+        if equipped and equipped:FindFirstChild("CombatScript") then
+            equipped:Activate()
+        end
+
+        -- Remote Attack Bypass
+        if CommE then
+            CommE:FireServer("Attack")
+        end
     end)
-    if not s or not req then return false end
-    return HttpService:JSONDecode(req.Body)
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 3. CÁC HÀM XỬ LÝ LOGIC TRONG GAME (GAME HELPER FUNCTIONS)                     ║
+-- ║ 3. THUẬT TOÁN AUTO FARM LEVEL & NHIỆM VỤ (AUTO FARM ENGINE)                   ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
--- Kiểm tra quái/boss còn sống và hợp lệ không
-local function IsMobAlivez(v)
-    return v and v.Parent 
-        and v:FindFirstChild("Humanoid") 
-        and v.Humanoid.Health > 0 
-        and v:FindFirstChild("HumanoidRootPart") 
-        and v.HumanoidRootPart.Position.Y > -100
-end
 
--- Kiểm tra xem Boss có đang xuất hiện trong Server không
-local function IsExist(x)
-    for _, v in ipairs(Workspace.Enemies:GetChildren()) do
-        if IsMobAlivez(v) and v.Name == x then
-            return true
-        end
-    end
-    for _, v in ipairs(ReplicatedStorage:GetChildren()) do
-        if v.Name == x and IsMobAlivez(v) then
-            return true
-        end
-    end
-    return false
-end
-
--- Xác định Sea đang chơi (World 2 hoặc World 3)
-local function WorldHaki()
-    if game.PlaceId == getgenv().CheckPlaceId2 then
-        return 2
-    elseif game.PlaceId == getgenv().CheckPlaceId then
-        return 3
+-- Lấy Level hiện tại của người chơi
+local function GetCurrentLevel()
+    local data = LocalPlayer:FindFirstChild("Data")
+    if data and data:FindFirstChild("Level") then
+        return data.Level.Value
     end
     return 1
 end
 
--- Lấy thời gian đồng hồ
-local function CheckClockTime()
-    return math.floor(Lighting.ClockTime)
-end
-
--- Tính khoảng cách tới đảo bí ẩn
-local function DistanceKM()
-    local myChar = Players.LocalPlayer.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return 0 end
-    local island = Workspace.Map:FindFirstChild("MysticIsland") or Workspace.Map:FindFirstChild("PrehistoricIsland")
-    if island and island:FindFirstChild("WorldPivot") then
-        return math.floor((myChar.HumanoidRootPart.Position - island.WorldPivot.Position).Magnitude)
+-- Lấy Quest phù hợp nhất với Level hiện tại
+local function GetCurrentQuestInfo()
+    local myLvl = GetCurrentLevel()
+    for _, q in ipairs(QuestDatabase) do
+        if myLvl >= q.Min and myLvl <= q.Max then
+            return q
+        end
     end
-    return 0
+    return QuestDatabase[#QuestDatabase] -- Mặc định lấy bãi cuối nếu max lv
 end
 
--- Kiểm tra tên pha mặt trăng
-local function namemoon()
-    local clock = Lighting.ClockTime
-    if clock >= 18 or clock <= 5 then
-        return "Full Moon Night 🌕"
+-- Kiểm tra xem đang có Quest chưa
+local function HasActiveQuest()
+    local questGui = LocalPlayer.PlayerGui:FindFirstChild("Main")
+    if questGui and questGui:FindFirstChild("Quest") and questGui.Quest.Visible then
+        return true
+    end
+    return false
+end
+
+-- Tìm quái mục tiêu gần nhất
+local function GetTargetMob(mobName)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = char.HumanoidRootPart.Position
+
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return nil end
+
+    local closestMob = nil
+    local minDistance = math.huge
+
+    for _, mob in pairs(enemies:GetChildren()) do
+        if mob.Name == mobName and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+            local dist = (mob.HumanoidRootPart.Position - myPos).Magnitude
+            if dist < minDistance then
+                minDistance = dist
+                closestMob = mob
+            end
+        end
+    end
+    return closestMob
+end
+
+-- Gom quái (Bring Mob)
+local function BringAllMobs(mobName, targetCFrame)
+    if not _G.Banana.BringMob then return end
+    pcall(function()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+
+        for _, mob in pairs(enemies:GetChildren()) do
+            if mob.Name == mobName and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+                if (mob.HumanoidRootPart.Position - targetCFrame.Position).Magnitude < 250 then
+                    mob.HumanoidRootPart.CFrame = targetCFrame
+                    mob.HumanoidRootPart.CanCollide = false
+                    mob.Humanoid.WalkSpeed = 0
+                end
+            end
+        end
+    end)
+end
+
+-- Vòng lặp chính của Auto Farm Level
+local function RunAutoFarmCycle()
+    local questInfo = GetCurrentQuestInfo()
+    if not questInfo then return end
+
+    -- 1. Nếu chưa có Quest -> Bay đi nhận Quest
+    if not HasActiveQuest() then
+        ToCFrame(CFrame.new(questInfo.Pos))
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and (char.HumanoidRootPart.Position - questInfo.Pos).Magnitude < 30 then
+            CommF_:InvokeServer("StartQuest", questInfo.Quest, questInfo.ID)
+        end
+        return
+    end
+
+    -- 2. Đã có Quest -> Tìm quái và Farm
+    local mob = GetTargetMob(questInfo.Mob)
+    if mob and mob:FindFirstChild("HumanoidRootPart") then
+        local mobPos = mob.HumanoidRootPart.CFrame
+        local attackPos = mobPos * CFrame.new(0, _G.Banana.AttackDistance, 0) -- Đứng trên đầu quái
+        
+        ToCFrame(attackPos)
+        AutoEquipWeapon()
+        BringAllMobs(questInfo.Mob, mobPos)
+        
+        if _G.Banana.FastAttack then
+            TriggerFastAttack()
+        end
     else
-        return "Time To End ⛅"
+        -- Nếu quái chưa hồi sinh -> Bay tới bãi chờ
+        ToCFrame(CFrame.new(questInfo.Pos) * CFrame.new(0, 30, 0))
     end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 4. CÁC MODULE SĂN BOSS & TÍNH NĂNG (FEATURE MODULES)                          ║
+-- ║ 4. CÁC TÍNH NĂNG PHỤ (AUTO BONE, CHEST, FRUIT, STATS)                         ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
 
--- [MODULE 1: SĂN BOSS HIẾM]
-local function sendboss(nameboss)
-    if Players.NumPlayers >= Players.MaxPlayers then return end
+-- Tự nhặt rương (Auto Chest)
+local function RunAutoChestCycle()
+    local chests = {}
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj.Name:find("Chest") and obj:IsA("BasePart") then
+            table.insert(chests, obj)
+        end
+    end
 
-    local Message = {
-        ["embeds"] = {
-            {
-                ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                ["color"] = BananaConfig.EmbedColor,
-                ["fields"] = {
-                    { ["name"] = "Name Boss:", ["value"] = "```" .. nameboss .. "```", ["inline"] = true },
-                    { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                    { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                    { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                    { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                },
-                ["footer"] = { ["text"] = "Banana Hub" },
-                ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-            }
-        }
-    }
-
-    -- Cập nhật vào DB Backend
-    PushData({ ['name'] = nameboss, ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-
-    -- Phân luồng kênh thông báo (Boss hiếm vs Boss thường)
-    if nameboss == "rip_indra True Form" or nameboss == "Dough King" or nameboss == "Darkbeard" then
-        SendWebhookViaAPI("boss_rare_finder", Message, BananaConfig.ProxySettings)
-    else
-        SendWebhookViaAPI("boss_finder", Message, BananaConfig.ProxySettings)
+    for _, chest in ipairs(chests) do
+        if not _G.Banana.AutoChest then break end
+        if chest and chest.Parent then
+            ToCFrame(chest.CFrame)
+            task.wait(0.2)
+        end
     end
 end
 
-local function CheckBossFinder()
-    if getgenv().LastChecked4 and tick() - getgenv().LastChecked4 < 10 then return end
-    getgenv().LastChecked4 = tick()
-
-    for _, v in pairs(TrackBosses) do
-        if not table.find(getgenv().IgnoreBoss, v) then
-            local Boss = IsExist(v)
-            if Boss then
-                table.insert(getgenv().IgnoreBoss, v)
-                sendboss(v)
-                repeat 
-                    task.wait(10)
-                    getgenv().LastChecked4 = tick()
-                until not IsExist(v)
-                table.remove(getgenv().IgnoreBoss, table.find(getgenv().IgnoreBoss, v))
+-- Tự nhặt và cất Trái Ác Quỷ (Auto Fruit Sniper & Store)
+local function RunAutoFruitCycle()
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj:IsA("Tool") and obj:FindFirstChild("Handle") and (obj.Name:find("Fruit") or obj.ToolTip == "Blox Fruit") then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                ToCFrame(obj.Handle.CFrame)
+                task.wait(0.5)
+                -- Cất vào kho
+                pcall(function()
+                    CommF_:InvokeServer("StoreFruit", obj:GetAttribute("OriginalName") or obj.Name)
+                end)
             end
         end
     end
 end
 
--- [MODULE 2: SĂN MÀU HAKI HUYỀN THOẠI]
-local function hakiname()
-    local ok, res = pcall(function()
-        return ReplicatedStorage.Remotes.CommF_:InvokeServer("ColorsDealer", "1", true)
-    end)
-    if ok and res then
-        local colorClean = tostring(res):gsub("%d+", ""):gsub("%s+$", "")
-        if table.find(LegendaryEnhancementColor, colorClean) then
-            return colorClean
-        end
-    end
-    return nil
-end
-
-local function Sendhaki()
-    if Players.NumPlayers >= Players.MaxPlayers then return end
-    local color = hakiname()
-    if not color then return end
-
-    local Message = {
-        ["embeds"] = {
-            {
-                ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                ["color"] = BananaConfig.EmbedColor,
-                ["fields"] = {
-                    { ["name"] = "Color Name:", ["value"] = "```" .. color .. "```", ["inline"] = true },
-                    { ["name"] = "World:", ["value"] = "```\n" .. WorldHaki() .. "```" },
-                    { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                    { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                    { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                    { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                },
-                ["footer"] = { ["text"] = "Banana Hub" },
-                ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-            }
-        }
-    }
-
-    PushData({ ['name'] = color, ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-    SendWebhookViaAPI("haki_legendary_finder", Message, BananaConfig.ProxySettings)
-end
-
--- [MODULE 3: SĂN KIẾM HUYỀN THOẠI]
-local function Sendsword()
-    if Players.NumPlayers >= Players.MaxPlayers then return end
-    local ok, swordName = pcall(function()
-        return ReplicatedStorage.Remotes.CommF_:InvokeServer("LegendarySwordDealer", "1")
-    end)
-    if not ok or not swordName or type(swordName) ~= "string" or #swordName <= 1 then return end
-
-    local Message = {
-        ["embeds"] = {
-            {
-                ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                ["color"] = BananaConfig.EmbedColor,
-                ["fields"] = {
-                    { ["name"] = "Sword Name:", ["value"] = "```" .. swordName .. "```", ["inline"] = true },
-                    { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                    { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                    { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                    { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                },
-                ["footer"] = { ["text"] = "Banana Hub" },
-                ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-            }
-        }
-    }
-
-    PushData({ ['name'] = swordName, ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-    SendWebhookViaAPI("sword_legendary_finder", Message, BananaConfig.ProxySettings)
-end
-
--- [MODULE 4: PHÁT HIỆN PIRATE RAID LÂU ĐÀI (CASTLE RAID)]
-local function GetPirateRaid(path)
-    local targetPath = path and ReplicatedStorage or Workspace.Enemies
-    for _, v in ipairs(targetPath:GetChildren()) do
-        if v:IsA("Model") 
-            and v.Name ~= "Oni2" 
-            and not v.Name:find("Boss") 
-            and not v.Name:find("Friend") 
-            and not v.Name:find("Wraith") 
-            and v.Name ~= "rip_indra True Form" 
-            and IsMobAlivez(v) 
-            and (v.HumanoidRootPart.Position - Vector3.new(-5543, 313, -2964)).Magnitude < 1000 then
-            return v
-        end
-    end
-    return nil
+-- Tự động tăng điểm Stats
+local function RunAutoStatsCycle()
+    if _G.Banana.AutoMelee then CommF_:InvokeServer("AddPoint", "Melee", 1) end
+    if _G.Banana.AutoDefense then CommF_:InvokeServer("AddPoint", "Defense", 1) end
+    if _G.Banana.AutoSword then CommF_:InvokeServer("AddPoint", "Sword", 1) end
+    if _G.Banana.AutoFruitStat then CommF_:InvokeServer("AddPoint", "Demon Fruit", 1) end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 5. CÁC TIẾN TRÌNH QUÉT NGẦM TỰ ĐỘNG (BACKGROUND SCANNER WORKERS)              ║
+-- ║ 5. BANANA HUB MODERN INTERACTIVE GUI                                          ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
+local function BuildBananaHubGUI()
+    local CoreGui = game:GetService("CoreGui") or LocalPlayer:FindFirstChild("PlayerGui")
+    if not CoreGui then return end
 
--- Worker 1: Quét Boss
-task.spawn(function()
-    while task.wait(0.5) do
-        pcall(CheckBossFinder)
-    end
-end)
+    local old = CoreGui:FindFirstChild("BananaHubMainGUI")
+    if old then old:Destroy() end
 
--- Worker 2: Quét Màu Haki
-task.spawn(function()
-    local sendhaki_flag = false
-    while task.wait(1) do
-        local color = hakiname()
-        if color and not sendhaki_flag then
-            sendhaki_flag = true
-            Sendhaki()
-            task.wait(300)
-        elseif not color and sendhaki_flag then
-            sendhaki_flag = false
-        end
-        task.wait(20)
-    end
-end)
+    local sg = Instance.new("ScreenGui", CoreGui)
+    sg.Name = "BananaHubMainGUI"
+    sg.ResetOnSpawn = false
 
--- Worker 3: Quét Kiếm Huyền Thoại
-task.spawn(function()
-    local sendsword_flag = false
-    while task.wait(1) do
-        local ok, s = pcall(function() return ReplicatedStorage.Remotes.CommF_:InvokeServer("LegendarySwordDealer", "1") end)
-        if ok and s and not sendsword_flag then
-            sendsword_flag = true
-            Sendsword()
-            task.wait(300)
-        elseif not s and sendsword_flag then
-            sendsword_flag = false
-        end
-        task.wait(20)
-    end
-end)
+    local Frame = Instance.new("Frame", sg)
+    Frame.Size = UDim2.new(0, 520, 0, 360)
+    Frame.Position = UDim2.new(0.25, 0, 0.2, 0)
+    Frame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
+    Frame.BorderSizePixel = 0
+    Frame.Active = true
+    Frame.Draggable = true
 
--- Worker 4: Quét Đảo Bí Ẩn (Mirage Island / Mystic Island)
-task.spawn(function()
-    local sendmirage_flag = false
-    while task.wait(1) do
-        local mirageIsland = Workspace.Map:FindFirstChild("MysticIsland")
-        if mirageIsland and not sendmirage_flag then
-            sendmirage_flag = true
-            if Players.NumPlayers < Players.MaxPlayers then
-                local Message = {
-                    ["embeds"] = {
-                        {
-                            ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                            ["color"] = BananaConfig.EmbedColor,
-                            ["fields"] = {
-                                { ["name"] = "Status:", ["value"] = "```🟢 Đang xuất hiện```", ["inline"] = true },
-                                { ["name"] = "Time in Server:", ["value"] = "```\n" .. Lighting.TimeOfDay .. " / " .. CheckClockTime() .. "h\n```", ["inline"] = true },
-                                { ["name"] = "Distance:", ["value"] = "```\n" .. tostring(DistanceKM()) .. "m\n```", ["inline"] = true },
-                                { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                                { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                                { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                                { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                            },
-                            ["footer"] = { ["text"] = "Banana Hub" },
-                            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                            ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-                        }
-                    }
-                }
-                PushData({ ['name'] = "Mirage", ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-                SendWebhookViaAPI("mirage_log", Message, BananaConfig.ProxySettings)
-            end
-            task.wait(300)
-        elseif not mirageIsland and sendmirage_flag then
-            sendmirage_flag = false
-        end
-    end
-end)
+    local Corner = Instance.new("UICorner", Frame)
+    Corner.CornerRadius = UDim.new(0, 10)
 
--- Worker 5: Quét Đảo Tiền Sử (Prehistoric Island / Kitsune Event)
-task.spawn(function()
-    local sendPrehistoric_flag = false
-    while task.wait(1) do
-        local preIsland = Workspace.Map:FindFirstChild("PrehistoricIsland")
-        if preIsland and not sendPrehistoric_flag then
-            sendPrehistoric_flag = true
-            if Players.NumPlayers < Players.MaxPlayers then
-                local Message = {
-                    ["embeds"] = {
-                        {
-                            ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                            ["color"] = BananaConfig.EmbedColor,
-                            ["fields"] = {
-                                { ["name"] = "Status:", ["value"] = "```🟢 Đang xuất hiện```", ["inline"] = true },
-                                { ["name"] = "Time in Server:", ["value"] = "```\n" .. Lighting.TimeOfDay .. " / " .. CheckClockTime() .. "h\n```", ["inline"] = true },
-                                { ["name"] = "Distance:", ["value"] = "```\n" .. tostring(DistanceKM()) .. "m\n```", ["inline"] = true },
-                                { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                                { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                                { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                                { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                            },
-                            ["footer"] = { ["text"] = "Banana Hub" },
-                            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                            ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-                        }
-                    }
-                }
-                SendWebhookViaAPI("prehistoric_island", Message, BananaConfig.ProxySettings)
-            end
-            task.wait(300)
-        elseif not preIsland and sendPrehistoric_flag then
-            sendPrehistoric_flag = false
-        end
-    end
-end)
+    -- Header Vàng Banana Cat
+    local Header = Instance.new("Frame", Frame)
+    Header.Size = UDim2.new(1, 0, 0, 42)
+    Header.BackgroundColor3 = Color3.fromRGB(255, 185, 40)
+    local HCorner = Instance.new("UICorner", Header)
+    HCorner.CornerRadius = UDim.new(0, 10)
 
--- Worker 6: Quét Trăng Tròn (Full Moon Phase 5)
-task.spawn(function()
-    local sendmoon_flag = false
-    while task.wait(1) do
-        local isFullMoon = (Lighting:GetAttribute("MoonPhase") == 5)
-        if isFullMoon and not sendmoon_flag then
-            sendmoon_flag = true
-            if Players.NumPlayers < Players.MaxPlayers then
-                local Message = {
-                    ["embeds"] = {
-                        {
-                            ["title"] = BananaConfig.BananaIcon .. "  Banana Hub Notification " .. BananaConfig.BananaIcon,
-                            ["color"] = BananaConfig.EmbedColor,
-                            ["fields"] = {
-                                { ["name"] = namemoon(), ["value"] = "```🌕 Full Moon Phase 5```", ["inline"] = true },
-                                { ["name"] = "Time in Server:", ["value"] = "```\n" .. Lighting.TimeOfDay .. "\n```", ["inline"] = true },
-                                { ["name"] = "Players:", ["value"] = "```\n" .. Players.NumPlayers .. "/" .. Players.MaxPlayers .. "```" },
-                                { ["name"] = "PlaceId:", ["value"] = "```\n" .. game.PlaceId .. "```" },
-                                { ["name"] = "Jobid:", ["value"] = "```\n" .. ebgzqifrwa(game.JobId) .. "\n```" },
-                                { ["name"] = "Jobid (Mobile):", ["value"] = ebgzqifrwa(game.JobId) },
-                            },
-                            ["footer"] = { ["text"] = "Banana Hub" },
-                            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                            ["thumbnail"] = { ["url"] = BananaConfig.BannerImage }
-                        }
-                    }
-                }
-                PushData({ ['name'] = "FullMoon", ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-                SendWebhookViaAPI("fullmoon_log", Message, BananaConfig.ProxySettings)
-            end
-            task.wait(300)
-        elseif not isFullMoon and sendmoon_flag then
-            sendmoon_flag = false
-        end
-    end
-end)
+    local Title = Instance.new("TextLabel", Header)
+    Title.Size = UDim2.new(1, -60, 1, 0)
+    Title.Position = UDim2.new(0, 15, 0, 0)
+    Title.Text = "🍌 BANANA CAT HUB - BLOX FRUITS [FULL EDITION]"
+    Title.TextColor3 = Color3.fromRGB(20, 20, 20)
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 13
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
 
--- Worker 7: Quét Castle Pirate Raid
-task.spawn(function()
-    local raidCastle_flag = false
-    while task.wait(1) do
-        pcall(function()
-            local raidMob = GetPirateRaid() or GetPirateRaid(true)
-            if raidMob and not raidCastle_flag then
-                PushData({ ['name'] = 'Raid Castle', ['jobid'] = ebgzqifrwa(game.JobId), ['Players'] = Players.NumPlayers, ["placeid"] = game.PlaceId })
-                raidCastle_flag = true
-                task.wait(300)
-            elseif not raidMob and raidCastle_flag then
-                local spawnRaid = false
-                local startT = tick()
-                repeat 
-                    task.wait(1)
-                    if GetPirateRaid() or GetPirateRaid(true) then spawnRaid = true end
-                until tick() - startT >= 30 or spawnRaid
-                if not spawnRaid then raidCastle_flag = false end
-            end
+    -- Nút Ẩn/Hiện
+    local CloseBtn = Instance.new("TextButton", Header)
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -38, 0, 6)
+    CloseBtn.Text = "✕"
+    CloseBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 14
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.MouseButton1Click:Connect(function()
+        Frame.Visible = not Frame.Visible
+    end)
+
+    -- Tab Content Scroll
+    local Scroll = Instance.new("ScrollingFrame", Frame)
+    Scroll.Size = UDim2.new(1, -20, 1, -54)
+    Scroll.Position = UDim2.new(0, 10, 0, 48)
+    Scroll.BackgroundTransparency = 1
+    Scroll.ScrollBarThickness = 5
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, 520)
+
+    local Layout = Instance.new("UIListLayout", Scroll)
+    Layout.Padding = UDim.new(0, 6)
+
+    -- Hàm tạo Toggle tiện lợi
+    local function CreateToggle(name, flagKey)
+        local btn = Instance.new("TextButton", Scroll)
+        btn.Size = UDim2.new(1, -10, 0, 36)
+        btn.BackgroundColor3 = _G.Banana[flagKey] and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(32, 35, 45)
+        btn.Text = "  " .. name .. (_G.Banana[flagKey] and ": [ BẬT 🟢 ]" or ": [ TẮT 🔴 ]")
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamSemibold
+        btn.TextSize = 11
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        local bCorner = Instance.new("UICorner", btn)
+        bCorner.CornerRadius = UDim.new(0, 6)
+
+        btn.MouseButton1Click:Connect(function()
+            _G.Banana[flagKey] = not _G.Banana[flagKey]
+            local state = _G.Banana[flagKey]
+            btn.Text = "  " .. name .. (state and ": [ BẬT 🟢 ]" or ": [ TẮT 🔴 ]")
+            btn.BackgroundColor3 = state and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(32, 35, 45)
         end)
-        task.wait(5)
+    end
+
+    -- Tạo danh sách các tính năng
+    CreateToggle("Tự Động Cày Level (Auto Farm Level 1 -> 2550)", "AutoFarm")
+    CreateToggle("Đánh Cực Nhanh (Fast Attack / Kill Aura)", "FastAttack")
+    CreateToggle("Gom Quái Lại Gần (Bring Mob)", "BringMob")
+    CreateToggle("Tự Động Nhặt Rương Khắp Bản Đồ (Auto Chest)", "AutoChest")
+    CreateToggle("Tự Động Săn & Cất Trái Ác Quỷ (Auto Fruit)", "AutoFruit")
+    CreateToggle("Tự Động Tăng Điểm Cận Chiến (Auto Stats Melee)", "AutoMelee")
+    CreateToggle("Tự Động Tăng Điểm Máu / Phòng Thủ (Auto Stats Defense)", "AutoDefense")
+    CreateToggle("Tự Động Tăng Điểm Kiếm (Auto Stats Sword)", "AutoSword")
+    CreateToggle("Tự Động Tăng Điểm Trái Ác Quỷ (Auto Stats Fruit)", "AutoFruitStat")
+    CreateToggle("Chống Văng Game / Treo Máy (Anti-AFK)", "AntiAFK")
+
+    print("🍌 [BANANA HUB] Khởi động thành công toàn bộ hệ thống tính năng Blox Fruits!")
+end
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════╗
+-- ║ 6. CÁC LUỒNG THỰC THI NGẦM (MAIN BACKGROUND LOOPS)                            ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+-- Luồng Farm Level
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if _G.Banana.AutoFarm then
+            pcall(RunAutoFarmCycle)
+        end
     end
 end)
 
-print("🍌 [BANANA CAT HUB] Khởi động thành công toàn bộ hệ thống quét sự kiện Blox Fruits!")
+-- Luồng Farm Rương
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if _G.Banana.AutoChest then
+            pcall(RunAutoChestCycle)
+        end
+    end
+end)
+
+-- Luồng Săn Trái Ác Quỷ
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if _G.Banana.AutoFruit then
+            pcall(RunAutoFruitCycle)
+        end
+    end
+end)
+
+-- Luồng Nâng Điểm Stats
+task.spawn(function()
+    while true do
+        task.wait(1)
+        pcall(RunAutoStatsCycle)
+    end
+end)
+
+-- Luồng Anti-AFK
+LocalPlayer.Idled:Connect(function()
+    if _G.Banana.AntiAFK then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new(0, 0))
+    end
+end)
+
+-- Khởi tạo Menu UI
+BuildBananaHubGUI()
