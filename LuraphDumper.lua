@@ -24,8 +24,8 @@ local CONFIG = {
     -- Tên file xuất ra trên Discord
     FileBaseName = "BytecodeDump",
 
-    -- Kích thước mỗi file JSON (4MB để máy ảo xử lý mượt mà nhất, không bị tràn RAM)
-    MaxFileSizeLimit = 4 * 1024 * 1024,
+    -- Kích thước mỗi file JSON (6.8MB - Tối đa hóa dung lượng mỗi file dưới 8MB)
+    MaxFileSizeLimit = 6.8 * 1024 * 1024,
 
     -- Số lượng đối tượng xử lý trong mỗi khung hình (Càng thấp càng không lag)
     BatchSize = 60,
@@ -278,8 +278,8 @@ local function streamAndExportJSON(onStatusUpdate)
     for i = 1, #allFunctions do
         table.insert(currentFunctions, allFunctions[i])
 
-        -- Chia mỗi gói tầm 250 hàm để không tốn RAM đóng gói
-        if #currentFunctions >= 250 or i == #allFunctions then
+        -- Chia mỗi gói tầm 2000 hàm (~6.8MB) để tối đa hóa dung lượng và giảm tối đa số file
+        if #currentFunctions >= 2000 or i == #allFunctions then
             local packageObj = {
                 metadata = {
                     part = #jsonPackages + 1,
