@@ -1,209 +1,303 @@
 --[[
     ================================================================
-    =  Luraph VM Dumper - All-In-One (No File Access Required)     =
-    =  Dành cho Delta X và các executor không có readfile/writefile =
-    =                                                                =
-    =  Cách dùng: Paste toàn bộ script này vào executor rồi chạy   =
-    =  Kết quả sẽ tự động gửi lên Discord webhook                  =
+    =  Luraph VM Dumper v3 - Standby & Auto Interceptor            =
+    =  Hỗ trợ đặc biệt cho Delta X, Fluxus, Arceus X, CodeX...     =
+    =                                                              =
+    =  TÍNH NĂNG HOẠT ĐỘNG:                                        =
+    =   1. Tự động chạy nền và kích hoạt tất cả Hook (HttpGet,     =
+    =      loadstring, string.*, setmetatable, task.spawn...).     =
+    =   2. Tự động tải và chạy script mục tiêu (TargetScriptURL).  =
+    =   3. Có GUI mini trên màn hình Roblox hiển thị số liệu thực  =
+    =      và nút bấm [DUMP & SEND NOW] để gửi Discord bất kỳ lúc  =
+    =      nào bạn muốn.                                           =
+    =   4. Tự động gửi Discord sau X giây nếu bạn không bấm tay.   =
     ================================================================
 --]]
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  CẤU HÌNH - THAY ĐỔI CÁC GIÁ TRỊ BÊN DƯỚI     ║
+-- ║  CẤU HÌNH (SETTINGS)                              ║
 -- ╚═══════════════════════════════════════════════════╝
-
 local SETTINGS = {
     -- Discord Webhook URL (BẮT BUỘC)
     WebhookURL = "https://discord.com/api/webhooks/1540742443459416074/OoigNnHKVnNmTh9unbAqX4hEyE7o7e2p9HM7P5Hob1_cEemOFY_0OMIE9SbO9JHGhKI5",
-    
-    -- URL của script cần dump (thay bằng raw link GitHub/Pastebin của bạn)
-    -- Ví dụ: "https://raw.githubusercontent.com/user/repo/main/BF-BananaCat.lua"
+
+    -- Script muốn dump (Nếu để trống "", Dumper chỉ chờ bạn tự chạy script)
     TargetScriptURL = "https://raw.githubusercontent.com/flazhy/QuantumOnyx/refs/heads/main/QuantumOnyx.lua",
-    
-    -- HOẶC: Nếu bạn có loadstring trực tiếp, đặt code vào đây
-    -- Để trống "" nếu dùng URL ở trên
-    TargetScriptCode = "",
-    
-    -- Tên script (để hiển thị trong Discord)
+
+    -- Tự động chạy TargetScriptURL ngay khi Dumper sẵn sàng
+    AutoRunTarget = true,
+
+    -- Tự động gửi Discord sau khi script chạy được X giây
+    AutoSendAfterSeconds = 12,
+
+    -- Tên hiển thị
     ScriptName = "QuantumOnyx.lua",
-    
-    -- Cài đặt dumper
-    WebhookUsername = "Luraph VM Dumper",
+
+    -- Cài đặt gửi
+    WebhookUsername = "Luraph VM Dumper v3",
     EmbedColor     = 0x5865F2,
     MaxChunkSize   = 1850,
-    MaxDepth       = 50,
     MinStringLen   = 2,
+    MaxDepth       = 50,
 }
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  HỆ THỐNG NỘI BỘ - KHÔNG CẦN SỬA                ║
+-- ║  BỘ NHỚ LƯU TRỮ VÀ TIỆN ÍCH                      ║
 -- ╚═══════════════════════════════════════════════════╝
+local State = {
+    IsRunning = true,
+    HasSent = false,
+    CapturedStrings = {},
+    CapturedStringsList = {},
+    StringCount = 0,
+    CapturedFuncs = {},
+    FuncCount = 0,
+    CapturedLoads = {},
+    LoadCount = 0,
+    CapturedHttp = {},
+    HttpCount = 0,
+    Logs = {},
+    HookStatus = {},
+}
 
--- Utilities
-local Utils = {}
-function Utils.timestamp()
-    return tostring(os.time and os.time() or tick and tick() or 0)
+local function safeStr(v) local ok, r = pcall(tostring, v); return ok and r or "<?>" end
+
+local function escJSON(s)
+    if type(s) ~= "string" then return safeStr(s) end
+    return s:gsub('\\','\\\\'):gsub('"','\\"'):gsub('\n','\\n'):gsub('\r','\\r'):gsub('\t','\\t'):gsub('[%c]',function(c) return ('\\u%04X'):format(c:byte()) end)
 end
-function Utils.safeStr(v)
-    local ok, r = pcall(tostring, v)
-    return ok and r or "<?>"
-end
-function Utils.escapeJSON(s)
-    if type(s) ~= "string" then return Utils.safeStr(s) end
-    return s:gsub('\\', '\\\\'):gsub('"', '\\"'):gsub('\n', '\\n'):gsub('\r', '\\r'):gsub('\t', '\\t'):gsub('[%c]', function(c) return ('\\u%04X'):format(string.byte(c)) end)
-end
-function Utils.isPrintable(s)
+
+local function isPrintable(s)
     if type(s) ~= "string" then return false end
-    for i = 1, math.min(#s, 100) do
-        local b = string.byte(s, i)
+    for i = 1, math.min(#s, 80) do
+        local b = s:byte(i)
         if b < 32 and b ~= 9 and b ~= 10 and b ~= 13 then return false end
     end
     return true
 end
-function Utils.truncate(s, n)
+
+local function trunc(s, n)
     n = n or 200
-    if type(s) ~= "string" then return Utils.safeStr(s) end
+    if type(s) ~= "string" then return safeStr(s) end
     if #s <= n then return s end
     return s:sub(1, n) .. "...[" .. #s .. " chars]"
 end
 
--- Logger
-local Log = { buf = {}, n = 0 }
-function Log:w(t) self.n = self.n + 1; self.buf[self.n] = t or "" end
-function Log:f(fmt, ...) self:w(fmt:format(...)) end
-function Log:section(t) self:w(""); self:w("-- === " .. t .. " " .. string.rep("=", math.max(0, 50 - #t))); self:w("") end
-function Log:get() return table.concat(self.buf, "\n") end
-
--- String Capture
-local Strings = { seen = {}, list = {}, count = 0 }
-function Strings:add(s, src)
-    if type(s) ~= "string" or #s < SETTINGS.MinStringLen then return end
-    if self.seen[s] then return end
-    if not Utils.isPrintable(s) and #s > 50 then return end
-    self.seen[s] = true
-    self.count = self.count + 1
-    self.list[self.count] = { value = s, source = src or "?", idx = self.count }
+local function logMsg(msg)
+    local t = ("[%s] %s"):format(os.date and os.date("%X") or tostring(math.floor(tick())), msg)
+    table.insert(State.Logs, t)
+    print("[Dumper] " .. msg)
 end
 
--- Function Scanner
-local FuncScan = { scanned = {}, funcs = {}, count = 0 }
-function FuncScan:scan(fn, depth, path)
-    depth = depth or 0; path = path or "root"
+local function recordString(s, src)
+    if type(s) ~= "string" or #s < SETTINGS.MinStringLen then return end
+    if State.CapturedStrings[s] then return end
+    if not isPrintable(s) and #s > 60 then return end
+    State.CapturedStrings[s] = true
+    State.StringCount = State.StringCount + 1
+    table.insert(State.CapturedStringsList, { value = s, source = src or "unknown", index = State.StringCount })
+end
+
+local function recordLoadstring(code, src)
+    if type(code) ~= "string" or #code < 5 then return end
+    State.LoadCount = State.LoadCount + 1
+    table.insert(State.CapturedLoads, {
+        index = State.LoadCount,
+        length = #code,
+        source = src or "loadstring",
+        preview = code:sub(1, 400),
+        fullCode = code,
+    })
+    logMsg(("🔥 INTERCEPTED LOADSTRING: %d bytes (Source: %s)"):format(#code, src or "loadstring"))
+end
+
+local function recordHttp(url, method)
+    if type(url) ~= "string" then return end
+    State.HttpCount = State.HttpCount + 1
+    table.insert(State.CapturedHttp, {
+        index = State.HttpCount,
+        url = url,
+        method = method or "GET",
+        time = tick(),
+    })
+    logMsg(("🌐 CAPTURED HTTP REQUEST: [%s] %s"):format(method or "GET", url))
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  SCANNER (Quét Function / Constants / Upvalues)   ║
+-- ╚═══════════════════════════════════════════════════╝
+local function scanFunction(fn, depth, path)
+    depth = depth or 0
+    path = path or "root"
     if depth > SETTINGS.MaxDepth then return end
-    local key = tostring(fn)
-    if self.scanned[key] then return end
-    self.scanned[key] = true
     if type(fn) ~= "function" then return end
+    local key = tostring(fn)
+    if State.CapturedFuncs[key] then return end
+    State.CapturedFuncs[key] = true
+
     if islclosure and not islclosure(fn) then return end
     if iscclosure and iscclosure(fn) then return end
 
-    self.count = self.count + 1
-    local idx = self.count
-    local data = { index = idx, path = path, depth = depth, constants = {}, upvalues = {}, protos = {}, info = nil }
+    State.FuncCount = State.FuncCount + 1
+    local funcIdx = State.FuncCount
 
-    pcall(function() data.info = debug.getinfo(fn) end)
+    local d = {
+        index = funcIdx,
+        path = path,
+        depth = depth,
+        constants = {},
+        upvalues = {},
+        protos = {},
+        info = nil
+    }
 
-    if debug.getconstants then
+    pcall(function() d.info = debug.getinfo(fn) end)
+
+    if debug and debug.getconstants then
         pcall(function()
             for i, v in pairs(debug.getconstants(fn)) do
-                table.insert(data.constants, { index = i, type = type(v), value = v })
-                if type(v) == "string" then Strings:add(v, ("const@f%d[%d]"):format(idx, i)) end
+                table.insert(d.constants, { index = i, type = type(v), value = v })
+                if type(v) == "string" then
+                    recordString(v, ("const@f%d[%d]"):format(funcIdx, i))
+                end
             end
         end)
     end
 
-    if debug.getupvalues then
+    if debug and debug.getupvalues then
         pcall(function()
             for i, v in pairs(debug.getupvalues(fn)) do
-                table.insert(data.upvalues, { index = i, type = type(v), value = v })
-                if type(v) == "string" then Strings:add(v, ("upval@f%d[%d]"):format(idx, i)) end
-                if type(v) == "function" then self:scan(v, depth + 1, path .. ".up[" .. i .. "]") end
+                table.insert(d.upvalues, { index = i, type = type(v), value = v })
+                if type(v) == "string" then
+                    recordString(v, ("upval@f%d[%d]"):format(funcIdx, i))
+                elseif type(v) == "function" then
+                    scanFunction(v, depth + 1, path .. ".up[" .. i .. "]")
+                end
             end
         end)
     end
 
-    if debug.getprotos then
+    if debug and debug.getprotos then
         pcall(function()
             for i, p in pairs(debug.getprotos(fn)) do
-                table.insert(data.protos, { index = i })
-                self:scan(p, depth + 1, path .. ".proto[" .. i .. "]")
+                table.insert(d.protos, { index = i })
+                scanFunction(p, depth + 1, path .. ".proto[" .. i .. "]")
             end
         end)
     end
-
-    self.funcs[idx] = data
 end
 
-function FuncScan:scanGC()
-    if not getgc then return 0, 0 end
-    local fc, sc = 0, 0
-    for _, obj in ipairs(getgc(true)) do
+local function scanGarbageCollector()
+    if not getgc then return end
+    logMsg("Scanning Memory GC...")
+    local gcObjs = getgc(true)
+    for _, obj in ipairs(gcObjs) do
         if type(obj) == "function" then
-            fc = fc + 1
-            self:scan(obj, 0, "gc_f" .. fc)
+            scanFunction(obj, 0, "gc_fn")
         elseif type(obj) == "table" then
             pcall(function()
                 for k, v in pairs(obj) do
-                    if type(v) == "function" then fc = fc + 1; self:scan(v, 0, "gc_t." .. Utils.safeStr(k)) end
-                    if type(v) == "string" and #v >= SETTINGS.MinStringLen then sc = sc + 1; Strings:add(v, "gc_val") end
-                    if type(k) == "string" and #k >= SETTINGS.MinStringLen then Strings:add(k, "gc_key") end
+                    if type(v) == "function" then
+                        scanFunction(v, 0, "gc_tbl." .. safeStr(k))
+                    end
+                    if type(v) == "string" and #v >= SETTINGS.MinStringLen then
+                        recordString(v, "gc_val")
+                    end
+                    if type(k) == "string" and #k >= SETTINGS.MinStringLen then
+                        recordString(k, "gc_key")
+                    end
                 end
             end)
         end
     end
-    return fc, sc
 end
 
--- Loadstring Interceptor
-local LoadCaptures = { list = {}, count = 0 }
-function LoadCaptures:hook()
-    if not hookfunction or not newcclosure then return false end
-    local orig = loadstring or load
-    if not orig then return false end
-    local ok = pcall(function()
-        local h = newcclosure(function(code, ...)
-            if type(code) == "string" and #code > 10 then
-                LoadCaptures.count = LoadCaptures.count + 1
-                LoadCaptures.list[LoadCaptures.count] = {
-                    idx = LoadCaptures.count, len = #code,
-                    preview = code:sub(1, 300), time = Utils.timestamp()
-                }
-            end
-            return orig(code, ...)
-        end)
-        if loadstring then hookfunction(loadstring, h) end
-    end)
-    return ok
-end
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  CÀI ĐẶT HOOKS (Intercepting Engine)              ║
+-- ╚═══════════════════════════════════════════════════╝
+local function installAllHooks()
+    logMsg("Installing system hooks...")
 
--- String Lib Hooks
-local function installStringHooks()
-    if not hookfunction or not newcclosure then return false end
-    local targets = {
-        { string, "char", string.char }, { string, "sub", string.sub },
-        { string, "gsub", string.gsub }, { string, "rep", string.rep },
-        { string, "reverse", string.reverse },
-    }
-    local hooked = 0
-    for _, t in ipairs(targets) do
-        local orig, name = t[3], t[2]
+    -- 1. Hook loadstring & load
+    local origLoadstring = loadstring or load
+    if origLoadstring and hookfunction and newcclosure then
         pcall(function()
-            hookfunction(t[1][name], newcclosure(function(...)
-                local r = { orig(...) }
-                for _, v in ipairs(r) do
-                    if type(v) == "string" and #v >= SETTINGS.MinStringLen then
-                        Strings:add(v, "str." .. name)
-                    end
+            local hook = newcclosure(function(code, chunkname, ...)
+                if type(code) == "string" then
+                    recordLoadstring(code, tostring(chunkname or "loadstring"))
                 end
-                return unpack(r)
-            end))
-            hooked = hooked + 1
+                return origLoadstring(code, chunkname, ...)
+            end)
+            hookfunction(origLoadstring, hook)
+            if loadstring and loadstring ~= origLoadstring then
+                hookfunction(loadstring, hook)
+            end
+            State.HookStatus["loadstring"] = true
         end)
     end
-    return hooked > 0
+
+    -- 2. Hook game:HttpGet
+    if game and hookfunction and newcclosure then
+        pcall(function()
+            local oldHttpGet
+            oldHttpGet = hookfunction(game.HttpGet, newcclosure(function(self, url, ...)
+                recordHttp(url, "HttpGet")
+                local content = oldHttpGet(self, url, ...)
+                if type(content) == "string" and #content > 20 then
+                    recordString(content, "http_response@" .. tostring(url):sub(1, 40))
+                end
+                return content
+            end))
+            State.HookStatus["HttpGet"] = true
+        end)
+    end
+
+    -- 3. Hook string functions (char, sub, gsub, format)
+    if hookfunction and newcclosure then
+        local stringTargets = {
+            {"char", string.char},
+            {"sub", string.sub},
+            {"gsub", string.gsub},
+            {"rep", string.rep},
+            {"reverse", string.reverse},
+            {"format", string.format},
+        }
+        for _, t in ipairs(stringTargets) do
+            local name, orig = t[1], t[2]
+            pcall(function()
+                hookfunction(string[name], newcclosure(function(...)
+                    local res = { orig(...) }
+                    for _, r in ipairs(res) do
+                        if type(r) == "string" and #r >= SETTINGS.MinStringLen then
+                            recordString(r, "str." .. name)
+                        end
+                    end
+                    return unpack(res)
+                end))
+                State.HookStatus["string." .. name] = true
+            end)
+        end
+
+        -- Hook table.concat
+        local origConcat = table.concat
+        pcall(function()
+            hookfunction(table.concat, newcclosure(function(...)
+                local r = origConcat(...)
+                if type(r) == "string" and #r >= SETTINGS.MinStringLen then
+                    recordString(r, "table.concat")
+                end
+                return r
+            end))
+            State.HookStatus["table.concat"] = true
+        end)
+    end
+
+    logMsg("Hooks setup completed!")
 end
 
--- JSON Encoder (minimal)
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  DISCORD TRANSMITTER                              ║
+-- ╚═══════════════════════════════════════════════════╝
 local function jsonEncode(v)
     local t = type(v)
     if v == nil then return "null"
@@ -211,335 +305,129 @@ local function jsonEncode(v)
     elseif t == "number" then
         if v ~= v or v == math.huge or v == -math.huge then return "null" end
         return tostring(v)
-    elseif t == "string" then return '"' .. Utils.escapeJSON(v) .. '"'
+    elseif t == "string" then return '"' .. escJSON(v) .. '"'
     elseif t == "table" then
-        local isArr, mx = true, 0
+        local isA, mx = true, 0
         for k in pairs(v) do
-            if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then isArr = false; break end
+            if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then isA = false; break end
             if k > mx then mx = k end
         end
-        isArr = isArr and mx == #v
-        if isArr then
+        isA = isA and mx == #v
+        if isA then
             local p = {}; for i, x in ipairs(v) do p[i] = jsonEncode(x) end
             return "[" .. table.concat(p, ",") .. "]"
         else
             local p, n = {}, 0
-            for k, x in pairs(v) do n = n + 1; p[n] = jsonEncode(tostring(k)) .. ":" .. jsonEncode(x) end
+            for k, x in pairs(v) do
+                n = n + 1
+                p[n] = jsonEncode(tostring(k)) .. ":" .. jsonEncode(x)
+            end
             return "{" .. table.concat(p, ",") .. "}"
         end
     end
     return '"' .. tostring(v) .. '"'
 end
 
--- HTTP Sender
 local function httpPost(url, body)
-    local fn, method
+    local fn
     if syn and syn.request then
         fn = function() return syn.request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body }) end
-        method = "syn.request"
     elseif request then
         fn = function() return request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body }) end
-        method = "request"
     elseif http_request then
         fn = function() return http_request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body }) end
-        method = "http_request"
-    elseif game and game.HttpGet then
-        -- Fallback: some executors support HttpService
-        local hs = nil
-        pcall(function() hs = game:GetService("HttpService") end)
-        if hs then
-            fn = function() return hs:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end
-            method = "HttpService"
-        end
+    else
+        local hs; pcall(function() hs = game:GetService("HttpService") end)
+        if hs then fn = function() return hs:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end end
     end
-    if not fn then return false, "No HTTP method" end
+    if not fn then return false, "No HTTP Function" end
     local ok, r = pcall(fn)
-    return ok, ok and method or tostring(r)
+    return ok, ok and "OK" or safeStr(r)
 end
 
-local function sendWebhook(payload)
-    return httpPost(SETTINGS.WebhookURL, jsonEncode(payload))
-end
-
-local function sendMessage(text)
-    return sendWebhook({ content = text, username = SETTINGS.WebhookUsername })
-end
-
-local function sendEmbed(embed)
-    return sendWebhook({ username = SETTINGS.WebhookUsername, embeds = { embed } })
-end
-
-local function delayFn(sec)
-    if task and task.wait then task.wait(sec)
-    elseif wait then wait(sec)
-    else
-        local t = os.clock(); while os.clock() - t < sec do end
-    end
-end
-
--- ╔═══════════════════════════════════════════════════╗
--- ║  CHẠY CHÍNH                                       ║
--- ╚═══════════════════════════════════════════════════╝
-
-local function main()
-    print("[Dumper] Luraph VM Dumper All-In-One starting...")
-    Log:section("LURAPH VM DUMPER - ALL IN ONE")
-    Log:f("Timestamp: %s", Utils.timestamp())
-    Log:f("Target: %s", SETTINGS.ScriptName)
-
-    -- 1) Detect capabilities
-    Log:section("EXECUTOR CAPABILITIES")
-    local caps = {
-        { "debug.getconstants", debug and debug.getconstants },
-        { "debug.getprotos",    debug and debug.getprotos },
-        { "debug.getupvalues",  debug and debug.getupvalues },
-        { "debug.getinfo",      debug and debug.getinfo },
-        { "debug.sethook",      debug and debug.sethook },
-        { "hookfunction",       hookfunction },
-        { "newcclosure",        newcclosure },
-        { "getgc",              getgc },
-        { "islclosure",         islclosure },
-        { "decompile",          decompile },
-        { "getrawmetatable",    getrawmetatable },
-        { "readfile",           readfile },
-        { "writefile",          writefile },
-        { "request/http",       request or http_request or (syn and syn.request) },
-    }
-    for _, c in ipairs(caps) do
-        local status = c[2] and "[YES]" or "[NO ]"
-        Log:f("  %s %s", status, c[1])
-        print(("  %s %s"):format(status, c[1]))
-    end
-
-    -- 2) Install hooks BEFORE loading target script
-    Log:section("INSTALLING HOOKS")
-
-    local strHooked = installStringHooks()
-    Log:f("  String hooks: %s", strHooked and "OK" or "SKIPPED (no hookfunction)")
-    print(("  String hooks: %s"):format(strHooked and "OK" or "SKIPPED"))
-
-    local loadHooked = LoadCaptures:hook()
-    Log:f("  Loadstring hook: %s", loadHooked and "OK" or "SKIPPED")
-    print(("  Loadstring hook: %s"):format(loadHooked and "OK" or "SKIPPED"))
-
-    -- 3) Load and execute target script
-    Log:section("EXECUTING TARGET SCRIPT")
-    local targetFunc = nil
-    local targetErr = nil
-
-    if SETTINGS.TargetScriptCode ~= "" then
-        -- Load from embedded code
-        Log:w("  Loading from embedded code...")
-        print("[Dumper] Loading from embedded code...")
-        local fn, err = (loadstring or load)(SETTINGS.TargetScriptCode, SETTINGS.ScriptName)
-        if fn then targetFunc = fn else targetErr = err end
-
-    elseif SETTINGS.TargetScriptURL ~= "" then
-        -- Load from URL
-        Log:f("  Loading from URL: %s", SETTINGS.TargetScriptURL)
-        print("[Dumper] Loading from URL: " .. SETTINGS.TargetScriptURL)
-        local code = nil
-        pcall(function()
-            if game and game.HttpGet then
-                code = game:HttpGet(SETTINGS.TargetScriptURL, true)
-            elseif syn and syn.request then
-                code = syn.request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
-            elseif request then
-                code = request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
-            elseif http_request then
-                code = http_request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
-            end
-        end)
-        if code then
-            local fn, err = (loadstring or load)(code, SETTINGS.ScriptName)
-            if fn then targetFunc = fn else targetErr = err end
-        else
-            targetErr = "Failed to fetch URL"
-        end
-    else
-        Log:w("  [!] No target script configured!")
-        Log:w("  Set SETTINGS.TargetScriptURL or SETTINGS.TargetScriptCode")
-        print("[Dumper] WARNING: No target script! Set TargetScriptURL or TargetScriptCode")
-    end
-
-    -- Pre-execution scan
-    if targetFunc then
-        Log:w("  Pre-execution scan...")
-        FuncScan:scan(targetFunc, 0, "target_main")
-
-        Log:w("  Executing target...")
-        print("[Dumper] Executing target script...")
-        local ok, result = pcall(targetFunc)
-        if ok then
-            Log:w("  [OK] Execution successful")
-            print("[Dumper] Target executed successfully")
-            if type(result) == "function" then
-                FuncScan:scan(result, 0, "target_return")
-            elseif type(result) == "table" then
-                for k, v in pairs(result) do
-                    if type(v) == "function" then
-                        FuncScan:scan(v, 0, "ret." .. Utils.safeStr(k))
-                    end
-                end
-            end
-        else
-            Log:f("  [!] Execution error: %s", Utils.safeStr(result))
-            print("[Dumper] Execution error: " .. Utils.safeStr(result))
-        end
-    elseif targetErr then
-        Log:f("  [!] Load error: %s", Utils.safeStr(targetErr))
-        print("[Dumper] Load error: " .. Utils.safeStr(targetErr))
-    end
-
-    -- 4) Post-execution: Scan GC for ALL functions in memory
-    Log:section("POST-EXECUTION MEMORY SCAN")
-    print("[Dumper] Scanning memory...")
-    local gcFuncs, gcStrings = FuncScan:scanGC()
-    Log:f("  GC functions found: %d", gcFuncs)
-    Log:f("  GC strings found: %d", gcStrings)
-    print(("[Dumper] GC: %d functions, %d strings"):format(gcFuncs, gcStrings))
-
-    -- Scan metatables
-    if getrawmetatable and getgc then
-        local mtCount = 0
-        pcall(function()
-            for _, obj in ipairs(getgc(true)) do
-                if type(obj) == "table" then
-                    pcall(function()
-                        local mt = getrawmetatable(obj)
-                        if mt then
-                            for k, v in pairs(mt) do
-                                if type(v) == "function" then
-                                    mtCount = mtCount + 1
-                                    FuncScan:scan(v, 0, "mt.__" .. Utils.safeStr(k))
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-        end)
-        Log:f("  Metamethods found: %d", mtCount)
-    end
-
-    -- 5) Generate report
-    Log:section(("FUNCTIONS (%d scanned)"):format(FuncScan.count))
-    for i = 1, FuncScan.count do
-        local d = FuncScan.funcs[i]
-        if d then
-            local indent = string.rep("  ", math.min(d.depth, 5) + 1)
-            Log:f("%s[F#%d] %s", indent, i, d.path)
-            if d.info then
-                Log:f("%s  src: %s:%s", indent, d.info.short_src or "?", d.info.linedefined or "?")
-            end
-            if #d.constants > 0 then
-                Log:f("%s  constants(%d):", indent, #d.constants)
-                for _, c in ipairs(d.constants) do
-                    if c.type == "string" then
-                        Log:f('%s    [%d] "%s"', indent, c.index, Utils.escapeJSON(Utils.truncate(c.value, 120)))
-                    elseif c.type == "number" or c.type == "boolean" then
-                        Log:f("%s    [%d] %s", indent, c.index, tostring(c.value))
-                    end
-                end
-            end
-            if #d.upvalues > 0 then
-                Log:f("%s  upvalues(%d):", indent, #d.upvalues)
-                for _, u in ipairs(d.upvalues) do
-                    if u.type == "string" then
-                        Log:f('%s    [%d] "%s"', indent, u.index, Utils.escapeJSON(Utils.truncate(u.value, 80)))
-                    elseif u.type == "function" then
-                        Log:f("%s    [%d] function", indent, u.index)
-                    elseif u.type == "table" then
-                        Log:f("%s    [%d] table", indent, u.index)
-                    else
-                        Log:f("%s    [%d] (%s) %s", indent, u.index, u.type, Utils.safeStr(u.value))
-                    end
-                end
-            end
-            if #d.protos > 0 then
-                Log:f("%s  sub-protos: %d", indent, #d.protos)
-            end
-        end
-    end
-
-    -- Strings report
-    Log:section(("CAPTURED STRINGS (%d unique)"):format(Strings.count))
-    local bySrc = {}
-    for _, e in ipairs(Strings.list) do
-        bySrc[e.source] = bySrc[e.source] or {}
-        table.insert(bySrc[e.source], e)
-    end
-    for src, entries in pairs(bySrc) do
-        Log:f("  --- %s (%d) ---", src, #entries)
-        for _, e in ipairs(entries) do
-            Log:f('    [%04d] "%s"', e.idx, Utils.escapeJSON(Utils.truncate(e.value, 150)))
-        end
-    end
-
-    -- Loadstring captures
-    Log:section(("LOADSTRING CAPTURES (%d)"):format(LoadCaptures.count))
-    for _, c in ipairs(LoadCaptures.list) do
-        Log:f("  #%d (time:%s, %d bytes)", c.idx, c.time, c.len)
-        Log:f("    %s", Utils.escapeJSON(Utils.truncate(c.preview, 300)))
-    end
-
-    -- Summary
-    Log:section("SUMMARY")
-    Log:f("  Functions scanned:   %d", FuncScan.count)
-    Log:f("  Strings captured:    %d", Strings.count)
-    Log:f("  Loadstring captures: %d", LoadCaptures.count)
-    print(("[Dumper] Done! Functions: %d, Strings: %d, Loadstrings: %d"):format(
-        FuncScan.count, Strings.count, LoadCaptures.count))
-
-    -- 6) Send to Discord
+local function sendDiscordDump()
     if SETTINGS.WebhookURL == "" then
-        print("[Dumper] No webhook URL set, skipping Discord send")
+        logMsg("ERROR: No Webhook URL provided!")
         return
     end
 
-    print("[Dumper] Sending to Discord...")
+    logMsg("Preparing dump payload for Discord...")
+    scanGarbageCollector()
 
-    -- Send summary embed
+    -- 1. Embed Tổng Quan
     local embed = {
-        title = "Luraph VM Dump: " .. SETTINGS.ScriptName,
+        title = "🚀 Luraph VM Dumper - Báo Cáo Hoạt Động",
+        description = ("Script: **%s**\nThời gian: `%s`"):format(SETTINGS.ScriptName, os.date and os.date("%c") or "N/A"),
         color = SETTINGS.EmbedColor,
         fields = {
-            { name = "Functions", value = tostring(FuncScan.count), inline = true },
-            { name = "Strings", value = tostring(Strings.count), inline = true },
-            { name = "Loadstrings", value = tostring(LoadCaptures.count), inline = true },
+            { name = "📦 Strings Thu Được", value = ("**%d** chuỗi"):format(State.StringCount), inline = true },
+            { name = "🧩 Functions Đã Quét", value = ("**%d** hàm"):format(State.FuncCount), inline = true },
+            { name = "⚡ Loadstring Bắt Được", value = ("**%d** lần"):format(State.LoadCount), inline = true },
+            { name = "🌐 HTTP Requests", value = ("**%d** link"):format(State.HttpCount), inline = true },
         },
-        footer = { text = "Luraph Dumper AIO | " .. Utils.timestamp() },
+        footer = { text = "Luraph Dumper v3 Delta X Edition" }
     }
 
-    -- Add string preview to embed
-    local preview = {}
-    local previewCount = 0
-    for _, e in ipairs(Strings.list) do
-        if previewCount >= 15 then break end
-        local s = e.value
-        if #s > 3 and #s < 100 then
-            previewCount = previewCount + 1
-            preview[previewCount] = "`" .. Utils.truncate(s, 50) .. "`"
+    -- Danh sách HTTP URLs bắt được
+    if State.HttpCount > 0 then
+        local urls = {}
+        for i, h in ipairs(State.CapturedHttp) do
+            if i > 8 then break end
+            table.insert(urls, ("• `[%s]` %s"):format(h.method, trunc(h.url, 60)))
+        end
+        table.insert(embed.fields, { name = "🔗 Links HTTP đã gọi", value = table.concat(urls, "\n"), inline = false })
+    end
+
+    -- Preview Strings
+    if State.StringCount > 0 then
+        local previews = {}
+        local count = 0
+        for _, s in ipairs(State.CapturedStringsList) do
+            if count >= 15 then break end
+            if #s.value >= 3 and #s.value <= 100 then
+                count = count + 1
+                table.insert(previews, ("`%s`"):format(trunc(s.value, 45)))
+            end
+        end
+        if #previews > 0 then
+            table.insert(embed.fields, { name = "📝 Preview Strings", value = table.concat(previews, "\n"), inline = false })
         end
     end
-    if previewCount > 0 then
-        table.insert(embed.fields, {
-            name = "String Preview (" .. previewCount .. ")",
-            value = table.concat(preview, "\n"),
-            inline = false,
-        })
+
+    httpPost(SETTINGS.WebhookURL, jsonEncode({
+        username = SETTINGS.WebhookUsername,
+        embeds = { embed }
+    }))
+
+    -- 2. Gửi Chi Tiết Strings theo từng Chunks
+    local dumpLines = {}
+    table.insert(dumpLines, "-- ==========================================")
+    table.insert(dumpLines, "-- CAPTURED STRINGS REPORT (" .. State.StringCount .. " total)")
+    table.insert(dumpLines, "-- ==========================================")
+
+    for i, s in ipairs(State.CapturedStringsList) do
+        table.insert(dumpLines, ('[%04d] [%s] "%s"'):format(i, s.source, escJSON(trunc(s.value, 180))))
     end
 
-    sendEmbed(embed)
-    delayFn(1.5)
+    if State.LoadCount > 0 then
+        table.insert(dumpLines, "")
+        table.insert(dumpLines, "-- ==========================================")
+        table.insert(dumpLines, "-- CAPTURED LOADSTRINGS / BYTECODES")
+        table.insert(dumpLines, "-- ==========================================")
+        for i, l in ipairs(State.CapturedLoads) do
+            table.insert(dumpLines, ("\n-- Loadstring #%d (%d bytes, source: %s)"):format(i, l.length, l.source))
+            table.insert(dumpLines, l.preview)
+        end
+    end
 
-    -- Send dump in chunks
-    local fullDump = Log:get()
+    local fullDumpText = table.concat(dumpLines, "\n")
     local chunks = {}
-    local remaining = fullDump
+    local remaining = fullDumpText
+
     while #remaining > 0 do
         if #remaining <= SETTINGS.MaxChunkSize then
-            table.insert(chunks, remaining); break
+            table.insert(chunks, remaining)
+            break
         end
         local splitAt = SETTINGS.MaxChunkSize
         local nl = remaining:sub(1, splitAt):find("\n[^\n]*$")
@@ -549,28 +437,179 @@ local function main()
     end
 
     for i, chunk in ipairs(chunks) do
-        local header = ("**[%d/%d]** `%s`"):format(i, #chunks, SETTINGS.ScriptName)
+        local header = ("**[Strings Dump %d/%d]** `%s`"):format(i, #chunks, SETTINGS.ScriptName)
         local msg = header .. "\n```lua\n" .. chunk .. "\n```"
-        if #msg > 2000 then
-            msg = header .. "\n```lua\n" .. chunk:sub(1, 1850 - #header) .. "\n...cut\n```"
-        end
-        sendMessage(msg)
-        delayFn(1.5)
+        httpPost(SETTINGS.WebhookURL, jsonEncode({
+            username = SETTINGS.WebhookUsername,
+            content = msg
+        }))
+        if task and task.wait then task.wait(1.5) elseif wait then wait(1.5) end
     end
 
-    print(("[Dumper] Sent %d chunks to Discord!"):format(#chunks))
-
-    -- Also try to save file locally if possible
-    local wf = writefile or (syn and syn.writefile)
-    if wf then
-        pcall(function()
-            wf("LuraphDump_" .. Utils.timestamp() .. ".lua", fullDump)
-            print("[Dumper] Also saved to local file")
-        end)
-    end
-
-    print("[Dumper] ALL DONE!")
+    logMsg(("✅ Successfully sent %d chunks to Discord Webhook!"):format(#chunks))
+    State.HasSent = true
 end
 
--- Run
-main()
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  GIAO DIỆN MINI GUI (Trên màn hình Roblox)       ║
+-- ╚═══════════════════════════════════════════════════╝
+local function createMiniGUI()
+    local pcallOK = pcall(function()
+        local CoreGui = game:GetService("CoreGui") or (game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"))
+        if not CoreGui then return end
+
+        local existing = CoreGui:FindFirstChild("LuraphDumperGUI")
+        if existing then existing:Destroy() end
+
+        local screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "LuraphDumperGUI"
+        screenGui.ResetOnSpawn = false
+        pcall(function() screenGui.Parent = CoreGui end)
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 220, 0, 150)
+        frame.Position = UDim2.new(0.02, 0, 0.35, 0)
+        frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        frame.BorderSizePixel = 0
+        frame.Active = true
+        frame.Draggable = true
+        frame.Parent = screenGui
+
+        local corner = Instance.new("UICorner", frame)
+        corner.CornerRadius = UDim.new(0, 8)
+
+        local title = Instance.new("TextLabel", frame)
+        title.Size = UDim2.new(1, 0, 0, 25)
+        title.Text = "🛡️ Luraph Dumper v3"
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.TextSize = 13
+        title.Font = Enum.Font.GothamBold
+        title.BackgroundTransparency = 1
+
+        local stats = Instance.new("TextLabel", frame)
+        stats.Size = UDim2.new(1, -10, 0, 50)
+        stats.Position = UDim2.new(0, 5, 0, 28)
+        stats.Text = "Strings: 0 | Funcs: 0\nLoads: 0 | Http: 0"
+        stats.TextColor3 = Color3.fromRGB(200, 200, 220)
+        stats.TextSize = 11
+        stats.Font = Enum.Font.Gotham
+        stats.BackgroundTransparency = 1
+
+        local sendBtn = Instance.new("TextButton", frame)
+        sendBtn.Size = UDim2.new(1, -16, 0, 30)
+        sendBtn.Position = UDim2.new(0, 8, 0, 82)
+        sendBtn.Text = "🚀 DUMP & SEND NOW"
+        sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        sendBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+        sendBtn.Font = Enum.Font.GothamBold
+        sendBtn.TextSize = 12
+        local btnCorner = Instance.new("UICorner", sendBtn)
+        btnCorner.CornerRadius = UDim.new(0, 6)
+
+        sendBtn.MouseButton1Click:Connect(function()
+            sendBtn.Text = "⏳ Sending..."
+            sendBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 50)
+            task.spawn(function()
+                sendDiscordDump()
+                sendBtn.Text = "✅ Sent to Discord!"
+                sendBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 80)
+                if task and task.wait then task.wait(3) end
+                sendBtn.Text = "🚀 DUMP & SEND NOW"
+                sendBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+            end)
+        end)
+
+        local statusLbl = Instance.new("TextLabel", frame)
+        statusLbl.Size = UDim2.new(1, 0, 0, 20)
+        statusLbl.Position = UDim2.new(0, 0, 0, 120)
+        statusLbl.Text = "Listening for scripts..."
+        statusLbl.TextColor3 = Color3.fromRGB(150, 255, 150)
+        statusLbl.TextSize = 10
+        statusLbl.Font = Enum.Font.Gotham
+        statusLbl.BackgroundTransparency = 1
+
+        -- Background updater
+        task.spawn(function()
+            while screenGui.Parent do
+                stats.Text = ("Strings: %d | Funcs: %d\nLoads: %d | Http: %d"):format(
+                    State.StringCount, State.FuncCount, State.LoadCount, State.HttpCount
+                )
+                if task and task.wait then task.wait(0.5) elseif wait then wait(0.5) end
+            end
+        end)
+    end)
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  EXECUTION CONTROLLER                             ║
+-- ╚═══════════════════════════════════════════════════╝
+local function startDumper()
+    logMsg("========================================")
+    logMsg("  Luraph VM Dumper v3 - Standby Active")
+    logMsg("========================================")
+
+    -- Bước 1: Cài Hooks
+    installAllHooks()
+
+    -- Bước 2: Tạo GUI mini
+    createMiniGUI()
+
+    -- Bước 3: Nếu bật AutoRunTarget -> tải và chạy script mục tiêu
+    if SETTINGS.AutoRunTarget and SETTINGS.TargetScriptURL ~= "" then
+        logMsg("Auto-running target script in 2 seconds...")
+        if task and task.wait then task.wait(2) elseif wait then wait(2) end
+
+        task.spawn(function()
+            logMsg("Fetching target script from: " .. SETTINGS.TargetScriptURL)
+            local code = nil
+            pcall(function()
+                if game and game.HttpGet then
+                    code = game:HttpGet(SETTINGS.TargetScriptURL, true)
+                elseif syn and syn.request then
+                    code = syn.request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
+                elseif request then
+                    code = request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
+                elseif http_request then
+                    code = http_request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
+                end
+            end)
+
+            if code and #code > 10 then
+                logMsg(("Target code loaded (%d bytes). Compiling..."):format(#code))
+                local fn, err = (loadstring or load)(code, SETTINGS.ScriptName)
+                if fn then
+                    logMsg("Target compiled successfully! Running inside VM...")
+                    scanFunction(fn, 0, "target_root")
+                    local ok, res = pcall(fn)
+                    if ok then
+                        logMsg("Target executed cleanly!")
+                    else
+                        logMsg("Target script notice/error: " .. safeStr(res))
+                    end
+                else
+                    logMsg("Compile error: " .. safeStr(err))
+                end
+            else
+                logMsg("Failed to download TargetScriptURL!")
+            end
+        end)
+    else
+        logMsg("Standing by! You can now execute any script in your executor.")
+    end
+
+    -- Bước 4: Tự động đếm lùi để quét và gửi Discord
+    if SETTINGS.AutoSendAfterSeconds > 0 then
+        task.spawn(function()
+            local waitTime = SETTINGS.AutoSendAfterSeconds + (SETTINGS.AutoRunTarget and 3 or 0)
+            logMsg(("Auto-send timer started: %d seconds..."):format(waitTime))
+            if task and task.wait then task.wait(waitTime) elseif wait then wait(waitTime) end
+            if not State.HasSent then
+                logMsg("Timer reached! Triggering automated Discord dump...")
+                sendDiscordDump()
+            end
+        end)
+    end
+end
+
+-- Khởi động ngay
+startDumper()
