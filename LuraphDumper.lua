@@ -273,13 +273,24 @@ local function streamAndExportJSON(onStatusUpdate)
 
     local jsonPackages = {}
     local currentFunctions = {}
-    local isFirstPackage = true
+    local currentStrings = {}
+    local stringIdx = 1
 
+    -- Thuật toán nạp tối đa dung lượng (Max Cap 7.4 MB/file)
     for i = 1, #allFunctions do
         table.insert(currentFunctions, allFunctions[i])
 
-        -- Chia mỗi gói tầm 2000 hàm (~6.8MB) để tối đa hóa dung lượng và giảm tối đa số file
-        if #currentFunctions >= 2000 or i == #allFunctions then
+        -- Nạp kèm chuỗi theo từng hàm
+        if stringIdx <= #allStrings then
+            local endS = math.min(stringIdx + 20, #allStrings)
+            for s = stringIdx, endS do
+                table.insert(currentStrings, allStrings[s])
+            end
+            stringIdx = endS + 1
+        end
+
+        -- Gom mỗi đợt 1200 hàm (~7.2MB - 7.5MB)
+        if #currentFunctions >= 1200 or i == #allFunctions then
             local packageObj = {
                 metadata = {
                     part = #jsonPackages + 1,
@@ -287,15 +298,42 @@ local function streamAndExportJSON(onStatusUpdate)
                     total_strings = #allStrings,
                 },
                 functions = currentFunctions,
-                strings = isFirstPackage and allStrings or {} -- Strings đưa vào gói 1
+                strings = currentStrings
             }
-            isFirstPackage = false
-            currentFunctions = {}
 
             local encodedStr = jsonEncode(packageObj)
-            table.insert(jsonPackages, encodedStr)
+
+            -- Nếu vượt quá 7.5MB thì tự động tách đôi an toàn
+            if #encodedStr > 7.5 * 1024 * 1024 then
+                local half = math.floor(#currentFunctions / 2)
+                local f1, f2 = {}, {}
+                for k = 1, half do table.insert(f1, currentFunctions[k]) end
+                for k = half + 1, #currentFunctions do table.insert(f2, currentFunctions[k]) end
+
+                local p1 = { metadata = { part = #jsonPackages + 1 }, functions = f1, strings = currentStrings }
+                local p2 = { metadata = { part = #jsonPackages + 2 }, functions = f2, strings = {} }
+                table.insert(jsonPackages, jsonEncode(p1))
+                table.insert(jsonPackages, jsonEncode(p2))
+            else
+                table.insert(jsonPackages, encodedStr)
+            end
+
+            currentFunctions = {}
+            currentStrings = {}
             task.wait() -- Nhường frame
         end
+    end
+
+    -- Nếu còn sót chuỗi
+    if stringIdx <= #allStrings then
+        local remStrings = {}
+        for s = stringIdx, #allStrings do table.insert(remStrings, allStrings[s]) end
+        local extraPkg = {
+            metadata = { part = #jsonPackages + 1 },
+            functions = {},
+            strings = remStrings
+        }
+        table.insert(jsonPackages, jsonEncode(extraPkg))
     end
 
     local totalParts = #jsonPackages
