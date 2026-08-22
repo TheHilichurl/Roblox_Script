@@ -700,8 +700,16 @@ function Utility.IsFrozenWatcher()
 end
 
 -- ── CƠ CHẾ BAY VẬT LÝ THUẦN TÚY ──
+local currentFlyTarget = nil
+local currentFlySpeed = 180
+local currentFlyOnComplete = nil
+
 function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
-    Utility.StopPhysicsFly()
+    currentFlyTarget = typeof(targetCFrame) == "CFrame" and targetCFrame.Position or targetCFrame
+    currentFlySpeed = speed or S.TeleportFlySpeed or 180
+    currentFlyOnComplete = onComplete
+
+    if FlyActive then return end
 
     local char = LocalPlayer.Character
     if not char then return end
@@ -736,24 +744,22 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
 
     killConn("physicsFlyLoop")
     _conns["physicsFlyLoop"] = RunService.Heartbeat:Connect(function()
-        if not FlyActive or not root or not root.Parent then
+        if not FlyActive or not root or not root.Parent or not currentFlyTarget then
             Utility.StopPhysicsFly()
             return
         end
 
         local currentPos = root.Position
-        local targetPos = typeof(targetCFrame) == "CFrame" and targetCFrame.Position or targetCFrame
-        local dir = (targetPos - currentPos)
+        local dir = (currentFlyTarget - currentPos)
         local dist = dir.Magnitude
 
         if dist <= 6 then
             Utility.StopPhysicsFly()
-            if onComplete then onComplete() end
+            if currentFlyOnComplete then currentFlyOnComplete() end
             return
         end
 
-        local flySpeed = speed or S.TeleportFlySpeed or 180
-        lv.VectorVelocity = dir.Unit * flySpeed
+        lv.VectorVelocity = dir.Unit * currentFlySpeed
         ao.CFrame = CFrame.lookAt(Vector3.zero, dir.Unit)
     end)
 end
@@ -1006,6 +1012,25 @@ function Utility.GetPlayerBoat(boatName)
     return nil
 end
 
+function Utility.GetBoatHumanoidPosition(boat, fallbackSeat)
+    if not boat then return fallbackSeat and fallbackSeat.Position or Vector3.zero end
+    local boatHum = boat:FindFirstChildOfClass("Humanoid") or boat:FindFirstChild("Humanoid")
+    if boatHum then
+        if boatHum.RootPart then
+            return boatHum.RootPart.Position
+        elseif boatHum.Parent and boatHum.Parent:IsA("Model") and boatHum.Parent.PrimaryPart then
+            return boatHum.Parent.PrimaryPart.Position
+        end
+    end
+    if boat.PrimaryPart then
+        return boat.PrimaryPart.Position
+    end
+    if fallbackSeat then
+        return fallbackSeat.Position
+    end
+    return boat:GetPivot().Position
+end
+
 function Utility.SitVehicleSeat(boat)
     if not boat then return false end
     local char = LocalPlayer.Character
@@ -1016,15 +1041,32 @@ function Utility.SitVehicleSeat(boat)
     local vSeat = boat:FindFirstChildOfClass("VehicleSeat") or boat:FindFirstChild("VehicleSeat", true)
     if not vSeat then return false end
 
-    if hum.SeatPart == vSeat then return true end
+    -- Nếu đã ngồi đúng trên ghế lái VehicleSeat
+    if hum.SeatPart == vSeat then
+        if FlyActive then Utility.StopPhysicsFly() end
+        return true
+    end
 
-    hum.PlatformStand = false
-    hum.Sit = false
-    root.CFrame = vSeat.CFrame * CFrame.new(0, 1.5, 0)
-    pcall(function()
-        vSeat:Sit(hum)
-    end)
-    return (hum.SeatPart == vSeat)
+    local distToSeat = (vSeat.Position - root.Position).Magnitude
+
+    -- Bước 1 & 2: Ngoài khoảng cách 20 studs -> Bay tới Humanoid của thuyền
+    if distToSeat > 20 then
+        local boatHumPos = Utility.GetBoatHumanoidPosition(boat, vSeat)
+        Utility.PhysicsFlyTo(boatHumPos + Vector3.new(0, 2, 0), S.TeleportFlySpeed or 180)
+        return false
+    else
+        -- Bước 3: Trong khoảng cách <= 20 studs -> Huỷ bay
+        if FlyActive then Utility.StopPhysicsFly() end
+
+        -- Bước 4: Ngồi lên ghế theo cơ chế hiện tại
+        hum.PlatformStand = false
+        hum.Sit = false
+        root.CFrame = vSeat.CFrame * CFrame.new(0, 1.5, 0)
+        pcall(function()
+            vSeat:Sit(hum)
+        end)
+        return (hum.SeatPart == vSeat)
+    end
 end
 
 function Utility.SitCannonSeat(boat)
@@ -1037,15 +1079,32 @@ function Utility.SitCannonSeat(boat)
     local cannonSeat = Utility.GetAvailableCannonSeat(boat)
     if not cannonSeat then return false end
 
-    if hum.SeatPart == cannonSeat then return true end
+    -- Nếu đã ngồi đúng trên Cannon Seat
+    if hum.SeatPart == cannonSeat then
+        if FlyActive then Utility.StopPhysicsFly() end
+        return true
+    end
 
-    hum.PlatformStand = false
-    hum.Sit = false
-    root.CFrame = cannonSeat.CFrame * CFrame.new(0, 1.5, 0)
-    pcall(function()
-        cannonSeat:Sit(hum)
-    end)
-    return (hum.SeatPart == cannonSeat)
+    local distToSeat = (cannonSeat.Position - root.Position).Magnitude
+
+    -- Bước 1 & 2: Ngoài khoảng cách 20 studs -> Bay tới Humanoid của thuyền
+    if distToSeat > 20 then
+        local boatHumPos = Utility.GetBoatHumanoidPosition(boat, cannonSeat)
+        Utility.PhysicsFlyTo(boatHumPos + Vector3.new(0, 2, 0), S.TeleportFlySpeed or 180)
+        return false
+    else
+        -- Bước 3: Trong khoảng cách <= 20 studs -> Huỷ bay
+        if FlyActive then Utility.StopPhysicsFly() end
+
+        -- Bước 4: Ngồi lên ghế theo cơ chế hiện tại
+        hum.PlatformStand = false
+        hum.Sit = false
+        root.CFrame = cannonSeat.CFrame * CFrame.new(0, 1.5, 0)
+        pcall(function()
+            cannonSeat:Sit(hum)
+        end)
+        return (hum.SeatPart == cannonSeat)
+    end
 end
 
 function Utility.GetBeastHunterBoat()
