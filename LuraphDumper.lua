@@ -19,7 +19,7 @@
 -- ╚═══════════════════════════════════════════════════╝
 local CONFIG = {
     -- Discord Webhook URL
-    WebhookURL = "https://discord.com/api/webhooks/1540742443459416074/OoigNnHKVnNmTh9unbAqX4hEyE7o7e2p9HM7P5Hob1_cEemOFY_0OMIE9SbO9JHGhKI5",
+    WebhookURL = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to",
 
     -- Tên file xuất ra trên Discord
     FileBaseName = "BytecodeDump",
