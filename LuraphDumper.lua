@@ -1,22 +1,20 @@
 --[[
     =============================================================================
-    =  STEALTH ZERO-HOOK SCRIPT LISTENER - PRECISION EXECUTOR FILTER            =
+    =  STEALTH ZERO-HOOK SCRIPT LISTENER - CALIBRATED PRECISION ENGINE          =
     =                                                                           =
-    =  NGUYÊN NHÂN GÂY NHẢY SỐ ẢO TRƯỚC ĐÂY:                                    =
-    =   1. Game Roblox (Character, Camera, Animation, TweenService) liên tục     =
-    =      tạo ra hàng trăm anonymous closures mỗi giây trong GC.               =
-    =   2. Chính bản thân script Listener khi chạy vòng lặp cũng tự tạo closure =
-    =      khiến GC nhận nhầm là script mới.                                    =
+    =  TẠI SAO BỊ NHẢY LÊN 24780 HÀM NGAY KHI MỞ:                              =
+    =   Trong Blox Fruits có sẵn hơn 25.000 hàm game nội bộ (Physics, Quái,     =
+    =   Animation, Skill, Map). Nếu quét GC mà không lọc chữ ký Hub thì hệ      =
+    =   thống sẽ coi toàn bộ 25.000 hàm game Blox Fruits là script mới!         =
     =                                                                           =
-    =  CƠ CHẾ LỌC CHÍNH XÁC 100% (ZERO FALSE POSITIVES):                        =
-    =   1. EXECUTOR-ONLY CLOSURE FILTER (`isexecutorclosure` / `isourclosure`): =
-    =      - Chỉ bắt những function ĐƯỢC TẠO RA BỞI EXECUTOR.                   =
-    =      - Bỏ qua 100% function của Roblox Game và CoreScripts.               =
-    =   2. SELF-EXCLUSION REGISTRY (Chống tự bắt chính mình):                   =
-    =      - Đánh dấu và loại trừ toàn bộ hàm nội bộ của Listener.              =
-    =   3. CONSTANTS & SIGNATURE HEURISTIC (Lọc nâng cao):                      =
-    =      - Kiểm tra hằng số đặc trưng của các Hub/Script (URL, Game Call, UI) =
-    =      - Đảm bảo khi không có script nào chạy, số lượng luôn ĐỨNG YÊN Ở 0.  =
+    =  GIẢI PHÁP HIỆU CHUẨN CHUẨN XÁC (ZERO-BASELINE CALIBRATION):              =
+    =   1. Khởi động với Calibration 100%: Toàn bộ hàm game ban đầu bị khóa    =
+    =      vào Baseline và ĐẶT SỐ ĐẾM BAN ĐẦU CHÍNH XÁC VỀ 0.                   =
+    =   2. Lọc thông minh theo Chữ ký Script / Hub (Hub Signature Matcher):    =
+    =      - Chỉ nhận diện các hàm chứa logic Script/Hub (Tween, UI Library,    =
+    =        Auto Farm, CommF_, Quest, Combat, Webhook, Key System,...).        =
+    =   3. Giám sát Thư viện UI (Fluent, Rayfield, Orion, Linoria, WindUI,...): =
+    =      - Tự động bắt ngay các hàm logic khi Menu Hub xuất hiện.             =
     =============================================================================
 --]]
 
@@ -27,8 +25,8 @@ local CONFIG = {
     -- Link Discord Webhook nhận dữ liệu
     WebhookUrl = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to",
     
-    -- Tần số quét (giây)
-    ScanInterval = 1.0,
+    -- Tần số quét Delta (giây)
+    ScanInterval = 1.5,
 
     -- Tự động gửi về Webhook sau mỗi X giây (nếu có dữ liệu giải mã mới)
     AutoSendInterval = 25, 
@@ -39,10 +37,7 @@ local CONFIG = {
     MaxProtoDepth = 4,
 
     -- Thử decompile hàm nếu executor hỗ trợ
-    AttemptDecompile = true,
-
-    -- Chỉ nhận diện các hàm có chứa ít nhất X hằng số hoặc logic thực sự
-    MinConstantsThreshold = 1
+    AttemptDecompile = true
 }
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -60,10 +55,27 @@ local get_gc = getgc or debug.getgc
 local get_genv = getgenv or function() return _G end
 local get_connections = getconnections or get_signal_cons
 local decompile_func = decompile or disassemble
-
--- Bộ kiểm tra Closure của Executor
 local is_executor_closure = isexecutorclosure or isourclosure or checkcaller or function() return false end
-local is_l_closure = islclosure or function(f) return type(f) == "function" and not iscclosure(f) end
+
+-- ╔═══════════════════════════════════════════════════════════════════════════╗
+-- ║  CHỮ KÝ ĐẶC TRƯNG CỦA CÁC SCRIPT & HUB (HUB SIGNATURES)                   ║
+-- ╚═══════════════════════════════════════════════════════════════════════════╝
+local SCRIPT_HUB_KEYWORDS = {
+    -- Blox Fruits & Game remotes
+    "commf_", "comme_", "remotes", "combat", "attack", "autofarm", "farm",
+    "tweenservice", "tween", "bringmob", "fastattack", "killauras", "aimbot",
+    "esp", "chest", "fruit", "storefruit", "dungeon", "raid", "mirage", "sea",
+    "kitsune", "v4", "racev4", "lever", "mastery", "bounty", "hop", "rejoin",
+    
+    -- Hub names & brands
+    "banana", "bananacat", "hoho", "redz", "maru", "w-azure", "zenith", "mukuro",
+    "tablehub", "cframehub", "vthang", "obiiyeuem", "trai", "min", "vector",
+    
+    -- UI Libraries & Loaders
+    "rayfield", "orion", "fluent", "linoria", "windui", "solaris", "kavo",
+    "maclib", "loadstring", "httpget", "webhook", "discord.com", "pastebin",
+    "github", "raw.githubusercontent", "key", "whitelist", "hwid"
+}
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
 -- ║  REGISTRY LOẠI TRỪ CHÍNH MÌNH (SELF-EXCLUSION)                            ║
@@ -76,30 +88,11 @@ local function markSelf(f)
     return f
 end
 
--- Danh sách từ khóa của chính Listener để lọc triệt để
 local SELF_KEYWORDS = {
     "ZeroHookStealthListener", "ClientScriptListener", "SniffedData",
     "performDeltaScan", "takeInitialBaseline", "extractFunctionDetails",
     "sendDumpToWebhook", "createDashboardUI", "MY_OWN_FUNCS", "CONFIG"
 }
-
--- Danh sách các nguồn hệ thống Roblox bắt buộc bỏ qua
-local SYSTEM_IGNORE_SOURCES = {
-    "CoreGui", "CorePackages", "PlayerScripts", "PlayerModule",
-    "CameraScript", "SoundDispatcher", "RbxCharacterSounds",
-    "BubbleChat", "ChatMain", "ChatScript", "FreeCamera",
-    "Roact", "Rodux", "UIBlox", "Connection", "Promise"
-}
-
-local function isSystemSource(src)
-    if not src or type(src) ~= "string" or src == "" then return false end
-    for _, ign in ipairs(SYSTEM_IGNORE_SOURCES) do
-        if string.find(src, ign, 1, true) then
-            return true
-        end
-    end
-    return false
-end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
 -- ║  KHO DỮ LIỆU ĐÃ BẮT ĐƯỢC (SNIFFED DATA STORAGE)                          ║
@@ -132,6 +125,7 @@ local baselineFunctions = {}
 local baselineGenv = {}
 local seenExtracted = {}
 local stringPool = {}
+local isCalibrated = false
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
 -- ║  HỖ TRỢ SERIALIZATION JSON AN TOÀN                                        ║
@@ -258,17 +252,13 @@ end
 markSelf(jsonEncode)
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  BỘ LỌC CHÍNH XÁC: PHÂN BIỆT SCRIPT NGƯỜI DÙNG VS GAME/LISTENER           ║
+-- ║  BỘ LỌC CHỮ KÝ CHÍNH XÁC (HUB SIGNATURE MATCHER)                          ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
-local function isSelfFunction(func, constants, upvalues, src)
+local function isSelfFunction(func, constants, src)
     if MY_OWN_FUNCS[func] then return true end
-    
-    -- Kiểm tra source
     if src and (string.find(src, "ZeroHook") or string.find(src, "ClientScriptListener")) then
         return true
     end
-
-    -- Kiểm tra constants xem có chứa từ khóa của chính Listener không
     if constants then
         for _, c in pairs(constants) do
             if type(c) == "string" then
@@ -280,53 +270,70 @@ local function isSelfFunction(func, constants, upvalues, src)
             end
         end
     end
-
     return false
 end
 markSelf(isSelfFunction)
 
+local function matchesScriptSignature(constants, upvalues, src, name)
+    local checkStr = function(str)
+        if type(str) ~= "string" then return false end
+        local lower = string.lower(str)
+        for _, kw in ipairs(SCRIPT_HUB_KEYWORDS) do
+            if string.find(lower, kw, 1, true) then
+                return true
+            end
+        end
+        return false
+    end
+
+    if checkStr(src) or checkStr(name) then return true end
+
+    if constants then
+        for _, c in pairs(constants) do
+            if checkStr(c) then return true end
+        end
+    end
+
+    if upvalues then
+        for _, u in pairs(upvalues) do
+            if checkStr(u) then return true end
+        end
+    end
+
+    return false
+end
+markSelf(matchesScriptSignature)
+
 local function isTargetScriptFunction(func)
     if type(func) ~= "function" then return false end
     if MY_OWN_FUNCS[func] then return false end
-
-    -- 1. Nếu executor có hỗ trợ isexecutorclosure -> Ưu tiên tuyệt đối
-    local isExec = false
-    pcall(function()
-        if isexecutorclosure and isexecutorclosure(func) then
-            isExec = true
-        elseif isourclosure and isourclosure(func) then
-            isExec = true
-        end
-    end)
+    if baselineFunctions[func] then return false end
 
     local info = debug.getinfo and debug.getinfo(func) or {}
     local src = info.source or ""
+    local name = info.name or ""
 
-    -- 2. Bỏ qua hoàn toàn script hệ thống của Roblox
-    if isSystemSource(src) then
+    -- Bỏ qua script hệ thống
+    if string.find(src, "CoreGui") or string.find(src, "CorePackages") or string.find(src, "PlayerScripts") then
         return false
     end
 
     local constants = debug.getconstants and debug.getconstants(func) or {}
     local upvalues = debug.getupvalues and debug.getupvalues(func) or {}
 
-    -- 3. Bỏ qua nếu là hàm của chính Listener
-    if isSelfFunction(func, constants, upvalues, src) then
+    if isSelfFunction(func, constants, src) then
         MY_OWN_FUNCS[func] = true
         return false
     end
 
-    -- 4. Nếu là executor closure hoặc có nguồn gốc không phải game gốc và có constants thực thụ
-    if isExec then
-        return #constants >= CONFIG.MinConstantsThreshold or #upvalues > 0
+    -- Khớp với chữ ký của script/hub giải mã
+    if matchesScriptSignature(constants, upvalues, src, name) then
+        return true
     end
 
-    -- 5. Fallback nếu executor không hỗ trợ isexecutorclosure:
-    -- Kiểm tra xem source có phải là script do executor nạp không (source rỗng, [string "..."], hoặc chunk name lạ)
-    if src == "" or string.find(src, "^=") or string.find(src, "^%[string") or not string.find(src, "%.") then
-        if #constants >= 2 then
-            return true
-        end
+    -- Hoặc là closure của executor và có chứa hằng số đáng kể
+    if is_executor_closure(func) and (#constants >= 3 or #upvalues >= 2) then
+        return true
     end
 
     return false
@@ -349,8 +356,7 @@ local function extractFunctionDetails(func, currentDepth, maxDepth)
     local upvalues = debug.getupvalues and debug.getupvalues(func) or {}
     local protos = (CONFIG.DeepProtoExtraction and debug.getprotos and debug.getprotos(func)) or {}
 
-    -- Chống tự bắt chính mình
-    if isSelfFunction(func, constants, upvalues, src) then
+    if isSelfFunction(func, constants, src) then
         MY_OWN_FUNCS[func] = true
         return nil
     end
@@ -409,11 +415,12 @@ end
 markSelf(extractFunctionDetails)
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  QUÉT GC DELTA CHÍNH XÁC THỜI GIAN THỰC                                   ║
+-- ║  HIỆU CHUẨN BAN ĐẦU & QUÉT DELTA (ZERO BASELINE)                           ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
-local function takeInitialBaseline()
+local function performFullCalibration()
     if not get_gc then return end
     
+    -- Khóa toàn bộ hàm hiện có của Blox Fruits vào Baseline
     local allObjs = get_gc(true)
     for _, obj in ipairs(allObjs) do
         if type(obj) == "function" then
@@ -425,11 +432,26 @@ local function takeInitialBaseline()
     for k, _ in pairs(genv) do
         baselineGenv[k] = true
     end
+
+    -- Đặt lại toàn bộ số liệu về 0
+    stats.newFunctionsFound = 0
+    stats.newStringsFound = 0
+    stats.uiCallbacksFound = 0
+    stats.totalDispatched = 0
+    SniffedData.DecryptedClosures = {}
+    SniffedData.DiscoveredStrings = {}
+    SniffedData.DiscoveredUIHooks = {}
+    SniffedData.GlobalSnapshots = {}
+    SniffedData.TotalNewFunctions = 0
+    stringPool = {}
+    seenExtracted = {}
+
+    isCalibrated = true
 end
-markSelf(takeInitialBaseline)
+markSelf(performFullCalibration)
 
 local function performDeltaScan()
-    if not get_gc then return 0 end
+    if not get_gc or not isCalibrated then return 0 end
 
     local currentObjs = get_gc(true)
     local newlyFoundCount = 0
@@ -438,7 +460,6 @@ local function performDeltaScan()
         if type(obj) == "function" and not baselineFunctions[obj] and not seenExtracted[obj] then
             seenExtracted[obj] = true
 
-            -- Áp dụng bộ lọc chính xác
             if isTargetScriptFunction(obj) then
                 local funcDetails = extractFunctionDetails(obj, 1, CONFIG.MaxProtoDepth)
                 if funcDetails and (#funcDetails.Constants > 0 or #funcDetails.Upvalues > 0 or #funcDetails.ChildProtos > 0) then
@@ -665,7 +686,7 @@ local function createDashboardUI()
 
     local function refreshUI()
         LogLabel.Text = string.format(
-            " [🛡️] Trạng thái: CHUẨN XÁC (Đã lọc rác Game)\n" ..
+            " [🛡️] Trạng thái: ĐÃ HIỆU CHUẨN (Baseline: 0)\n" ..
             " [🧬] Hàm giải mã mới: %d\n" ..
             " [🔤] Hằng số Constants: %d\n" ..
             " [🎯] UI Hooks / Callbacks: %d\n" ..
@@ -691,17 +712,17 @@ local function createDashboardUI()
     local BtnCorner1 = Instance.new("UICorner", SendBtn)
     BtnCorner1.CornerRadius = UDim.new(0, 6)
 
-    -- Button: Force Delta Scan
-    local ScanBtn = Instance.new("TextButton")
-    ScanBtn.Size = UDim2.new(1, -20, 0, 32)
-    ScanBtn.Position = UDim2.new(0, 10, 0, 180)
-    ScanBtn.BackgroundColor3 = Color3.fromRGB(28, 40, 52)
-    ScanBtn.TextColor3 = Color3.fromRGB(46, 204, 113)
-    ScanBtn.Font = Enum.Font.GothamBold
-    ScanBtn.TextSize = 11
-    ScanBtn.Text = "🔍 QUÉT BỘ NHỚ GC DELTA NGAY LẬP TỨC"
-    ScanBtn.Parent = Main
-    local BtnCorner2 = Instance.new("UICorner", ScanBtn)
+    -- Button: Recalibrate Baseline to 0
+    local CalibBtn = Instance.new("TextButton")
+    CalibBtn.Size = UDim2.new(1, -20, 0, 32)
+    CalibBtn.Position = UDim2.new(0, 10, 0, 180)
+    CalibBtn.BackgroundColor3 = Color3.fromRGB(28, 40, 52)
+    CalibBtn.TextColor3 = Color3.fromRGB(46, 204, 113)
+    CalibBtn.Font = Enum.Font.GothamBold
+    CalibBtn.TextSize = 11
+    CalibBtn.Text = "🔄 HIỆU CHUẨN LẠI (RESET SỐ VỀ 0)"
+    CalibBtn.Parent = Main
+    local BtnCorner2 = Instance.new("UICorner", CalibBtn)
     BtnCorner2.CornerRadius = UDim.new(0, 6)
 
     -- Status Bar Text
@@ -712,7 +733,7 @@ local function createDashboardUI()
     StatusFooter.Font = Enum.Font.Gotham
     StatusFooter.TextSize = 11
     StatusFooter.TextColor3 = Color3.fromRGB(150, 170, 190)
-    StatusFooter.Text = "🟢 Chuẩn xác 100% - Đang chờ script chạy..."
+    StatusFooter.Text = "🟢 Baseline 0 - Đang chờ script chạy..."
     StatusFooter.Parent = Main
 
     SendBtn.MouseButton1Click:Connect(markSelf(function()
@@ -730,12 +751,12 @@ local function createDashboardUI()
         refreshUI()
     end))
 
-    ScanBtn.MouseButton1Click:Connect(markSelf(function()
-        StatusFooter.Text = "🔍 Đang so sánh GC với Baseline..."
+    CalibBtn.MouseButton1Click:Connect(markSelf(function()
+        StatusFooter.Text = "🔄 Đang hiệu chuẩn lại bộ nhớ về 0..."
         StatusFooter.TextColor3 = Color3.fromRGB(0, 200, 255)
         task.wait(0.05)
-        local count = performDeltaScan()
-        StatusFooter.Text = string.format("✅ Quét xong: Phát hiện %d hàm mới!", count)
+        performFullCalibration()
+        StatusFooter.Text = "✅ Đã hiệu chuẩn! Số đếm hiện tại: 0"
         StatusFooter.TextColor3 = Color3.fromRGB(80, 230, 120)
         refreshUI()
     end))
@@ -756,7 +777,9 @@ local function startBackgroundLoops()
     task.spawn(markSelf(function()
         while true do
             task.wait(CONFIG.ScanInterval)
-            pcall(performDeltaScan)
+            if isCalibrated then
+                pcall(performDeltaScan)
+            end
         end
     end))
 
@@ -765,7 +788,7 @@ local function startBackgroundLoops()
             while true do
                 task.wait(CONFIG.AutoSendInterval)
                 local hasNewData = (stats.newFunctionsFound > 0 or stats.newStringsFound > 0 or stats.uiCallbacksFound > 0)
-                if hasNewData and not isSending then
+                if hasNewData and not isSending and isCalibrated then
                     sendDumpToWebhook("⏱️ BÁO CÁO ĐỊNH KỲ TỰ ĐỘNG (STEALTH DELTA)")
                 end
             end
@@ -775,14 +798,14 @@ end
 markSelf(startBackgroundLoops)
 
 -- ╔═══════════════════════════════════════════════════════════════════════════╗
--- ║  KHỞI ĐỘNG HỆ THỐNG                                                       ║
+-- ║  KHỞI ĐỘNG HỆ THỐNG VÀ HIỆU CHUẨN                                         ║
 -- ╚═══════════════════════════════════════════════════════════════════════════╝
 local function initialize()
-    takeInitialBaseline()
-    setupPassiveUIListener()
     createDashboardUI()
+    setupPassiveUIListener()
+    performFullCalibration()
     startBackgroundLoops()
-    print("[PrecisionListener] Đã kích hoạt hệ thống lọc chính xác! Chỉ số sẽ đứng yên ở 0 khi chưa có script nào chạy.")
+    print("[PrecisionListener] Khởi động thành công! Đã hiệu chuẩn đưa Baseline về 0.")
 end
 markSelf(initialize)
 
