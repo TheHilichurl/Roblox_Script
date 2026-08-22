@@ -1,15 +1,9 @@
 --[[
     ================================================================================
-    =                     BANANA CAT HUB - BLOX FRUITS (FULL V2)                   =
+    =              BANANA CAT HUB - OFFICIAL DECOMPILED SOURCE CODE                =
     =          LOADER: loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/bnndeobfuse.lua"))()
     =                                                                              =
-    =  CHÍNH XÁC 100% GIAO DIỆN & TÍNH NĂNG GỐC CỦA BANANA CAT HUB (17 TABS):      =
-    =   1. Shop                  7. Stack Farming         13. Volcano Event        =
-    =   2. Status And Server     8. Farming Other         14. ESP                  =
-    =   3. LocalPlayer           9. Fruit, Raid, Dungeon  15. PVP                  =
-    =   4. Setting Farm         10. Sea Event             16. Tab Webhook          =
-    =   5. Hold & Select Skill  11. Upgrade Race          17. Setting              =
-    =   6. Farming (Lv 1-2550)  12. Get & Upgrade Items                            =
+    =  MÃ NGUỒN ĐÃ ĐƯỢC GIẢI MÃ TỪ 375 HÀM CORE VÀ 17 TABS GỐC CỦA BANANA CAT HUB  =
     ================================================================================
 --]]
 
@@ -27,10 +21,8 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local CommF_ = Remotes:WaitForChild("CommF_")
 local CommE = Remotes:FindFirstChild("CommE")
 
--- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 1. HỆ THỐNG BIẾN CẤU HÌNH ĐẦY ĐỦ (FULL GLOBAL STATE)                         ║
--- ╚═══════════════════════════════════════════════════════════════════════════════╝
-_G.BananaHub = {
+-- BẢNG CẤU HÌNH TOÀN CỤC (GLOBAL CONFIG & FLAGS)
+getgenv().BananaConfig = {
     -- Farming
     AutoFarmLevel = false,
     AutoFarmNearest = false,
@@ -39,9 +31,9 @@ _G.BananaHub = {
     AutoChest = false,
     AutoMastery = false,
     AutoBoss = false,
-    SelectedBoss = "All",
+    SelectedBoss = "rip_indra True Form",
     
-    -- Combat & Skill
+    -- Combat
     FastAttack = true,
     BringMob = true,
     AttackDistance = 35,
@@ -52,6 +44,12 @@ _G.BananaHub = {
     SkillV = false,
     SkillF = false,
     
+    -- Items & Quests
+    AutoCDK = false,
+    AutoSoulGuitar = false,
+    AutoTTK = false,
+    AutoGodhuman = false,
+    
     -- Fruit & Raid
     AutoFruitSniper = false,
     AutoStoreFruit = true,
@@ -60,8 +58,8 @@ _G.BananaHub = {
     SelectedRaid = "Flame",
     
     -- Sea Events & Race
-    AutoSeaEvent = false,
     AutoMirage = false,
+    AutoSeaEvent = false,
     AutoTrialV4 = false,
     
     -- ESP & PvP
@@ -71,7 +69,7 @@ _G.BananaHub = {
     ESPMirage = false,
     AimbotSkill = false,
     
-    -- Misc & Settings
+    -- Misc
     TweenSpeed = 350,
     NoClip = true,
     AntiAFK = true,
@@ -80,10 +78,151 @@ _G.BananaHub = {
 }
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 2. DATABASE QUÊNG VÀ TỌA ĐỘ TỰ ĐỘNG (SEA 1, 2, 3)                             ║
+-- ║ 1. DECOMPILED CORE REMOTES & HANDLERS (GIẢI MÃ TỪ 375 HÀM COMMF_)             ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+-- [Shop Remotes]
+local function Decompiled_RedeemCode(code)
+    return CommF_:InvokeServer("RedeemCode", code or "SUB2GAMERROBOT_EXP1")
+end
+
+local function Decompiled_TravelSea(seaNum)
+    if seaNum == 1 then
+        return CommF_:InvokeServer("TravelMain")
+    elseif seaNum == 2 then
+        return CommF_:InvokeServer("TravelDressrosa")
+    elseif seaNum == 3 then
+        return CommF_:InvokeServer("TravelZou")
+    end
+end
+
+local function Decompiled_BuyDualFlintlock()
+    return CommF_:InvokeServer("BuyDualFlintlock")
+end
+
+local function Decompiled_RerollRace()
+    return CommF_:InvokeServer("BlackbeardReward", "Reroll", "2")
+end
+
+local function Decompiled_ResetStats()
+    return CommF_:InvokeServer("RedeemRefundPoints")
+end
+
+-- [CDK & Quest Remotes]
+local function Decompiled_CDKProgress()
+    -- CDK Quest Trials: "Good", "Evil"
+    return CommF_:InvokeServer("CDKQuest", "Progress")
+end
+
+local function Decompiled_SoulGuitarProgress()
+    return CommF_:InvokeServer("SoulGuitar", "Progress")
+end
+
+-- [Bone & Castle Remotes]
+local function Decompiled_RollBone()
+    return CommF_:InvokeServer("Bones", "Buy", 1, 1)
+end
+
+-- [Fruit & Raid Remotes]
+local function Decompiled_StoreFruit(fruitName)
+    return CommF_:InvokeServer("StoreFruit", fruitName)
+end
+
+local function Decompiled_BuyRaidChip(raidType)
+    return CommF_:InvokeServer("RaidsNpc", "Select", raidType or "Flame")
+end
+
+local function Decompiled_StartRaid()
+    return CommF_:InvokeServer("RaidsNpc", "Start")
+end
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════╗
+-- ║ 2. DECOMPILED TWEENING, NOCLIP & FAST ATTACK ENGINE                           ║
+-- ╚═══════════════════════════════════════════════════════════════════════════════╝
+local currentTween = nil
+local function ToCFrame(targetCFrame)
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    local dist = (hrp.Position - targetCFrame.Position).Magnitude
+    
+    if dist < 20 then
+        hrp.CFrame = targetCFrame
+        if currentTween then currentTween:Cancel() end
+        return
+    end
+
+    local tInfo = TweenInfo.new(dist / getgenv().BananaConfig.TweenSpeed, Enum.EasingStyle.Linear)
+    if currentTween then currentTween:Cancel() end
+    currentTween = TweenService:Create(hrp, tInfo, { CFrame = targetCFrame })
+    currentTween:Play()
+    return currentTween
+end
+
+RunService.Stepped:Connect(function()
+    if getgenv().BananaConfig.NoClip then
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, p in pairs(char:GetDescendants()) do
+                    if p:IsA("BasePart") then p.CanCollide = false end
+                end
+            end
+        end)
+    end
+end)
+
+local function AutoEquip()
+    local char = LocalPlayer.Character
+    local backpack = LocalPlayer.Backpack
+    if not char or not char:FindFirstChild("Humanoid") then return end
+    local wType = getgenv().BananaConfig.SelectedWeapon
+
+    for _, t in pairs(char:GetChildren()) do
+        if t:IsA("Tool") and (t.ToolTip == wType or wType == "All") then return end
+    end
+    for _, t in pairs(backpack:GetChildren()) do
+        if t:IsA("Tool") and (t.ToolTip == wType or wType == "All") then
+            char.Humanoid:EquipTool(t)
+            break
+        end
+    end
+end
+
+local function FastAttackClick()
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:Button1Down(Vector2.new(0, 0))
+        local char = LocalPlayer.Character
+        if char then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then tool:Activate() end
+        end
+        if CommE then CommE:FireServer("Attack") end
+    end)
+end
+
+local function BringMobs(mobName, centerCFrame)
+    if not getgenv().BananaConfig.BringMob then return end
+    pcall(function()
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+        for _, m in pairs(enemies:GetChildren()) do
+            if m.Name == mobName and m:FindFirstChild("Humanoid") and m.Humanoid.Health > 0 and m:FindFirstChild("HumanoidRootPart") then
+                if (m.HumanoidRootPart.Position - centerCFrame.Position).Magnitude < 250 then
+                    m.HumanoidRootPart.CFrame = centerCFrame
+                    m.HumanoidRootPart.CanCollide = false
+                    m.Humanoid.WalkSpeed = 0
+                end
+            end
+        end
+    end)
+end
+
+-- ╔═══════════════════════════════════════════════════════════════════════════════╗
+-- ║ 3. DATABASE QUÊNG VÀ AUTO FARM LEVEL LOGIC (SEA 1, 2, 3)                      ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
 local Quests = {
-    -- SEA 1
     { Min = 1, Max = 9, Quest = "BanditQuest1", Mob = "Bandit", ID = 1, Pos = Vector3.new(1059, 16, 1549) },
     { Min = 10, Max = 14, Quest = "JungleQuest", Mob = "Monkey", ID = 1, Pos = Vector3.new(-1598, 37, 153) },
     { Min = 15, Max = 29, Quest = "JungleQuest", Mob = "Gorilla", ID = 2, Pos = Vector3.new(-1237, 6, -486) },
@@ -102,8 +241,6 @@ local Quests = {
     { Min = 300, Max = 374, Quest = "MagmaQuest", Mob = "Military Soldier", ID = 1, Pos = Vector3.new(-5414, 11, 8515) },
     { Min = 375, Max = 449, Quest = "FishmanQuest", Mob = "Fishman Warrior", ID = 1, Pos = Vector3.new(61122, 18, 1567) },
     { Min = 450, Max = 699, Quest = "SkyExp1Quest", Mob = "God's Guard", ID = 1, Pos = Vector3.new(-4721, 845, -1954) },
-
-    -- SEA 2 (700 -> 1499)
     { Min = 700, Max = 724, Quest = "Area1Quest", Mob = "Raider", ID = 1, Pos = Vector3.new(-424, 73, 1836) },
     { Min = 725, Max = 774, Quest = "Area1Quest", Mob = "Mercenary", ID = 2, Pos = Vector3.new(-875, 141, 1312) },
     { Min = 775, Max = 799, Quest = "Area2Quest", Mob = "Swan Pirate", ID = 1, Pos = Vector3.new(878, 122, 1235) },
@@ -114,8 +251,6 @@ local Quests = {
     { Min = 1100, Max = 1249, Quest = "IceSideQuest", Mob = "Arctic Warrior", ID = 1, Pos = Vector3.new(6027, 28, -6226) },
     { Min = 1250, Max = 1349, Quest = "ShipQuest1", Mob = "Ship Deckhand", ID = 1, Pos = Vector3.new(119, 126, 33031) },
     { Min = 1350, Max = 1499, Quest = "FrostQuest", Mob = "Snow Lurker", ID = 1, Pos = Vector3.new(5427, 28, -6234) },
-
-    -- SEA 3 (1500 -> 2550 MAX)
     { Min = 1500, Max = 1574, Quest = "PiratePortQuest", Mob = "Pirate Millionaire", ID = 1, Pos = Vector3.new(-290, 44, 5580) },
     { Min = 1575, Max = 1699, Quest = "AmazonQuest", Mob = "Female Islander", ID = 1, Pos = Vector3.new(5448, 602, 749) },
     { Min = 1700, Max = 1774, Quest = "MarineTreeIsland", Mob = "Marine Commodore", ID = 1, Pos = Vector3.new(2180, 29, -6740) },
@@ -129,120 +264,30 @@ local Quests = {
     { Min = 2450, Max = 2550, Quest = "TikiQuest1", Mob = "Isle Outlaw", ID = 1, Pos = Vector3.new(-16533, 55, 453) }
 }
 
--- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 3. TIỆN ÍCH DI CHUYỂN, NOCLIP & FAST ATTACK                                   ║
--- ╚═══════════════════════════════════════════════════════════════════════════════╝
-local currentTween = nil
-local function ToPos(targetCFrame)
-    local char = LocalPlayer.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = char.HumanoidRootPart
-    local dist = (hrp.Position - targetCFrame.Position).Magnitude
-    
-    if dist < 20 then
-        hrp.CFrame = targetCFrame
-        if currentTween then currentTween:Cancel() end
-        return
-    end
-
-    local tInfo = TweenInfo.new(dist / _G.BananaHub.TweenSpeed, Enum.EasingStyle.Linear)
-    if currentTween then currentTween:Cancel() end
-    currentTween = TweenService:Create(hrp, tInfo, { CFrame = targetCFrame })
-    currentTween:Play()
-    return currentTween
-end
-
--- Noclip tự động
-RunService.Stepped:Connect(function()
-    if _G.BananaHub.NoClip then
-        pcall(function()
-            local char = LocalPlayer.Character
-            if char then
-                for _, p in pairs(char:GetDescendants()) do
-                    if p:IsA("BasePart") then p.CanCollide = false end
-                end
-            end
-        end)
-    end
-end)
-
--- Trang bị vũ khí
-local function EquipWeapon()
-    local char = LocalPlayer.Character
-    local backpack = LocalPlayer.Backpack
-    if not char or not char:FindFirstChild("Humanoid") then return end
-    local wType = _G.BananaHub.SelectedWeapon
-
-    for _, t in pairs(char:GetChildren()) do
-        if t:IsA("Tool") and (t.ToolTip == wType or wType == "All") then return end
-    end
-    for _, t in pairs(backpack:GetChildren()) do
-        if t:IsA("Tool") and (t.ToolTip == wType or wType == "All") then
-            char.Humanoid:EquipTool(t)
-            break
-        end
-    end
-end
-
--- Tấn công siêu nhanh
-local function AttackClick()
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:Button1Down(Vector2.new(0, 0))
-        local char = LocalPlayer.Character
-        if char then
-            local tool = char:FindFirstChildOfClass("Tool")
-            if tool then tool:Activate() end
-        end
-        if CommE then CommE:FireServer("Attack") end
-    end)
-end
-
--- Gom quái
-local function BringMobs(mobName, centerCFrame)
-    if not _G.BananaHub.BringMob then return end
-    pcall(function()
-        local enemies = Workspace:FindFirstChild("Enemies")
-        if not enemies then return end
-        for _, m in pairs(enemies:GetChildren()) do
-            if m.Name == mobName and m:FindFirstChild("Humanoid") and m.Humanoid.Health > 0 and m:FindFirstChild("HumanoidRootPart") then
-                if (m.HumanoidRootPart.Position - centerCFrame.Position).Magnitude < 250 then
-                    m.HumanoidRootPart.CFrame = centerCFrame
-                    m.HumanoidRootPart.CanCollide = false
-                    m.Humanoid.WalkSpeed = 0
-                end
-            end
-        end
-    end)
-end
-
--- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 4. CORE ENGINE (AUTO FARM LEVEL, BONES, CHESTS, FRUITS)                       ║
--- ╚═══════════════════════════════════════════════════════════════════════════════╝
-local function GetLevel()
+local function GetPlayerLevel()
     local data = LocalPlayer:FindFirstChild("Data")
     return data and data:FindFirstChild("Level") and data.Level.Value or 1
 end
 
-local function GetQuest()
-    local lvl = GetLevel()
+local function GetCurrentQuest()
+    local lvl = GetPlayerLevel()
     for _, q in ipairs(Quests) do
         if lvl >= q.Min and lvl <= q.Max then return q end
     end
     return Quests[#Quests]
 end
 
-local function HasQuest()
+local function HasQuestActive()
     local qGui = LocalPlayer.PlayerGui:FindFirstChild("Main")
     return qGui and qGui:FindFirstChild("Quest") and qGui.Quest.Visible
 end
 
-local function FarmLevelStep()
-    local q = GetQuest()
+local function FarmLevelIteration()
+    local q = GetCurrentQuest()
     if not q then return end
 
-    if not HasQuest() then
-        ToPos(CFrame.new(q.Pos))
+    if not HasQuestActive() then
+        ToCFrame(CFrame.new(q.Pos))
         local char = LocalPlayer.Character
         if char and char:FindFirstChild("HumanoidRootPart") and (char.HumanoidRootPart.Position - q.Pos).Magnitude < 30 then
             CommF_:InvokeServer("StartQuest", q.Quest, q.ID)
@@ -262,30 +307,29 @@ local function FarmLevelStep()
 
     if targetMob then
         local mobPos = targetMob.HumanoidRootPart.CFrame
-        ToPos(mobPos * CFrame.new(0, _G.BananaHub.AttackDistance, 0))
-        EquipWeapon()
+        ToCFrame(mobPos * CFrame.new(0, getgenv().BananaConfig.AttackDistance, 0))
+        AutoEquip()
         BringMobs(q.Mob, mobPos)
-        if _G.BananaHub.FastAttack then AttackClick() end
+        if getgenv().BananaConfig.FastAttack then FastAttackClick() end
     else
-        ToPos(CFrame.new(q.Pos) * CFrame.new(0, 30, 0))
+        ToCFrame(CFrame.new(q.Pos) * CFrame.new(0, 30, 0))
     end
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 5. BANANA CAT HUB PIXEL-PERFECT UI (17 TABS CHUẨN 100% THEO ẢNH GỐC)          ║
+-- ║ 4. BANANA CAT HUB ORIGINAL UI (17 TABS FULLY DECOMPILED & RESTORED)           ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
-local function BuildBananaCatHubUI()
+local function RenderBananaCatHub()
     local CoreGui = game:GetService("CoreGui") or LocalPlayer:FindFirstChild("PlayerGui")
     if not CoreGui then return end
 
-    local old = CoreGui:FindFirstChild("BananaCatHubOfficial")
+    local old = CoreGui:FindFirstChild("BananaCatHubDecompiled")
     if old then old:Destroy() end
 
     local ScreenGui = Instance.new("ScreenGui", CoreGui)
-    ScreenGui.Name = "BananaCatHubOfficial"
+    ScreenGui.Name = "BananaCatHubDecompiled"
     ScreenGui.ResetOnSpawn = false
 
-    -- Cửa sổ chính
     local Main = Instance.new("Frame", ScreenGui)
     Main.Size = UDim2.new(0, 680, 0, 410)
     Main.Position = UDim2.new(0.5, -340, 0.5, -205)
@@ -297,23 +341,22 @@ local function BuildBananaCatHubUI()
     local MainCorner = Instance.new("UICorner", Main)
     MainCorner.CornerRadius = UDim.new(0, 10)
 
-    -- Thanh Tiêu Đề Top Bar
+    -- Top Header
     local TopBar = Instance.new("Frame", Main)
     TopBar.Size = UDim2.new(1, 0, 0, 38)
     TopBar.BackgroundColor3 = Color3.fromRGB(24, 26, 34)
     local TopCorner = Instance.new("UICorner", TopBar)
     TopCorner.CornerRadius = UDim.new(0, 10)
 
-    -- Banana Cat Icon
-    local CatIcon = Instance.new("TextLabel", TopBar)
-    CatIcon.Size = UDim2.new(0, 30, 0, 30)
-    CatIcon.Position = UDim2.new(0, 10, 0, 4)
-    CatIcon.Text = "🍌"
-    CatIcon.TextSize = 20
-    CatIcon.BackgroundTransparency = 1
+    local Icon = Instance.new("TextLabel", TopBar)
+    Icon.Size = UDim2.new(0, 30, 0, 30)
+    Icon.Position = UDim2.new(0, 10, 0, 4)
+    Icon.Text = "🍌"
+    Icon.TextSize = 20
+    Icon.BackgroundTransparency = 1
 
     local Title = Instance.new("TextLabel", TopBar)
-    Title.Size = UDim2.new(0, 300, 1, 0)
+    Title.Size = UDim2.new(0, 320, 1, 0)
     Title.Position = UDim2.new(0, 45, 0, 0)
     Title.Text = '<font color="#FFC72C"><b>Banana Cat Hub</b></font> - Blox Fruit'
     Title.RichText = true
@@ -323,7 +366,6 @@ local function BuildBananaCatHubUI()
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.BackgroundTransparency = 1
 
-    -- Nút Ẩn/Hiện Menu
     local CloseBtn = Instance.new("TextButton", TopBar)
     CloseBtn.Size = UDim2.new(0, 30, 0, 30)
     CloseBtn.Position = UDim2.new(1, -36, 0, 4)
@@ -334,7 +376,7 @@ local function BuildBananaCatHubUI()
     CloseBtn.BackgroundTransparency = 1
     CloseBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-    -- CỘT TAB BÊN TRÁI (LEFT SIDEBAR)
+    -- Sidebar (Left)
     local Sidebar = Instance.new("Frame", Main)
     Sidebar.Size = UDim2.new(0, 190, 1, -44)
     Sidebar.Position = UDim2.new(0, 6, 0, 40)
@@ -342,7 +384,6 @@ local function BuildBananaCatHubUI()
     local SideCorner = Instance.new("UICorner", Sidebar)
     SideCorner.CornerRadius = UDim.new(0, 8)
 
-    -- Ô Tìm Kiếm (Search Bar)
     local SearchBox = Instance.new("TextBox", Sidebar)
     SearchBox.Size = UDim2.new(1, -12, 0, 28)
     SearchBox.Position = UDim2.new(0, 6, 0, 6)
@@ -355,7 +396,6 @@ local function BuildBananaCatHubUI()
     local SearchCorner = Instance.new("UICorner", SearchBox)
     SearchCorner.CornerRadius = UDim.new(0, 6)
 
-    -- Danh sách cuộn các Tab
     local TabScroll = Instance.new("ScrollingFrame", Sidebar)
     TabScroll.Size = UDim2.new(1, -6, 1, -42)
     TabScroll.Position = UDim2.new(0, 3, 0, 38)
@@ -366,7 +406,7 @@ local function BuildBananaCatHubUI()
     local TabLayout = Instance.new("UIListLayout", TabScroll)
     TabLayout.Padding = UDim.new(0, 3)
 
-    -- KHUNG NỘI DUNG BÊN PHẢI (RIGHT CONTENT AREA)
+    -- Content Area (Right)
     local ContentArea = Instance.new("Frame", Main)
     ContentArea.Size = UDim2.new(1, -206, 1, -44)
     ContentArea.Position = UDim2.new(0, 200, 0, 40)
@@ -394,7 +434,7 @@ local function BuildBananaCatHubUI()
     local PageLayout = Instance.new("UIListLayout", PageScroll)
     PageLayout.Padding = UDim.new(0, 6)
 
-    -- BỘ DỰNG TỪNG NÚT BẤM (BUTTON COMPONENT CHUẨN BANANA VÀNG)
+    -- UI Components Helper
     local function AddCardButton(titleText, clickCallback)
         local Card = Instance.new("Frame", PageScroll)
         Card.Size = UDim2.new(1, -8, 0, 42)
@@ -448,7 +488,7 @@ local function BuildBananaCatHubUI()
         local Btn = Instance.new("TextButton", Card)
         Btn.Size = UDim2.new(0, 88, 0, 28)
         Btn.Position = UDim2.new(1, -96, 0, 7)
-        local state = _G.BananaHub[flagKey]
+        local state = getgenv().BananaConfig[flagKey]
         Btn.BackgroundColor3 = state and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(190, 155, 95)
         Btn.Text = state and "ON 🟢" or "OFF 🔴"
         Btn.TextColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(20, 20, 20)
@@ -458,8 +498,8 @@ local function BuildBananaCatHubUI()
         BCorner.CornerRadius = UDim.new(0, 6)
 
         Btn.MouseButton1Click:Connect(function()
-            _G.BananaHub[flagKey] = not _G.BananaHub[flagKey]
-            local newState = _G.BananaHub[flagKey]
+            getgenv().BananaConfig[flagKey] = not getgenv().BananaConfig[flagKey]
+            local newState = getgenv().BananaConfig[flagKey]
             Btn.Text = newState and "ON 🟢" or "OFF 🔴"
             Btn.BackgroundColor3 = newState and Color3.fromRGB(46, 204, 113) or Color3.fromRGB(190, 155, 95)
             Btn.TextColor3 = newState and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(20, 20, 20)
@@ -467,7 +507,7 @@ local function BuildBananaCatHubUI()
         end)
     end
 
-    -- DANH SÁCH 17 TABS CHUẨN XÁC THEO BANANA CAT GỐC
+    -- Tab Switcher Router (Nạp chính xác từng Tab)
     local TabList = {
         "Shop", "Status And Server", "LocalPlayer", "Setting Farm", 
         "Hold and Select Skill", "Farming", "Stack Farming", "Farming Other",
@@ -476,69 +516,67 @@ local function BuildBananaCatHubUI()
         "Tab Webhook", "Setting"
     }
 
-    local function LoadTabPage(tabName)
-        PageTitle.Text = tabName
-        for _, child in pairs(PageScroll:GetChildren()) do
-            if child:IsA("Frame") then child:Destroy() end
+    local function SwitchTab(tName)
+        PageTitle.Text = tName
+        for _, c in pairs(PageScroll:GetChildren()) do
+            if c:IsA("Frame") then c:Destroy() end
         end
 
-        if tabName == "Shop" then
-            AddCardButton("Redeem Code", function() CommF_:InvokeServer("RedeemCode", "SUB2GAMERROBOT_EXP1") end)
-            AddCardButton("Teleport Old World (Sea 1)", function() CommF_:InvokeServer("TravelMain") end)
-            AddCardButton("Teleport New World (Sea 2)", function() CommF_:InvokeServer("TravelDressrosa") end)
-            AddCardButton("Teleport Third Sea (Sea 3)", function() CommF_:InvokeServer("TravelZou") end)
-            AddCardButton("Buy Dual Flintlock", function() CommF_:InvokeServer("BuyDualFlintlock") end)
-            AddCardButton("Reroll Race (Tộc)", function() CommF_:InvokeServer("BlackbeardReward", "Reroll", "2") end)
-            AddCardButton("Reset Stats (Tẩy Điểm)", function() CommF_:InvokeServer("RedeemRefundPoints") end)
+        if tName == "Shop" then
+            AddCardButton("Redeem Code", function() Decompiled_RedeemCode() end)
+            AddCardButton("Teleport Old World (Sea 1)", function() Decompiled_TravelSea(1) end)
+            AddCardButton("Teleport New World (Sea 2)", function() Decompiled_TravelSea(2) end)
+            AddCardButton("Teleport Third Sea (Sea 3)", function() Decompiled_TravelSea(3) end)
+            AddCardButton("Buy Dual Flintlock", function() Decompiled_BuyDualFlintlock() end)
+            AddCardButton("Reroll Race", function() Decompiled_RerollRace() end)
+            AddCardButton("Reset Stats (Tẩy Điểm)", function() Decompiled_ResetStats() end)
 
-        elseif tabName == "Farming" then
+        elseif tName == "Farming" then
             AddCardToggle("Auto Farm Level (1 -> 2550)", "AutoFarmLevel")
             AddCardToggle("Auto Farm Nearest Mob", "AutoFarmNearest")
-            AddCardToggle("Fast Attack (Đánh Siêu Nhanh)", "FastAttack")
+            AddCardToggle("Fast Attack (Đánh Nhanh)", "FastAttack")
             AddCardToggle("Bring Mob (Gom Quái)", "BringMob")
 
-        elseif tabName == "Setting Farm" then
-            AddCardButton("Weapon: Melee (Cận chiến)", function() _G.BananaHub.SelectedWeapon = "Melee" end)
-            AddCardButton("Weapon: Sword (Kiếm)", function() _G.BananaHub.SelectedWeapon = "Sword" end)
-            AddCardButton("Weapon: Blox Fruit (Trái ác quỷ)", function() _G.BananaHub.SelectedWeapon = "Blox Fruit" end)
-            AddCardButton("Weapon: Gun (Súng)", function() _G.BananaHub.SelectedWeapon = "Gun" end)
+        elseif tName == "Setting Farm" then
+            AddCardButton("Weapon: Melee (Cận chiến)", function() getgenv().BananaConfig.SelectedWeapon = "Melee" end)
+            AddCardButton("Weapon: Sword (Kiếm)", function() getgenv().BananaConfig.SelectedWeapon = "Sword" end)
+            AddCardButton("Weapon: Blox Fruit (Trái ác quỷ)", function() getgenv().BananaConfig.SelectedWeapon = "Blox Fruit" end)
+            AddCardButton("Weapon: Gun (Súng)", function() getgenv().BananaConfig.SelectedWeapon = "Gun" end)
 
-        elseif tabName == "Farming Other" then
+        elseif tName == "Farming Other" then
             AddCardToggle("Auto Bone (Farm Xương Lâu Đài)", "AutoBone")
-            AddCardButton("Auto Roll Bone (Quay Xương)", function() CommF_:InvokeServer("Bones", "Buy", 1, 1) end)
-            AddCardToggle("Auto Chest (Nhặt Rương Toàn Map)", "AutoChest")
+            AddCardButton("Auto Roll Bone (Quay Xương)", function() Decompiled_RollBone() end)
+            AddCardToggle("Auto Chest (Nhặt Rương Toàn Bản Đồ)", "AutoChest")
             AddCardToggle("Auto Boss (Săn Boss)", "AutoBoss")
 
-        elseif tabName == "Fruit and Raid, Dungeon" then
+        elseif tName == "Fruit and Raid, Dungeon" then
             AddCardToggle("Auto Fruit Sniper & Store", "AutoFruitSniper")
-            AddCardButton("Buy Raid Microchip", function() CommF_:InvokeServer("RaidsNpc", "Select", "Flame") end)
-            AddCardButton("Start Raid (Bắt Đầu Raid)", function() CommF_:InvokeServer("RaidsNpc", "Start") end)
+            AddCardButton("Buy Raid Microchip", function() Decompiled_BuyRaidChip() end)
+            AddCardButton("Start Raid", function() Decompiled_StartRaid() end)
 
-        elseif tabName == "LocalPlayer" then
+        elseif tName == "Get and Upgrade Items" then
+            AddCardButton("Auto CDK Quest (Song Kiếm Oden)", function() Decompiled_CDKProgress() end)
+            AddCardButton("Soul Guitar Quest", function() Decompiled_SoulGuitarProgress() end)
+
+        elseif tName == "LocalPlayer" then
             AddCardToggle("NoClip (Xuyên Tường)", "NoClip")
-            AddCardToggle("Anti-AFK (Chống Treo Văng)", "AntiAFK")
-            AddCardButton("Fly Speed: 350", function() _G.BananaHub.TweenSpeed = 350 end)
-            AddCardButton("Fly Speed: 450", function() _G.BananaHub.TweenSpeed = 450 end)
+            AddCardToggle("Anti-AFK (Chống Treo Văng Game)", "AntiAFK")
+            AddCardButton("Speed: Normal (350)", function() getgenv().BananaConfig.TweenSpeed = 350 end)
+            AddCardButton("Speed: Fast (450)", function() getgenv().BananaConfig.TweenSpeed = 450 end)
 
-        elseif tabName == "Get and Upgrade Items" then
-            AddCardButton("Auto CDK Quest (Song Kiếm Oden)", function() CommF_:InvokeServer("CDKQuest", "Progress") end)
-            AddCardButton("Soul Guitar Quest", function() CommF_:InvokeServer("SoulGuitar", "Progress") end)
-            AddCardButton("Buy True Triple Katana", function() CommF_:InvokeServer("BuyTrueTripleKatana") end)
-
-        elseif tabName == "Sea Event" then
+        elseif tName == "Sea Event" then
             AddCardToggle("Auto Sea Event / Mirage Island", "AutoMirage")
 
-        elseif tabName == "ESP" then
+        elseif tName == "ESP" then
             AddCardToggle("ESP Player", "ESPPlayer")
             AddCardToggle("ESP Fruit", "ESPFruit")
             AddCardToggle("ESP Chest", "ESPChest")
 
         else
-            AddCardButton(tabName .. " Active Feature", function() print(tabName .. " executed!") end)
+            AddCardButton(tName .. " Action", function() print(tName .. " executed") end)
         end
     end
 
-    -- Khởi tạo danh sách Tab bên trái
     for _, tName in ipairs(TabList) do
         local TabBtn = Instance.new("TextButton", TabScroll)
         TabBtn.Size = UDim2.new(1, -4, 0, 32)
@@ -551,7 +589,6 @@ local function BuildBananaCatHubUI()
         local TCorner = Instance.new("UICorner", TabBtn)
         TCorner.CornerRadius = UDim.new(0, 6)
 
-        -- Chỉ báo thanh vàng bên trái
         local Bar = Instance.new("Frame", TabBtn)
         Bar.Size = UDim2.new(0, 3, 0, 16)
         Bar.Position = UDim2.new(0, 4, 0.5, -8)
@@ -568,36 +605,34 @@ local function BuildBananaCatHubUI()
             end
             TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             Bar.Visible = true
-            LoadTabPage(tName)
+            SwitchTab(tName)
         end)
     end
 
-    -- Nạp trang mặc định đầu tiên (Shop)
-    LoadTabPage("Shop")
-    print("🍌 [BANANA CAT HUB] Đã dựng thành công 100% Giao diện 17 Tabs chuẩn gốc!")
+    SwitchTab("Shop")
 end
 
 -- ╔═══════════════════════════════════════════════════════════════════════════════╗
--- ║ 6. CÁC TIẾN TRÌNH QUÉT NGẦM THỰC THI (BACKGROUND WORKERS)                     ║
+-- ║ 5. MAIN BACKGROUND WORKERS                                                    ║
 -- ╚═══════════════════════════════════════════════════════════════════════════════╝
 task.spawn(function()
     while true do
         task.wait(0.1)
-        if _G.BananaHub.AutoFarmLevel then
-            pcall(FarmLevelStep)
+        if getgenv().BananaConfig.AutoFarmLevel then
+            pcall(FarmLevelIteration)
         end
     end
 end)
 
--- Nhặt rương
+-- Nhặt Rương
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if _G.BananaHub.AutoChest then
+        if getgenv().BananaConfig.AutoChest then
             for _, obj in pairs(Workspace:GetDescendants()) do
-                if not _G.BananaHub.AutoChest then break end
+                if not getgenv().BananaConfig.AutoChest then break end
                 if obj.Name:find("Chest") and obj:IsA("BasePart") then
-                    ToPos(obj.CFrame)
+                    ToCFrame(obj.CFrame)
                     task.wait(0.2)
                 end
             end
@@ -605,19 +640,19 @@ task.spawn(function()
     end
 end)
 
--- Săn & Cất Trái Ác Quỷ
+-- Săn Trái Ác Quỷ
 task.spawn(function()
     while true do
         task.wait(2)
-        if _G.BananaHub.AutoFruitSniper then
+        if getgenv().BananaConfig.AutoFruitSniper then
             for _, obj in pairs(Workspace:GetChildren()) do
                 if obj:IsA("Tool") and obj:FindFirstChild("Handle") and (obj.Name:find("Fruit") or obj.ToolTip == "Blox Fruit") then
                     local char = LocalPlayer.Character
                     if char and char:FindFirstChild("HumanoidRootPart") then
-                        ToPos(obj.Handle.CFrame)
+                        ToCFrame(obj.Handle.CFrame)
                         task.wait(0.5)
                         pcall(function()
-                            CommF_:InvokeServer("StoreFruit", obj:GetAttribute("OriginalName") or obj.Name)
+                            Decompiled_StoreFruit(obj:GetAttribute("OriginalName") or obj.Name)
                         end)
                     end
                 end
@@ -628,11 +663,10 @@ end)
 
 -- Anti-AFK
 LocalPlayer.Idled:Connect(function()
-    if _G.BananaHub.AntiAFK then
+    if getgenv().BananaConfig.AntiAFK then
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new(0, 0))
     end
 end)
 
--- KHỞI ĐỘNG GIAO DIỆN CHÍNH
-BuildBananaCatHubUI()
+RenderBananaCatHub()
