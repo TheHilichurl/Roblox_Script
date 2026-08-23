@@ -1962,6 +1962,20 @@ function Utility.StopAutoShootLeviathan()
     end
 end
 
+--[[ Send remote request to bribe the Spy NPC for Leviathan info ]]
+function Utility.BribeSpy()
+    local ok, res = pcall(function()
+        local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
+        return Event:InvokeServer("InfoLeviathan", "2")
+    end)
+    if ok then
+        UILib.Notify("Spy NPC", "Bribed Spy for Leviathan info!", 3)
+    else
+        UILib.Notify("Spy NPC", "Failed to bribe Spy: " .. tostring(res), 3)
+    end
+    return ok, res
+end
+
 --[[ Start Auto Talk Frozen Watcher loop to open Leviathan Gate ]]
 function Utility.StartAutoTalkFrozenWatcher()
     DisconnectConnection("autoTalkWatcher")
@@ -2588,6 +2602,14 @@ LevTab:AddToggle({
 })
 
 LevTab:AddSection("Frozen Watcher & Gate")
+
+LevTab:AddButton({
+    Name = "Bribe Spy",
+    Desc = "Bribe Spy NPC for Leviathan information",
+    Callback = function()
+        Utility.BribeSpy()
+    end,
+})
 
 LevTab:AddToggle({
     Name    = "Auto Talk Frozen Watcher",
