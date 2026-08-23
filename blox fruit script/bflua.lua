@@ -676,6 +676,7 @@ local S = {
     BoatSeatESPEnabled          = false,
     RequiredCannonPassengers    = 4,
     ResetWhenBoatDestroyed      = false,
+    ResetWhenSelectedOwnerDie   = false,
 }
 
 local WebhookSent                 = false
@@ -1575,39 +1576,55 @@ function Utility.StartFindLeviathan()
     DisconnectConnection("seatWatcher")
     _conns["seatWatcher"] = task.spawn(function()
         local lastPassengerNotify = 0
+        local lastCharacter = LocalPlayer.Character
+        local needBuyNewBoat = true
+
         while S.FindLeviathanEnabled do
             if Utility.IsFrozenWatcher() then
                 Utility.HandleLeviathanFound()
                 break
             end
 
-            local selBoatName = S.SelectedBoat or "Beast Hunter"
-            local playerBoat = Utility.GetPlayerBoat(selBoatName)
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-            if not playerBoat or not playerBoat.Parent then
+            if char ~= lastCharacter then
+                lastCharacter = char
+                needBuyNewBoat = true
                 if ActiveBoat then
                     Utility.ForceStopBoat(ActiveBoat)
                     ActiveBoat = nil
                 end
                 DisconnectConnection("findLev")
+            end
 
-                UILib.Notify("Find Leviathan", "Đang mua thuyền " .. selBoatName .. "...", 3)
+            local selBoatName = S.SelectedBoat or "Beast Hunter"
+            local playerBoat = nil
+
+            if needBuyNewBoat then
+                UILib.Notify("Find Leviathan", "Đang mua thuyền mới " .. selBoatName .. "...", 3)
                 Utility.BuyBoat(selBoatName)
 
                 local t0 = os.clock()
                 while S.FindLeviathanEnabled and (os.clock() - t0 < 6) do
                     playerBoat = Utility.GetPlayerBoat(selBoatName)
-                    if playerBoat and playerBoat.Parent then break end
+                    if playerBoat and playerBoat.Parent then 
+                        needBuyNewBoat = false
+                        break 
+                    end
                     task.wait(0.5)
+                end
+            else
+                playerBoat = Utility.GetPlayerBoat(selBoatName)
+                if not playerBoat or not playerBoat.Parent then
+                    needBuyNewBoat = true
                 end
             end
 
-            if playerBoat and playerBoat.Parent then
-                local char = LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if playerBoat and playerBoat.Parent and char and hum and hum.Health > 0 then
                 local vSeat = playerBoat:FindFirstChildOfClass("VehicleSeat") or playerBoat:FindFirstChild("VehicleSeat", true)
 
-                if hum and vSeat then
+                if vSeat then
                     if hum.SeatPart ~= vSeat then
                         Utility.SitVehicleSeat(playerBoat)
                     end
@@ -1851,6 +1868,38 @@ function Utility.StopResetWhenBoatDestroyed()
     DisconnectConnection("resetWhenBoatDestroyed")
 end
 
+--[[ Quản lý vòng lặp tự động hồi sinh khi chủ thuyền được chọn bị chết ]]
+function Utility.StartResetWhenSelectedOwnerDie()
+    DisconnectConnection("resetWhenOwnerDie")
+    _conns["resetWhenOwnerDie"] = task.spawn(function()
+        local ownerHadCharacter = false
+        while S.ResetWhenSelectedOwnerDie do
+            if S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" then
+                local targetPlr = Players:FindFirstChild(S.SelectedBoatOwner)
+                if targetPlr then
+                    local tChar = targetPlr.Character
+                    local tHum = tChar and tChar:FindFirstChildOfClass("Humanoid")
+
+                    if tHum and tHum.Health > 0 then
+                        ownerHadCharacter = true
+                    elseif ownerHadCharacter and (not tHum or tHum.Health <= 0) then
+                        ownerHadCharacter = false
+                        UILib.Notify("Owner Died", "Chủ thuyền " .. S.SelectedBoatOwner .. " đã chết! Đang hồi sinh nhân vật...", 4)
+                        Utility.RespawnPlayer()
+                        task.wait(3)
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+--[[ Dừng vòng lặp tự động hồi sinh khi chủ thuyền được chọn bị chết ]]
+function Utility.StopResetWhenSelectedOwnerDie()
+    DisconnectConnection("resetWhenOwnerDie")
+end
+
 --[[ Quản lý vòng lặp Fly Follow Player ]]
 function Utility.StartFlyFollowPlayer()
     if not S.SelectedPlayer then
@@ -2088,11 +2137,13 @@ function Utility.UnloadAllScript()
     S.PlayerESPEnabled = false
     S.BoatSeatESPEnabled = false
     S.ResetWhenBoatDestroyed = false
+    S.ResetWhenSelectedOwnerDie = false
 
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
     DisconnectConnection("resetWhenBoatDestroyed")
+    DisconnectConnection("resetWhenOwnerDie")
     DisconnectConnection("autoShootLev")
     DisconnectConnection("bspd")
     DisconnectConnection("teleportPlayerLoop")
@@ -2205,6 +2256,20 @@ MultipleFindLeviathanToggle = LevTab:AddToggle({
             Utility.StartMultipleFindLeviathan()
         else
             Utility.StopMultipleFindLeviathan()
+        end
+    end,
+})
+
+LevTab:AddToggle({
+    Name    = "Reset When Selected Owner Die",
+    Desc    = "Tự động hồi sinh nhân vật nếu chủ thuyền đang chọn bị chết",
+    Default = false,
+    Callback = function(val)
+        S.ResetWhenSelectedOwnerDie = val
+        if val then
+            Utility.StartResetWhenSelectedOwnerDie()
+        else
+            Utility.StopResetWhenSelectedOwnerDie()
         end
     end,
 })
