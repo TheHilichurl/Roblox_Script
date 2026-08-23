@@ -701,6 +701,10 @@ local S = {
     AutoDriveHydraEnabled       = false,
     AutoFlyTikiEnabled          = false,
     AutoFlyHydraEnabled         = false,
+    SelectedWeaponType          = "Melee",
+    AutoAttackLeviEnabled       = false,
+    AutoM1LeviEnabled           = false,
+    AutoSkillsLeviEnabled       = false,
 }
 
 local WAYPOINTS_TIKI = {
@@ -898,20 +902,28 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
             local dir = (currentFlyTarget - currentPos)
             local dist = dir.Magnitude
 
-            if dist <= 6 then
+            if currentFlyOnComplete and dist <= 6 then
                 Utility.StopPhysicsFly()
-                if currentFlyOnComplete then currentFlyOnComplete() end
+                currentFlyOnComplete()
                 return
             end
 
             local activeBV = root:FindFirstChild("PlayerFlyBV")
             if activeBV then
-                activeBV.Velocity = dir.Unit * currentFlySpeed
+                if dist <= 2 then
+                    activeBV.Velocity = Vector3.zero
+                else
+                    activeBV.Velocity = dir.Unit * math.min(currentFlySpeed, math.max(dist * 15, 10))
+                end
             end
 
             local activeBG = root:FindFirstChild("PlayerFlyBG")
             if activeBG then
-                activeBG.CFrame = CFrame.lookAt(currentPos, currentFlyTarget)
+                local lookTarget = currentFlyTarget
+                if dist <= 2 then
+                    lookTarget = currentPos + root.CFrame.LookVector
+                end
+                activeBG.CFrame = CFrame.lookAt(currentPos, lookTarget)
             end
         end)
     end
@@ -2029,6 +2041,209 @@ function Utility.StopAutoTalkFrozenWatcher()
     Utility.StopPhysicsFly()
 end
 
+--[[ Find active Leviathan Segments or main Leviathan in workspace.SeaBeasts ]]
+function Utility.GetLeviathanTarget()
+    local seaBeasts = workspace:FindFirstChild("SeaBeasts")
+    local enemies = workspace:FindFirstChild("Enemies")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+
+    local aliveSegments = {}
+    local mainLeviathan = nil
+
+    local function ProcessFolder(folder)
+        if not folder then return end
+        for _, model in ipairs(folder:GetChildren()) do
+            if model:IsA("Model") then
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
+                local isAlive = (hum and hum.Health > 0) or (not hum and root ~= nil)
+
+                if isAlive and root then
+                    local name = model.Name:lower()
+                    if name:find("segment") then
+                        table.insert(aliveSegments, {
+                            Model = model,
+                            Root = root,
+                            Distance = (root.Position - myPos).Magnitude
+                        })
+                    elseif name == "leviathan" or (name:find("leviathan") and not name:find("tail")) then
+                        mainLeviathan = model
+                    end
+                end
+            end
+        end
+    end
+
+    ProcessFolder(seaBeasts)
+    ProcessFolder(enemies)
+
+    if #aliveSegments > 0 then
+        table.sort(aliveSegments, function(a, b)
+            return a.Distance < b.Distance
+        end)
+        return aliveSegments[1].Model, true
+    end
+
+    if mainLeviathan then
+        return mainLeviathan, false
+    end
+
+    return nil, false
+end
+
+--[[ Perform M1 fruit attack on target position ]]
+function Utility.PerformPainAttack(targetPos)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    local tool = Utility.EquipWeaponByType("Fruit")
+    if not tool then
+        local bp = LocalPlayer:FindFirstChild("Backpack")
+        if bp then
+            local pTool = bp:FindFirstChild("Pain-Pain") or bp:FindFirstChildOfClass("Tool")
+            if pTool and char:FindFirstChildOfClass("Humanoid") then
+                char.Humanoid:EquipTool(pTool)
+                tool = pTool
+            end
+        end
+    end
+
+    local dir = (targetPos - myRoot.Position).Unit
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, targetPos)
+
+    if tool then
+        pcall(function() tool:Activate() end)
+        local lcr = tool:FindFirstChild("LeftClickRemote")
+        if lcr and lcr:IsA("RemoteEvent") then
+            pcall(function()
+                lcr:FireServer(dir, 1, true, targetPos)
+                lcr:FireServer(dir, 2, true, targetPos)
+                lcr:FireServer(dir, 3, true, targetPos)
+                lcr:FireServer(dir, 1, true)
+            end)
+        end
+    end
+end
+
+--[[ Cast skill keys on Humanoid skill remote functions ]]
+function Utility.CastSkills(targetPos)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+    local aimCF = CFrame.lookAt(myPos, targetPos)
+
+    local currentTool = char:FindFirstChildOfClass("Tool")
+    if currentTool then
+        local re = currentTool:FindFirstChild("RemoteEvent")
+        if re and re:IsA("RemoteEvent") then
+            pcall(function() re:FireServer(true) end)
+        end
+    end
+
+    local skillRemotes = {}
+    if hum then
+        for _, child in ipairs(hum:GetChildren()) do
+            if child:IsA("RemoteFunction") then
+                table.insert(skillRemotes, child)
+            end
+        end
+    end
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local keys = { "Z", "X", "C", "V", "F" }
+    for _, key in ipairs(keys) do
+        for _, rf in ipairs(skillRemotes) do
+            pcall(function() rf:InvokeServer(key, aimCF, aimCF, "Aaa") end)
+            pcall(function() rf:InvokeServer(key, targetPos) end)
+            pcall(function() rf:InvokeServer(key) end)
+        end
+        task.wait(0.08)
+    end
+end
+
+--[[ Start auto attack Leviathan routine ]]
+function Utility.StartAutoAttackLeviathan()
+    DisconnectConnection("autoAttackLevi")
+    _conns["autoAttackLevi"] = task.spawn(function()
+        while S.AutoAttackLeviEnabled do
+            local target, isSegment = Utility.GetLeviathanTarget()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if target and target.Parent and root and hum and hum.Health > 0 then
+                local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
+
+                if eRoot then
+                    local targetPos = eRoot.Position - Vector3.new(0, 10, 0)
+                    Utility.PhysicsFlyTo(targetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
+
+                    if S.AutoM1LeviEnabled then
+                        Utility.PerformPainAttack(eRoot.Position)
+                    end
+                end
+            else
+                Utility.StopPhysicsFly()
+            end
+            task.wait(0.035)
+        end
+        Utility.StopPhysicsFly()
+    end)
+end
+
+--[[ Stop auto attack Leviathan routine ]]
+function Utility.StopAutoAttackLeviathan()
+    DisconnectConnection("autoAttackLevi")
+    Utility.StopPhysicsFly()
+end
+
+--[[ Start auto use skills to attack Leviathan routine ]]
+function Utility.StartAutoSkillsLeviathan()
+    DisconnectConnection("autoSkillsLevi")
+    _conns["autoSkillsLevi"] = task.spawn(function()
+        local weaponTypes = { "Melee", "Sword", "Fruit", "Gun" }
+        local wIndex = 1
+
+        while S.AutoSkillsLeviEnabled do
+            local target, _ = Utility.GetLeviathanTarget()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if target and target.Parent and root and hum and hum.Health > 0 then
+                local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
+                if eRoot then
+                    local currentCategory = weaponTypes[wIndex]
+                    Utility.EquipWeaponByType(currentCategory)
+                    task.wait(0.15)
+                    Utility.CastSkills(eRoot.Position)
+                    wIndex = (wIndex % #weaponTypes) + 1
+                    task.wait(2)
+                else
+                    task.wait(0.5)
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+    end)
+end
+
+--[[ Stop auto use skills to attack Leviathan routine ]]
+function Utility.StopAutoSkillsLeviathan()
+    DisconnectConnection("autoSkillsLevi")
+end
+
 --[[ Start auto respawn loop when boat is destroyed ]]
 function Utility.StartResetWhenBoatDestroyed()
     DisconnectConnection("resetWhenBoatDestroyed")
@@ -2232,6 +2447,234 @@ function Utility.StartAutoFlyToHydra()
         S.AutoFlyHydraEnabled = false
         if AutoFlyHydraToggle then AutoFlyHydraToggle:Set(false) end
     end)
+end
+
+--[[ Find closest alive enemy model in workspace.Enemies or workspace.Characters ]]
+function Utility.GetNearestEnemy()
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local nearest = nil
+    local minDist = math.huge
+
+    local function CheckEnemy(enemy)
+        if enemy and enemy:IsA("Model") then
+            local hum = enemy:FindFirstChildOfClass("Humanoid")
+            local root = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+            if hum and root and hum.Health > 0 then
+                local dist = (root.Position - myRoot.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    nearest = enemy
+                end
+            end
+        end
+    end
+
+    if enemiesFolder then
+        for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+            CheckEnemy(enemy)
+        end
+    end
+
+    local charsFolder = workspace:FindFirstChild("Characters")
+    if charsFolder then
+        for _, enemy in ipairs(charsFolder:GetChildren()) do
+            if enemy ~= myChar then
+                CheckEnemy(enemy)
+            end
+        end
+    end
+
+    return nearest
+end
+
+--[[ Equip weapon tool by selected category ]]
+function Utility.EquipWeaponByType(category)
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local targetType = category or S.SelectedWeaponType or "Melee"
+
+    local function MatchesType(tool)
+        if not tool or not tool:IsA("Tool") then return false end
+        local tip = tostring(tool.ToolTip or ""):lower()
+        local name = tool.Name:lower()
+
+        if targetType == "Melee" then
+            return tip:find("melee") or tool:FindFirstChild("Combat") or name:find("combat") or name:find("talon") or name:find("karate") or name:find("superhuman") or name:find("godhuman") or name:find("electric") or name:find("death step")
+        elseif targetType == "Sword" then
+            return tip:find("sword") or name:find("blade") or name:find("katana") or name:find("saber") or name:find("pole") or name:find("scythe") or name:find("cutlass") or name:find("dagger") or name:find("sword") or name:find("triple")
+        elseif targetType == "Fruit" then
+            return tip:find("fruit") or tip:find("blox fruit") or tool:FindFirstChild("LeftClickRemote") or name:find("-")
+        elseif targetType == "Gun" then
+            return tip:find("gun") or name:find("rifle") or name:find("guitar") or name:find("bow") or name:find("cannon") or name:find("slingshot") or name:find("blaster") or name:find("pistol") or name:find("musket")
+        end
+        return false
+    end
+
+    for _, item in ipairs(char:GetChildren()) do
+        if MatchesType(item) then
+            return item
+        end
+    end
+
+    if bp and hum then
+        for _, item in ipairs(bp:GetChildren()) do
+            if MatchesType(item) then
+                hum:EquipTool(item)
+                return item
+            end
+        end
+        local fallbackTool = bp:FindFirstChildOfClass("Tool")
+        if fallbackTool then
+            hum:EquipTool(fallbackTool)
+            return fallbackTool
+        end
+    end
+
+    return char:FindFirstChildOfClass("Tool")
+end
+
+--[[ Trigger attack signals and direct damage packets onto target enemy ]]
+function Utility.PerformAttackSignal(targetEnemy, hitCount)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+
+    local eRoot = targetEnemy and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy.PrimaryPart)
+    local eHead = targetEnemy and targetEnemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    local enemyPos = eRoot.Position
+    local targetDir = (enemyPos - myRoot.Position).Unit
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, enemyPos)
+
+    local wType = S.SelectedWeaponType or "Melee"
+    local currentTool = Utility.EquipWeaponByType(wType)
+
+    local hits = hitCount or 3
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local shootGunEvent = net and net:FindFirstChild("RE/ShootGunEvent")
+    local validator2 = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("Validator2")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+    local lcr = currentTool and currentTool:FindFirstChild("LeftClickRemote")
+    local targetPart = eHead or eRoot
+
+    local combatFramework = nil
+    pcall(function()
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local cfModule = ps and ps:FindFirstChild("CombatFramework")
+        if cfModule then combatFramework = require(cfModule) end
+    end)
+
+    local hitArray1 = {
+        [1] = {
+            [1] = eRoot,
+            [2] = eRoot
+        }
+    }
+    local hitArray2 = {
+        [1] = {
+            [1] = targetPart,
+            [2] = eRoot
+        }
+    }
+
+    for _ = 1, hits do
+        if wType == "Fruit" then
+            if currentTool then
+                pcall(function() currentTool:Activate() end)
+                if lcr and lcr:IsA("RemoteEvent") then
+                    pcall(function() lcr:FireServer(targetDir, 1, true, enemyPos) end)
+                    pcall(function() lcr:FireServer(targetDir, 2, true, enemyPos) end)
+                    pcall(function() lcr:FireServer(targetDir, 3, true, enemyPos) end)
+                    pcall(function() lcr:FireServer(targetDir, 1, true) end)
+                end
+            end
+        elseif wType == "Gun" then
+            if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
+                pcall(function() shootGunEvent:FireServer(targetPart.Position, { targetPart }) end)
+            end
+            if validator2 and validator2:IsA("RemoteEvent") then
+                pcall(function() validator2:FireServer(14057446, 25) end)
+            end
+            if currentTool then
+                pcall(function() currentTool:Activate() end)
+            end
+        else
+            if combatFramework and combatFramework.activeController then
+                pcall(function()
+                    local ctrl = combatFramework.activeController
+                    ctrl.timeToNextAttack = 0
+                    ctrl.hitboxMagnitude = 250
+                    ctrl:attack()
+                end)
+            end
+            if currentTool then
+                pcall(function() currentTool:Activate() end)
+                if lcr and lcr:IsA("RemoteEvent") then
+                    pcall(function() lcr:FireServer(targetDir, 1, true, enemyPos) end)
+                end
+            end
+        end
+
+        if regAttack and regAttack:IsA("RemoteEvent") then
+            pcall(function() regAttack:FireServer(0) end)
+            pcall(function() regAttack:FireServer(0.1) end)
+        end
+
+        if regHit and regHit:IsA("RemoteEvent") then
+            pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+            pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+            pcall(function() regHit:FireServer(eRoot, { eRoot, targetPart }) end)
+        end
+
+        if commF and commF:IsA("RemoteFunction") then
+            pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+        end
+    end
+end
+
+--[[ Start auto attack nearest enemy routine ]]
+function Utility.StartAutoAttackNearestEnemy()
+    DisconnectConnection("autoAttackEnemyLoop")
+    _conns["autoAttackEnemyLoop"] = task.spawn(function()
+        while S.AutoAttackEnemyEnabled do
+            local enemy = Utility.GetNearestEnemy()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if enemy and root and hum and hum.Health > 0 then
+                local eRoot = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart
+                local eHum = enemy:FindFirstChildOfClass("Humanoid")
+
+                if eRoot and eHum and eHum.Health > 0 then
+                    local targetPos = eRoot.Position + Vector3.new(0, 20, 0)
+                    Utility.PhysicsFlyTo(targetPos, S.TeleportFlySpeed or 180)
+                    Utility.PerformAttackSignal(enemy, 3)
+                end
+            else
+                Utility.StopPhysicsFly()
+            end
+            task.wait(0.035)
+        end
+        Utility.StopPhysicsFly()
+    end)
+end
+
+--[[ Stop auto attack nearest enemy routine ]]
+function Utility.StopAutoAttackNearestEnemy()
+    DisconnectConnection("autoAttackEnemyLoop")
+    Utility.StopPhysicsFly()
 end
 
 --[[ Start Fly Follow Player loop ]]
@@ -2523,6 +2966,9 @@ function Utility.UnloadAllScript()
     S.MultipleFindLeviathanEnabled = false
     S.AutoShootLeviEnabled = false
     S.AutoAttackEnemyEnabled = false
+    S.AutoAttackLeviEnabled = false
+    S.AutoM1LeviEnabled = false
+    S.AutoSkillsLeviEnabled = false
     S.BoatNoClipEnabled = false
     S.PlayerNoClipEnabled = false
     S.WalkOnWaterEnabled = false
@@ -2542,6 +2988,9 @@ function Utility.UnloadAllScript()
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
+    DisconnectConnection("autoAttackLevi")
+    DisconnectConnection("autoSkillsLevi")
+    DisconnectConnection("autoAttackEnemyLoop")
     DisconnectConnection("boatNavLoop")
     DisconnectConnection("resetWhenBoatDestroyed")
     DisconnectConnection("resetWhenOwnerDie")
@@ -2597,6 +3046,45 @@ LevTab:AddToggle({
             Utility.StartAutoShootLeviathan()
         else
             Utility.StopAutoShootLeviathan()
+        end
+    end,
+})
+
+LevTab:AddSection("Auto Attack Leviathan")
+
+AutoAttackLeviToggle = LevTab:AddToggle({
+    Name    = "Auto Attack Leviathan",
+    Desc    = "Fly to Leviathan Segments (Y - 10) then Leviathan",
+    Default = false,
+    Callback = function(val)
+        S.AutoAttackLeviEnabled = val
+        if val then
+            Utility.StartAutoAttackLeviathan()
+        else
+            Utility.StopAutoAttackLeviathan()
+        end
+    end,
+})
+
+AutoM1LeviToggle = LevTab:AddToggle({
+    Name    = "Auto M1 Attack Leviathan",
+    Desc    = "Equip Fruit (Pain) and perform M1 attack",
+    Default = false,
+    Callback = function(val)
+        S.AutoM1LeviEnabled = val
+    end,
+})
+
+AutoSkillsLeviToggle = LevTab:AddToggle({
+    Name    = "Auto Use Skills to Attack Leviathan",
+    Desc    = "Rotate Melee, Sword, Fruit, Gun skills every 2 seconds",
+    Default = false,
+    Callback = function(val)
+        S.AutoSkillsLeviEnabled = val
+        if val then
+            Utility.StartAutoSkillsLeviathan()
+        else
+            Utility.StopAutoSkillsLeviathan()
         end
     end,
 })
@@ -2884,7 +3372,40 @@ AutoFlyHydraToggle = LevTab:AddToggle({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 2 : TELEPORT
+--  TAB 2 : AUTO FARM
+-- ═══════════════════════════════════════════════════════════
+local FarmTab = Window:AddTab({ Name = "Auto Farm", Icon = "" })
+
+FarmTab:AddSection("Enemy Combat")
+
+FarmTab:AddDropdown({
+    Name    = "Select Weapon Type",
+    Desc    = "Choose weapon category to attack enemies",
+    Options = { "Melee", "Sword", "Fruit", "Gun" },
+    Default = "Melee",
+    Callback = function(opt)
+        S.SelectedWeaponType = opt
+        Utility.EquipWeaponByType(opt)
+    end,
+})
+
+FarmTab:AddToggle({
+    Name    = "Auto Attack Nearest Enemy",
+    Desc    = "Directly attack nearest enemy with selected weapon",
+    Default = false,
+    Callback = function(val)
+        S.AutoAttackEnemyEnabled = val
+        if val then
+            Utility.StartAutoAttackNearestEnemy()
+        else
+            Utility.StopAutoAttackNearestEnemy()
+        end
+    end,
+})
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 3 : TELEPORT
 -- ═══════════════════════════════════════════════════════════
 local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
