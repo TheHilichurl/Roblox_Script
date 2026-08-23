@@ -3,7 +3,7 @@
 --  Author  : Hilichurl  |  Version : 7.0.0 (Standardized Architecture)
 -- ============================================================
 -- Link loading script:
---loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/blox%20fruit%20script/Blox_Fruit_Script.lua"))()
+----loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/blox%20fruit%20script/Blox_Fruit_Script.lua"))()
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║                     [GLOBAL CLEANUP]                     ║
@@ -649,7 +649,7 @@ local SeatESP_Folder   = nil
 
 local S = {
     BoatFlySpeed                = 220,
-    BoatFlyHeight               = 195,
+    BoatFlyHeight               = 190,
     CustomBoatSpeed             = 250,
     EnableBoatSpeed             = false,
     AutoBuyBoatEnabled          = false,
@@ -677,6 +677,8 @@ local S = {
     RequiredCannonPassengers    = 4,
     ResetWhenBoatDestroyed      = false,
     ResetWhenSelectedOwnerDie   = false,
+    AutoTalkFrozenWatcherEnabled= false,
+    AutoShootBoatMode           = "Shoot with your boat",
 }
 
 local WebhookSent                 = false
@@ -1276,8 +1278,14 @@ function Utility.BuyBoat(boatName)
     return ok, res
 end
 
---[[ Tìm đối tượng Frozen Heart trong workspace ]]
+--[[ Tìm đối tượng Frozen Heart trong workspace.Map ]]
 function Utility.GetFrozenHeart()
+    local mapFolder = workspace:FindFirstChild("Map")
+    if mapFolder then
+        local fh = mapFolder:FindFirstChild("FrozenHeart") or mapFolder:FindFirstChild("Frozen Heart")
+        if fh then return fh end
+    end
+
     local assets = workspace:FindFirstChild("Assets")
     if assets then
         local fh = assets:FindFirstChild("FrozenHeart") or assets:FindFirstChild("Frozen Heart")
@@ -1449,13 +1457,17 @@ function Utility.StartBoatFlight(boat)
     ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
     ao.MaxTorque = math.huge; ao.Responsiveness = 200
     ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(0, 0, 1))
+    ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
     ao.Parent = seat
 
     local startY = seat.Position.Y
     local stage1_Dur = 7
     local stage2_Dur = 10
     local t0 = os.clock()
+
+    local targetPointA = Vector3.new(-16130, 199, 58000)
+    local targetPointB = Vector3.new(-16130, 199, 38000)
+    local currentTarget = targetPointA
 
     DisconnectConnection("findLev")
     FindLeviathanConnection = RunService.Heartbeat:Connect(function()
@@ -1471,18 +1483,34 @@ function Utility.StartBoatFlight(boat)
         end
 
         local pos = seat.Position
-        local el  = os.clock() - t0
-        local speedZ = S.BoatFlySpeed
+        local el = os.clock() - t0
+        local speed = S.BoatFlySpeed or 220
+        local flyY = S.BoatFlyHeight or 190
+
+        local targetWithY = Vector3.new(currentTarget.X, flyY, currentTarget.Z)
+        local dir = (targetWithY - pos)
+        local dist = dir.Magnitude
+
+        if dist <= 35 then
+            if currentTarget == targetPointA then
+                currentTarget = targetPointB
+            else
+                currentTarget = targetPointA
+            end
+        end
 
         if el <= stage1_Dur then
             local prog = el / stage1_Dur
-            local ty   = startY + (800 - startY) * prog
+            local ty = startY + (800 - startY) * prog
             lv.VectorVelocity = Vector3.new(0, (ty - pos.Y) * 15, 0)
         elseif el <= (stage1_Dur + stage2_Dur) then
-            lv.VectorVelocity = Vector3.new(0, (800 - pos.Y) * 10, speedZ)
+            local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
+            lv.VectorVelocity = Vector3.new(flatDir.X * speed, (800 - pos.Y) * 10, flatDir.Z * speed)
         else
-            lv.VectorVelocity = Vector3.new(0, (S.BoatFlyHeight - pos.Y) * 5, speedZ)
+            lv.VectorVelocity = Vector3.new(dir.Unit.X * speed, (flyY - pos.Y) * 5, dir.Unit.Z * speed)
         end
+
+        ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
     end)
     _conns["findLev"] = FindLeviathanConnection
 end
@@ -1771,63 +1799,119 @@ end
 
 --[[ Quản lý vòng lặp Auto Shoot Leviathan Heart ]]
 function Utility.StartAutoShootLeviathan()
-    local autoShootNotified = false
     DisconnectConnection("autoShootLev")
+    _conns["autoShootLev"] = task.spawn(function()
+        local stage = 1
+        local lastNotify = 0
 
-    _conns["autoShootLev"] = RunService.Heartbeat:Connect(function()
-        if not S.AutoShootLeviEnabled then
-            DisconnectConnection("autoShootLev")
-            if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
-            return
-        end
-
-        local currentBoat = Utility.GetBoat() or Utility.GetBeastHunterBoat()
-        if not currentBoat then
-            if not autoShootNotified then
-                UILib.Notify("Auto Shoot", "Chờ người chơi ngồi lái thuyền Beast Hunter...", 3)
-                autoShootNotified = true
+        while S.AutoShootLeviEnabled do
+            local targetBoat = nil
+            if S.AutoShootBoatMode == "Shoot with other boat" then
+                if S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" then
+                    targetBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
+                end
+            else
+                targetBoat = Utility.GetBoat() or Utility.GetBeastHunterBoat() or Utility.GetPlayerBoat()
             end
-            return
-        end
 
-        local vSeat = currentBoat:FindFirstChildOfClass("VehicleSeat") or currentBoat.PrimaryPart
-        if not vSeat then return end
+            if not targetBoat or not targetBoat.Parent then
+                if os.clock() - lastNotify > 5 then
+                    UILib.Notify("Auto Shoot", "Đang chờ xuất hiện thuyền hợp lệ...", 3)
+                    lastNotify = os.clock()
+                end
+                task.wait(0.5)
+            else
+                local vSeat = targetBoat:FindFirstChildOfClass("VehicleSeat") or targetBoat:FindFirstChild("VehicleSeat", true)
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                local root = char and char:FindFirstChild("HumanoidRootPart")
 
-        local frozenHeart = Utility.GetFrozenHeart()
-        if not frozenHeart then
-            if not autoShootNotified then
-                UILib.Notify("Auto Shoot", "Thuyền đã sẵn sàng! Đang chờ xuất hiện FrozenHeart...", 4)
-                autoShootNotified = true
+                if vSeat and hum and root then
+                    local frozenHeart = Utility.GetFrozenHeart()
+
+                    if not frozenHeart then
+                        if os.clock() - lastNotify > 5 then
+                            UILib.Notify("Auto Shoot", "Đang chờ xuất hiện FrozenHeart trong Map...", 4)
+                            lastNotify = os.clock()
+                        end
+                    else
+                        local fhPos = frozenHeart:IsA("Model") and frozenHeart:GetPivot().Position or frozenHeart.Position
+                        local targetBoatPos = Vector3.new(fhPos.X + 10, 50, fhPos.Z)
+
+                        local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+                        att.Name = "FlyAttachment"; att.Parent = vSeat
+
+                        local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+                        lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+                        lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
+
+                        local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+                        ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+                        ao.MaxTorque = math.huge; ao.Responsiveness = 200
+                        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
+
+                        ActiveBoat = targetBoat
+
+                        if stage == 1 then
+                            if hum.SeatPart == vSeat then
+                                stage = 2
+                                UILib.Notify("Auto Shoot", "Đã ngồi ghế lái! Đang điều khiển thuyền đến FrozenHeart...", 3)
+                            else
+                                Utility.SitVehicleSeat(targetBoat)
+                            end
+                        elseif stage == 2 then
+                            local seatPos = vSeat.Position
+                            local dir = (targetBoatPos - seatPos)
+                            local dist = dir.Magnitude
+
+                            if dist <= 6 then
+                                lv.VectorVelocity = Vector3.zero
+                                ao.CFrame = CFrame.lookAt(seatPos, fhPos)
+                                stage = 3
+                                UILib.Notify("Auto Shoot", "Thuyền đã neo cố định! Đang chuyển sang ngồi ghế Harpoon...", 3)
+                            else
+                                lv.VectorVelocity = dir.Unit * (S.BoatFlySpeed or 220)
+                                ao.CFrame = CFrame.lookAt(seatPos, targetBoatPos)
+                            end
+                        elseif stage == 3 then
+                            lv.VectorVelocity = Vector3.zero
+                            ao.CFrame = CFrame.lookAt(vSeat.Position, fhPos)
+
+                            local harpoonModel = targetBoat:FindFirstChild("Harpoon")
+                            local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
+
+                            if harpoonSeat then
+                                if hum.SeatPart == harpoonSeat then
+                                    pcall(function()
+                                        local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
+                                        Event:InvokeServer(
+                                            "FireHarpoon",
+                                            0.78539816339745,
+                                            0,
+                                            harpoonModel,
+                                            1787466497.5315
+                                        )
+                                    end)
+                                    task.wait(1.5)
+                                else
+                                    if hum.SeatPart == vSeat then
+                                        hum.Sit = false
+                                        task.wait(0.1)
+                                    end
+                                    Utility.FlyToAndSitSeat(harpoonSeat)
+                                end
+                            else
+                                if os.clock() - lastNotify > 5 then
+                                    UILib.Notify("Auto Shoot", "Không tìm thấy Harpoon trên thuyền!", 3)
+                                    lastNotify = os.clock()
+                                end
+                            end
+                        end
+                    end
+                end
             end
-            return
-        end
 
-        local fhCF = frozenHeart:IsA("Model") and frozenHeart:GetPivot() or frozenHeart.CFrame
-        local targetCF = fhCF * CFrame.new(12, 80, 0)
-
-        ActiveBoat = currentBoat
-        local seatPos = vSeat.Position
-        local dir = (targetCF.Position - seatPos)
-        local dist = dir.Magnitude
-
-        local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
-        att.Name = "FlyAttachment"; att.Parent = vSeat
-
-        local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
-        lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
-        lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
-
-        local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
-        ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
-        ao.MaxTorque = math.huge; ao.Responsiveness = 200
-        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
-
-        if dist <= 8 then
-            lv.VectorVelocity = Vector3.zero
-            ao.CFrame = CFrame.lookAt(seatPos, fhCF.Position)
-        else
-            lv.VectorVelocity = dir.Unit * S.BoatFlySpeed
-            ao.CFrame = CFrame.lookAt(seatPos, targetCF.Position)
+            task.wait(0.3)
         end
     end)
 end
@@ -1841,24 +1925,95 @@ function Utility.StopAutoShootLeviathan()
     end
 end
 
+--[[ Quản lý vòng lặp tự động nói chuyện với Frozen Watcher để mở cổng Leviathan ]]
+function Utility.StartAutoTalkFrozenWatcher()
+    DisconnectConnection("autoTalkWatcher")
+    _conns["autoTalkWatcher"] = task.spawn(function()
+        while S.AutoTalkFrozenWatcherEnabled do
+            local npcsFolder = workspace:FindFirstChild("NPCs")
+            local watcher = npcsFolder and (npcsFolder:FindFirstChild("Frozen Watcher") or npcsFolder:FindFirstChild("FrozenWatcher"))
+
+            if not watcher then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj.Name == "Frozen Watcher" or obj.Name == "FrozenWatcher" then
+                        watcher = obj
+                        break
+                    end
+                end
+            end
+
+            if watcher then
+                local wPart = watcher.PrimaryPart or watcher:FindFirstChildOfClass("BasePart") or watcher:FindFirstChild("HumanoidRootPart") or watcher:FindFirstChild("Head")
+                local char = LocalPlayer.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+
+                if wPart and root then
+                    local dist = (wPart.Position - root.Position).Magnitude
+                    if dist > 8 then
+                        Utility.PhysicsFlyTo(wPart.CFrame * CFrame.new(0, 2, 4), S.TeleportFlySpeed or 180)
+                        task.wait(0.5)
+                    else
+                        Utility.StopPhysicsFly()
+                        pcall(function()
+                            local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
+                            Event:InvokeServer("OpenLeviathanGate")
+                        end)
+                        UILib.Notify("Frozen Watcher", "Đã gửi lệnh mở cổng Leviathan Gate!", 3)
+                        task.wait(3)
+                    end
+                else
+                    task.wait(1)
+                end
+            else
+                UILib.Notify("Frozen Watcher", "Đang tìm kiếm NPC Frozen Watcher trong Workspace...", 3)
+                task.wait(2)
+            end
+        end
+    end)
+end
+
+--[[ Dừng vòng lặp tự động nói chuyện với Frozen Watcher ]]
+function Utility.StopAutoTalkFrozenWatcher()
+    DisconnectConnection("autoTalkWatcher")
+    Utility.StopPhysicsFly()
+end
+
 --[[ Quản lý vòng lặp tự động hồi sinh khi thuyền bị phá huỷ ]]
 function Utility.StartResetWhenBoatDestroyed()
     DisconnectConnection("resetWhenBoatDestroyed")
     _conns["resetWhenBoatDestroyed"] = task.spawn(function()
-        local boatExisted = false
+        local trackedBoat = nil
         while S.ResetWhenBoatDestroyed do
-            local currentBoat = Utility.GetPlayerBoat() or (S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" and Utility.GetBoatByOwner(S.SelectedBoatOwner))
-            
-            if currentBoat and currentBoat.Parent and currentBoat.Parent == workspace:FindFirstChild("Boats") then
-                boatExisted = true
-            elseif boatExisted then
-                boatExisted = false
-                UILib.Notify("Boat Destroyed", "Thuyền đã bị phá hủy hoặc biến mất! Đang hồi sinh nhân vật...", 4)
-                Utility.RespawnPlayer()
-                task.wait(3)
+            local boatsFolder = workspace:FindFirstChild("Boats")
+
+            if not trackedBoat or not trackedBoat.Parent or trackedBoat.Parent ~= boatsFolder then
+                local b = Utility.GetBoat() or Utility.GetPlayerBoat() or (S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" and Utility.GetBoatByOwner(S.SelectedBoatOwner))
+                if b and b.Parent and b.Parent == boatsFolder then
+                    trackedBoat = b
+                end
             end
 
-            task.wait(1)
+            if trackedBoat then
+                local isDestroyed = false
+
+                if not trackedBoat.Parent or trackedBoat.Parent ~= boatsFolder or not trackedBoat:IsDescendantOf(workspace) then
+                    isDestroyed = true
+                else
+                    local boatHp = trackedBoat:FindFirstChild("Humanoid")
+                    if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
+                        isDestroyed = true
+                    end
+                end
+
+                if isDestroyed then
+                    trackedBoat = nil
+                    UILib.Notify("Boat Destroyed", "Thuyền đã bị phá hủy hoặc chìm! Đang hồi sinh nhân vật...", 4)
+                    Utility.RespawnPlayer()
+                    task.wait(3)
+                end
+            end
+
+            task.wait(0.5)
         end
     end)
 end
@@ -2138,12 +2293,14 @@ function Utility.UnloadAllScript()
     S.BoatSeatESPEnabled = false
     S.ResetWhenBoatDestroyed = false
     S.ResetWhenSelectedOwnerDie = false
+    S.AutoTalkFrozenWatcherEnabled = false
 
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
     DisconnectConnection("resetWhenBoatDestroyed")
     DisconnectConnection("resetWhenOwnerDie")
+    DisconnectConnection("autoTalkWatcher")
     DisconnectConnection("autoShootLev")
     DisconnectConnection("bspd")
     DisconnectConnection("teleportPlayerLoop")
@@ -2172,11 +2329,20 @@ _G.UnloadScript = Utility.UnloadAllScript
 -- ═══════════════════════════════════════════════════════════
 local LevTab = Window:AddTab({ Name = "Leviathan", Icon = "" })
 
-LevTab:AddSection("Auto Shoot Leviathan (Beast Hunter)")
+LevTab:AddSection("Auto Shoot Leviathan Heart (Beast Hunter)")
+
+LevTab:AddDropdown({
+    Name    = "Select Shoot Boat Mode",
+    Desc    = "Chọn dùng thuyền của bạn hay thuyền của chủ thuyền",
+    Options = { "Shoot with your boat", "Shoot with other boat" },
+    Callback = function(opt)
+        S.AutoShootBoatMode = opt
+    end,
+})
 
 LevTab:AddToggle({
     Name    = "Auto Shoot Leviathan",
-    Desc    = "Lái thuyền Beast Hunter bay đến (X=12, Y=80, Z=0) so với FrozenHeart và neo cố định",
+    Desc    = "Lái thuyền đến Z=0, X=10, Y=50 so với FrozenHeart, cố định thuyền và ngồi Harpoon bắn",
     Default = false,
     Callback = function(val)
         S.AutoShootLeviEnabled = val
@@ -2184,6 +2350,22 @@ LevTab:AddToggle({
             Utility.StartAutoShootLeviathan()
         else
             Utility.StopAutoShootLeviathan()
+        end
+    end,
+})
+
+LevTab:AddSection("Frozen Watcher & Gate")
+
+LevTab:AddToggle({
+    Name    = "Auto Talk Frozen Watcher",
+    Desc    = "Tự động bay đến NPC Frozen Watcher trong NPCs và gửi lệnh mở cổng Leviathan",
+    Default = false,
+    Callback = function(val)
+        S.AutoTalkFrozenWatcherEnabled = val
+        if val then
+            Utility.StartAutoTalkFrozenWatcher()
+        else
+            Utility.StopAutoTalkFrozenWatcher()
         end
     end,
 })
@@ -2338,7 +2520,7 @@ LevTab:AddSlider({
 LevTab:AddSlider({
     Name    = "Boat Fly Height",
     Desc    = "Độ cao khi bay của thuyền khi tìm Leviathan",
-    Min     = 20, Max = 300, Default = 195, Suffix  = " Y",
+    Min     = 20, Max = 300, Default = 190, Suffix  = " Y",
     Callback = function(v) S.BoatFlyHeight = v end,
 })
 
