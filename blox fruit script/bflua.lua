@@ -3,7 +3,7 @@
 --  Author  : Hilichurl  |  Version : 7.0.0 (Standardized Architecture)
 -- ============================================================
 -- Link loading script:
---loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/blox%20fruit%20script/bflua.lua"))()
+--loadstring(game:HttpGet(""))()
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║                     [GLOBAL CLEANUP]                     ║
@@ -57,7 +57,7 @@ local TI_MED  = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.
 -- ║             [SECTION 2] UI ENGINE (RESPONSIVE)           ║
 -- ╚══════════════════════════════════════════════════════════╝
 
---[[ Bảo vệ GUI khỏi các cơ chế phát hiện của game ]]
+--[[ Protect GUI from game security checks ]]
 local function ProtectGui(gui)
     local ok = pcall(function()
         if syn and syn.protect_gui then
@@ -71,7 +71,7 @@ local function ProtectGui(gui)
     if not ok then gui.Parent = CoreGui end
 end
 
---[[ Tải ảnh từ đường dẫn online và lưu trữ tạm thời ]]
+--[[ Fetch online image asset and cache locally ]]
 local function GetOnlineImage(url, fileName)
     if not url or url == "" then return "" end
     local path = fileName or "Hilichurl_icon.png"
@@ -92,7 +92,7 @@ local function GetOnlineImage(url, fileName)
     return url
 end
 
---[[ Tạo thành phần Frame chuẩn với bo góc ]]
+--[[ Create standard rounded Frame component ]]
 local function CreateFrame(p)
     local f = Instance.new("Frame")
     f.BackgroundColor3   = p.Color or THEME.BG
@@ -110,7 +110,7 @@ local function CreateFrame(p)
     return f
 end
 
---[[ Tạo thành phần TextLabel chuẩn ]]
+--[[ Create standard TextLabel component ]]
 local function CreateLabel(p)
     local l = Instance.new("TextLabel")
     l.BackgroundTransparency = 1
@@ -128,7 +128,7 @@ local function CreateLabel(p)
     return l
 end
 
---[[ Cho phép kéo thả giao diện trên mọi thiết bị ]]
+--[[ Enable dragging for UI on all input devices ]]
 local function EnableDragging(handle, root)
     local drag, ds, sp = false, nil, nil
     handle.InputBegan:Connect(function(i)
@@ -148,7 +148,7 @@ local function EnableDragging(handle, root)
 end
 
 local _notificationHolder = nil
---[[ Khởi tạo vùng hiển thị thông báo góc màn hình ]]
+--[[ Initialize notification container in screen corner ]]
 local function EnsureNotificationHolder()
     if _notificationHolder and _notificationHolder.Parent then return end
     local sg = Instance.new("ScreenGui")
@@ -167,7 +167,7 @@ local function EnsureNotificationHolder()
 end
 
 local UILib = {}
---[[ Hiển thị thông báo dạng thẻ nổi mượt mà ]]
+--[[ Display smooth floating notification card ]]
 function UILib.Notify(title, msg, dur)
     dur = dur or 3; EnsureNotificationHolder()
     local card = CreateFrame({Color = THEME.NOTIFY_BG, Size = UDim2.new(1, 0, 0, 56), Name = "NC", Parent = _notificationHolder, Radius = 6, Alpha = 0.08})
@@ -191,7 +191,7 @@ local _iconGui = nil
 local _winRef  = nil
 local _iconVisible = true
 
---[[ Xây dựng nút tròn đóng mở UI di động trên màn hình ]]
+--[[ Build floating draggable circle button to toggle UI ]]
 local function BuildIconToggle(iconUrl)
     if _iconGui then pcall(function() _iconGui:Destroy() end) end
     local sg = Instance.new("ScreenGui")
@@ -227,7 +227,7 @@ local function BuildIconToggle(iconUrl)
     EnableDragging(btn, btn)
 end
 
---[[ Khởi tạo cửa sổ chính Responsive chuẩn xác cho cả Mobile và PC ]]
+--[[ Initialize main responsive window for Mobile and PC ]]
 function UILib.CreateWindow(cfg)
     cfg = cfg or {}
     local title = cfg.Title or "Hili Hub"
@@ -320,9 +320,8 @@ function UILib.CreateWindow(cfg)
     local sbll = Instance.new("UIListLayout"); sbll.SortOrder = Enum.SortOrder.LayoutOrder; sbll.Padding = UDim.new(0, 4); sbll.Parent = sidebarScroll
     local sbp = Instance.new("UIPadding"); sbp.PaddingTop = UDim.new(0, 6); sbp.PaddingLeft = UDim.new(0, 5); sbp.PaddingRight = UDim.new(0, 5); sbp.Parent = sidebarScroll
 
-    -- Nút điều chỉnh độ to nhỏ của UI ở góc dưới bên trái
     local scaleBtn = Instance.new("TextButton")
-    scaleBtn.Name = "ScaleToggleBtn"; scaleBtn.Text = string.format("📏 UI: %.0f%%", uiScale.Scale * 100)
+    scaleBtn.Name = "ScaleToggleBtn"; scaleBtn.Text = string.format("Change UI: %.0f%%", uiScale.Scale * 100)
     scaleBtn.Font = Enum.Font.GothamBold; scaleBtn.TextSize = 10; scaleBtn.TextColor3 = THEME.ACCENT
     scaleBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 24); scaleBtn.AutoButtonColor = false
     scaleBtn.Size = UDim2.new(1, -10, 0, 24); scaleBtn.Position = UDim2.new(0, 5, 1, -28); scaleBtn.Parent = sidebar
@@ -346,8 +345,8 @@ function UILib.CreateWindow(cfg)
         if currentScaleIdx > #scaleLevels then currentScaleIdx = 1 end
         local newScale = scaleLevels[currentScaleIdx]
         uiScale.Scale = newScale
-        scaleBtn.Text = string.format("📏 UI: %.0f%%", newScale * 100)
-        UILib.Notify("UI Scale", string.format("Đã chỉnh kích thước UI về %.0f%%!", newScale * 100), 2)
+        scaleBtn.Text = string.format("Change UI: %.0f%%", newScale * 100)
+        UILib.Notify("UI Scale", string.format("Changed UI scale to %.0f%%!", newScale * 100), 2)
     end)
 
     local cpane = CreateFrame({Color = THEME.BG, Size = UDim2.new(0.74, 0, 1, 0), Pos = UDim2.new(0.26, 0, 0, 0), Name = "Content", Parent = body, Radius = 8})
@@ -688,7 +687,7 @@ local MultipleFindLeviathanToggle  = nil
 local BoatSpeedConnection         = nil
 local ActiveBoat                  = nil
 
---[[ Ngắt kết nối an toàn cho một key kết nối cụ thể ]]
+--[[ Safely disconnect a connection key ]]
 local function DisconnectConnection(key)
     if _conns[key] then
         pcall(function()
@@ -704,7 +703,7 @@ local function DisconnectConnection(key)
     end
 end
 
---[[ Cập nhật bộ nhớ đệm Part của nhân vật để xử lý NoClip ]]
+--[[ Cache character parts for noclip processing ]]
 function Utility.UpdateCharacterCache()
     table.clear(CharacterParts)
     local char = LocalPlayer.Character
@@ -717,7 +716,7 @@ function Utility.UpdateCharacterCache()
     end
 end
 
---[[ Cập nhật bộ nhớ đệm Part của thuyền để xử lý NoClip ]]
+--[[ Cache boat parts for noclip processing ]]
 function Utility.UpdateBoatCache(boat)
     table.clear(BoatParts)
     if boat then
@@ -729,7 +728,7 @@ function Utility.UpdateBoatCache(boat)
     end
 end
 
---[[ Lấy đối tượng thuyền mà người chơi hiện đang ngồi lái ]]
+--[[ Get boat that local player is currently driving ]]
 function Utility.GetBoat()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -740,7 +739,7 @@ function Utility.GetBoat()
     return nil
 end
 
---[[ Buộc thuyền dừng lại và triệt tiêu toàn bộ vận tốc ]]
+--[[ Force stop boat physics and clear all velocity ]]
 function Utility.ForceStopBoat(boat)
     if not boat then return end
     
@@ -767,7 +766,7 @@ function Utility.ForceStopBoat(boat)
     end)
 end
 
---[[ Kiểm tra xem Frozen Watcher hoặc Leviathan Gate đã xuất hiện chưa ]]
+--[[ Check if Frozen Watcher or Leviathan Gate spawned in workspace ]]
 function Utility.IsFrozenWatcher()
     local npcsFolder = workspace:FindFirstChild("NPCs")
     if npcsFolder and (npcsFolder:FindFirstChild("Frozen Watcher") or npcsFolder:FindFirstChild("FrozenWatcher")) then
@@ -807,7 +806,7 @@ local currentFlyTarget = nil
 local currentFlySpeed = 180
 local currentFlyOnComplete = nil
 
---[[ Thực hiện bay vật lý nhân vật đến toạ độ chỉ định bằng BodyVelocity và BodyGyro ]]
+--[[ Fly character with physics constraints BodyVelocity and BodyGyro ]]
 function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
     currentFlyTarget = typeof(targetCFrame) == "CFrame" and targetCFrame.Position or (typeof(targetCFrame) == "Instance" and targetCFrame.Position or targetCFrame)
     currentFlySpeed = speed or S.TeleportFlySpeed or 180
@@ -877,7 +876,7 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
     end
 end
 
---[[ Dừng hoàn toàn chế độ bay vật lý và phục hồi trạng thái nhân vật ]]
+--[[ Stop physics flight and restore character collision ]]
 function Utility.StopPhysicsFly()
     FlyActive = false
     DisconnectConnection("physicsFlyLoop")
@@ -919,7 +918,7 @@ function Utility.StopPhysicsFly()
     end)
 end
 
---[[ Đặt lại góc nhìn Camera và gỡ kẹt cho nhân vật ]]
+--[[ Reset camera view and unstuck character ]]
 function Utility.ResetCameraAndCharacter()
     Utility.StopPhysicsFly()
 
@@ -951,10 +950,10 @@ function Utility.ResetCameraAndCharacter()
         end
     end)
 
-    UILib.Notify("Unstuck", "Đã giải phóng Camera & Nhân vật thành công!", 3)
+    UILib.Notify("Unstuck", "Camera and character controls released!", 3)
 end
 
---[[ Lấy chuỗi tên chủ nhân từ đối tượng thuyền ]]
+--[[ Extract boat owner name from boat instance ]]
 function Utility.GetBoatOwnerName(boat)
     if not boat then return "" end
     local ownerObj = boat:FindFirstChild("Owner")
@@ -970,7 +969,7 @@ function Utility.GetBoatOwnerName(boat)
     return ""
 end
 
---[[ Tìm thuyền trong workspace.Boats theo tên chủ thuyền ]]
+--[[ Find boat in workspace.Boats by owner name ]]
 function Utility.GetBoatByOwner(ownerName)
     if not ownerName or ownerName == "" then return nil end
     local boatsFolder = workspace:FindFirstChild("Boats")
@@ -1027,7 +1026,7 @@ function Utility.GetBoatByOwner(ownerName)
     return nil
 end
 
---[[ Tìm ghế Cannon còn trống trên thuyền ]]
+--[[ Find available empty cannon seat on boat ]]
 function Utility.GetAvailableCannonSeat(boat)
     if not boat then return nil end
     local char = LocalPlayer.Character
@@ -1060,7 +1059,7 @@ function Utility.GetAvailableCannonSeat(boat)
     return nil
 end
 
---[[ Đếm số lượng người chơi đang ngồi trên các ghế Cannon của thuyền ]]
+--[[ Count players currently seated on boat cannon seats ]]
 function Utility.GetBoatCannonOccupantsCount(boat)
     if not boat then return 0 end
     local count = 0
@@ -1090,7 +1089,7 @@ function Utility.GetBoatCannonOccupantsCount(boat)
     return count
 end
 
---[[ Thực hiện hồi sinh lại nhân vật của người chơi ]]
+--[[ Respawn local player character ]]
 function Utility.RespawnPlayer()
     local char = LocalPlayer.Character
     if char then
@@ -1103,7 +1102,7 @@ function Utility.RespawnPlayer()
     end
 end
 
---[[ Lấy danh sách tên tất cả người chơi trong server ngoại trừ bản thân ]]
+--[[ Get list of all other players in server ]]
 function Utility.GetPlayerList()
     local list = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1112,7 +1111,7 @@ function Utility.GetPlayerList()
     return list
 end
 
---[[ Lấy thuyền của người chơi dựa trên tên thuyền hoặc vị trí ]]
+--[[ Get player boat by name or closest distance ]]
 function Utility.GetPlayerBoat(boatName)
     boatName = boatName or S.SelectedBoat or "Beast Hunter"
     local boatsFolder = workspace:FindFirstChild("Boats")
@@ -1172,7 +1171,7 @@ function Utility.GetPlayerBoat(boatName)
     return nearestBoat
 end
 
---[[ Bay đến vị trí ghế và ngồi vào ghế an toàn ]]
+--[[ Fly to target seat and securely sit down ]]
 function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
     if not targetSeat or not targetSeat.Parent then return false end
     local char = LocalPlayer.Character
@@ -1214,7 +1213,6 @@ function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
             end
         end
 
-        -- Kiểm tra xác thực trạng thái NGỒI THẬT SỰ từ hệ thống Roblox
         for _ = 1, 10 do
             if hum.SeatPart == targetSeat then
                 if onSeatSuccess then onSeatSuccess() end
@@ -1229,12 +1227,10 @@ function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
     local seatPos = targetSeat.Position
     local dist = (seatPos - root.Position).Magnitude
 
-    -- 2. Nếu đã ở cự ly gần (<= 5 studs) -> Thực hiện ngồi trực tiếp
     if dist <= 5 then
         return AttemptNativeSit()
     end
 
-    -- 3. Nếu ở xa -> Bay Physics Fly đến ghế rồi ngồi thật
     local speed = S.TeleportFlySpeed or 180
     local targetPos = seatPos + Vector3.new(0, 1.5, 0)
 
@@ -1247,7 +1243,7 @@ function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
     return (hum.SeatPart == targetSeat)
 end
 
---[[ Ngồi vào ghế lái VehicleSeat của thuyền ]]
+--[[ Sit on boat driver VehicleSeat ]]
 function Utility.SitVehicleSeat(boat)
     if not boat then return false end
     local vSeat = boat:FindFirstChildOfClass("VehicleSeat") or boat:FindFirstChild("VehicleSeat", true)
@@ -1255,7 +1251,7 @@ function Utility.SitVehicleSeat(boat)
     return Utility.FlyToAndSitSeat(vSeat)
 end
 
---[[ Ngồi vào ghế Cannon còn trống của thuyền ]]
+--[[ Sit on available boat Cannon seat ]]
 function Utility.SitCannonSeat(boat)
     if not boat then return false end
     local cannonSeat = Utility.GetAvailableCannonSeat(boat)
@@ -1263,12 +1259,12 @@ function Utility.SitCannonSeat(boat)
     return Utility.FlyToAndSitSeat(cannonSeat)
 end
 
---[[ Lấy thuyền Beast Hunter của người chơi ]]
+--[[ Get player's Beast Hunter boat ]]
 function Utility.GetBeastHunterBoat()
     return Utility.GetPlayerBoat("Beast Hunter")
 end
 
---[[ Gửi Remote mua thuyền theo tên chỉ định ]]
+--[[ Send remote request to purchase boat by name ]]
 function Utility.BuyBoat(boatName)
     local target = boatName or S.SelectedBoat or "Beast Hunter"
     local ok, res = pcall(function()
@@ -1278,7 +1274,7 @@ function Utility.BuyBoat(boatName)
     return ok, res
 end
 
---[[ Tìm đối tượng Frozen Heart trong workspace.Map ]]
+--[[ Find Frozen Heart object in workspace.Map ]]
 function Utility.GetFrozenHeart()
     local mapFolder = workspace:FindFirstChild("Map")
     if mapFolder then
@@ -1300,7 +1296,7 @@ function Utility.GetFrozenHeart()
     return nil
 end
 
---[[ Lấy danh sách tên tất cả các đảo trong game ]]
+--[[ Get list of all island names in the game ]]
 function Utility.GetIslandList()
     local islands = {}
     local knownIslands = {
@@ -1330,7 +1326,7 @@ function Utility.GetIslandList()
     return islands
 end
 
---[[ Lấy đối tượng Model/Folder của đảo dựa trên tên ]]
+--[[ Get island Model or Folder instance by name ]]
 function Utility.GetIslandObject(islandName)
     if not islandName then return nil end
     local mapFolder = workspace:FindFirstChild("Map")
@@ -1340,7 +1336,7 @@ function Utility.GetIslandObject(islandName)
         or workspace:FindFirstChild(islandName)
 end
 
---[[ Tạo nhãn ESP BillboardGui trên đối tượng Part ]]
+--[[ Create ESP BillboardGui label on target Part ]]
 function Utility.CreateESPLabel(parent, text, color)
     local bg = Instance.new("BillboardGui")
     bg.Name = "ESP_UI"
@@ -1362,7 +1358,7 @@ function Utility.CreateESPLabel(parent, text, color)
     return bg
 end
 
---[[ Tối ưu hoá đồ hoạ để tăng chỉ số FPS ]]
+--[[ Optimize rendering and lighting for smooth FPS ]]
 function Utility.OptimizeGraphics()
     pcall(function()
         Lighting.GlobalShadows = false
@@ -1388,10 +1384,10 @@ function Utility.OptimizeGraphics()
 
         sethiddenproperty(workspace, "InterpolationThrottling", Enum.InterpolationThrottlingMode.Low)
     end)
-    UILib.Notify("Boost FPS", "Đã tối ưu đồ họa mượt mà!", 3)
+    UILib.Notify("Boost FPS", "Graphics optimized smoothly!", 3)
 end
 
---[[ Gửi Webhook Discord thông báo xuất hiện Leviathan ]]
+--[[ Send Discord Webhook notification when Leviathan spawns ]]
 function Utility.SendWebhook(url, player)
     if not url or url == "" then return end
 
@@ -1405,11 +1401,11 @@ function Utility.SendWebhook(url, player)
         avatar_url = "https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/Hilichurl_icon.png",
         embeds = {{
             title = "❄️ LEVIATHAN DETECTED! ❄️",
-            description = string.format("**Player:** `%s`\n**User ID:** `%d`\n**Tọa độ:** `%s`\n**Thời gian:** `%s`",
+            description = string.format("**Player:** `%s`\n**User ID:** `%d`\n**Coordinates:** `%s`\n**Time:** `%s`",
                 player.Name, player.UserId, posStr, os.date("%H:%M:%S - %d/%m/%Y")),
             color = 3840742,
             fields = {
-                { name = "Trạng thái", value = "Đã tìm thấy Leviathan Gate / Frozen Dimension!", inline = true },
+                { name = "Status", value = "Leviathan Gate / Frozen Dimension detected!", inline = true },
                 { name = "Game", value = "Blox Fruits (Sea 3)", inline = true }
             },
             footer = { text = "Hilichurl Hub • Auto Leviathan Tracker" },
@@ -1431,7 +1427,7 @@ function Utility.SendWebhook(url, player)
     end)
 end
 
---[[ Khởi động chuyến bay tự động của thuyền tìm Leviathan ]]
+--[[ Start automated boat flight routine to find Leviathan ]]
 function Utility.StartBoatFlight(boat)
     ActiveBoat = boat
     Utility.UpdateBoatCache(boat)
@@ -1515,7 +1511,7 @@ function Utility.StartBoatFlight(boat)
     _conns["findLev"] = FindLeviathanConnection
 end
 
---[[ Xử lý khi phát hiện Leviathan xuất hiện ]]
+--[[ Handle Leviathan detection cleanup and camera release ]]
 function Utility.HandleLeviathanFound()
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
@@ -1554,10 +1550,10 @@ function Utility.HandleLeviathanFound()
         end)
     end
 
-    UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Đã dừng script & giải phóng Camera để chạy Cutscene!", 6)
+    UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Camera and controls released!", 6)
 end
 
---[[ Kích hoạt trình theo dõi đối tượng Leviathan trong các thư mục ]]
+--[[ Enable object watcher for Leviathan spawn in workspace folders ]]
 function Utility.EnableLeviathanWatcher()
     local npcsFolder = workspace:FindFirstChild("NPCs")
     local seaEventsFolder = workspace:FindFirstChild("SeaEvents")
@@ -1591,7 +1587,7 @@ end
 -- ║               [SECTION 4] RUNTIME CONTROLLERS            ║
 -- ╚══════════════════════════════════════════════════════════╝
 
---[[ Quản lý vòng lặp Find Leviathan tự động ]]
+--[[ Start automated Find Leviathan runtime loop ]]
 function Utility.StartFindLeviathan()
     WebhookSent = false
     Utility.EnableLeviathanWatcher()
@@ -1630,7 +1626,7 @@ function Utility.StartFindLeviathan()
             local playerBoat = nil
 
             if needBuyNewBoat then
-                UILib.Notify("Find Leviathan", "Đang mua thuyền mới " .. selBoatName .. "...", 3)
+                UILib.Notify("Find Leviathan", "Buying boat " .. selBoatName .. "...", 3)
                 Utility.BuyBoat(selBoatName)
 
                 local t0 = os.clock()
@@ -1672,7 +1668,7 @@ function Utility.StartFindLeviathan()
                                 ActiveBoat = nil
                             end
                             if os.clock() - lastPassengerNotify > 6 then
-                                UILib.Notify("Find Leviathan", string.format("Đang chờ đủ người ngồi Cannon (%d/%d)...", cannonCount, req), 4)
+                                UILib.Notify("Find Leviathan", string.format("Waiting players (%d/%d)...", cannonCount, req), 4)
                                 lastPassengerNotify = os.clock()
                             end
                         end
@@ -1685,7 +1681,7 @@ function Utility.StartFindLeviathan()
     end)
 end
 
---[[ Dừng vòng lặp Find Leviathan ]]
+--[[ Stop Find Leviathan runtime loop ]]
 function Utility.StopFindLeviathan()
     DisconnectConnection("findLev")
     DisconnectConnection("levNpcAdded")
@@ -1701,10 +1697,10 @@ function Utility.StopFindLeviathan()
     S.BoatNoClipEnabled = false
 end
 
---[[ Quản lý vòng lặp Multiple Find Leviathan (Cannon) ]]
+--[[ Start Multiple Find Leviathan routine (Cannon passenger) ]]
 function Utility.StartMultipleFindLeviathan()
     if not S.SelectedBoatOwner or S.SelectedBoatOwner == "" then
-        UILib.Notify("Lỗi", "Vui lòng chọn chủ thuyền trước!", 3)
+        UILib.Notify("Error", "Select boat owner!", 3)
         if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
         return
     end
@@ -1745,7 +1741,7 @@ function Utility.StartMultipleFindLeviathan()
                             Utility.SitCannonSeat(ownerBoat)
                         else
                             if os.clock() - lastNotifyTime > 5 then
-                                UILib.Notify("Cannon", "Không tìm thấy ghế Cannon trống trên thuyền của " .. S.SelectedBoatOwner .. "!", 3)
+                                UILib.Notify("Multiple Find Leviathan", "Couldn't find empty Cannon seat on " .. S.SelectedBoatOwner .. "'s boat!", 3)
                                 lastNotifyTime = os.clock()
                             end
                         end
@@ -1756,7 +1752,7 @@ function Utility.StartMultipleFindLeviathan()
                     Utility.StopPhysicsFly()
                 end
                 if os.clock() - lastNotifyTime > 5 then
-                    UILib.Notify("Cannon", "Đang chờ xuất hiện thuyền của " .. S.SelectedBoatOwner .. "...", 3)
+                    UILib.Notify("Multiple Find Leviathan", "Waiting for " .. S.SelectedBoatOwner .. "'s boat to spawn...", 3)
                     lastNotifyTime = os.clock()
                 end
             end
@@ -1766,7 +1762,7 @@ function Utility.StartMultipleFindLeviathan()
     end)
 end
 
---[[ Dừng vòng lặp Multiple Find Leviathan ]]
+--[[ Stop Multiple Find Leviathan loop ]]
 function Utility.StopMultipleFindLeviathan()
     DisconnectConnection("multiFindLev")
     DisconnectConnection("levNpcAdded")
@@ -1775,7 +1771,7 @@ function Utility.StopMultipleFindLeviathan()
     Utility.StopPhysicsFly()
 end
 
---[[ Quản lý vòng lặp tự động mua thuyền ]]
+--[[ Start auto buy boat loop ]]
 function Utility.StartAutoBuyBoat()
     DisconnectConnection("autoBuyBoat")
     _conns["autoBuyBoat"] = task.spawn(function()
@@ -1792,12 +1788,12 @@ function Utility.StartAutoBuyBoat()
     end)
 end
 
---[[ Dừng vòng lặp tự động mua thuyền ]]
+--[[ Stop auto buy boat loop ]]
 function Utility.StopAutoBuyBoat()
     DisconnectConnection("autoBuyBoat")
 end
 
---[[ Quản lý vòng lặp Auto Shoot Leviathan Heart ]]
+--[[ Start Auto Shoot Leviathan Heart loop (Beast Hunter Harpoon) ]]
 function Utility.StartAutoShootLeviathan()
     DisconnectConnection("autoShootLev")
     _conns["autoShootLev"] = task.spawn(function()
@@ -1806,7 +1802,7 @@ function Utility.StartAutoShootLeviathan()
 
         while S.AutoShootLeviEnabled do
             local targetBoat = nil
-            if S.AutoShootBoatMode == "Shoot with other boat" then
+            if S.AutoShootBoatMode == "Shoot with owner boat" or S.AutoShootBoatMode == "Shoot with other boat" then
                 if S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" then
                     targetBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
                 end
@@ -1816,7 +1812,7 @@ function Utility.StartAutoShootLeviathan()
 
             if not targetBoat or not targetBoat.Parent then
                 if os.clock() - lastNotify > 5 then
-                    UILib.Notify("Auto Shoot", "Đang chờ xuất hiện thuyền hợp lệ...", 3)
+                    UILib.Notify("Auto Shoot", "Waiting for boat ...", 3)
                     lastNotify = os.clock()
                 end
                 task.wait(0.5)
@@ -1831,7 +1827,7 @@ function Utility.StartAutoShootLeviathan()
 
                     if not frozenHeart then
                         if os.clock() - lastNotify > 5 then
-                            UILib.Notify("Auto Shoot", "Đang chờ xuất hiện FrozenHeart trong Map...", 4)
+                            UILib.Notify("Auto Shoot", "Waiting for FrozenHeart...", 4)
                             lastNotify = os.clock()
                         end
                     else
@@ -1855,7 +1851,7 @@ function Utility.StartAutoShootLeviathan()
                         if stage == 1 then
                             if hum.SeatPart == vSeat then
                                 stage = 2
-                                UILib.Notify("Auto Shoot", "Đã ngồi ghế lái! Đang điều khiển thuyền đến FrozenHeart...", 3)
+                                UILib.Notify("Auto Shoot", "Fly boat to FrozenHeart...", 3)
                             else
                                 Utility.SitVehicleSeat(targetBoat)
                             end
@@ -1868,7 +1864,7 @@ function Utility.StartAutoShootLeviathan()
                                 lv.VectorVelocity = Vector3.zero
                                 ao.CFrame = CFrame.lookAt(seatPos, fhPos)
                                 stage = 3
-                                UILib.Notify("Auto Shoot", "Thuyền đã neo cố định! Đang chuyển sang ngồi ghế Harpoon...", 3)
+                                UILib.Notify("Auto Shoot", "Shoot harpoon...", 3)
                             else
                                 lv.VectorVelocity = dir.Unit * (S.BoatFlySpeed or 220)
                                 ao.CFrame = CFrame.lookAt(seatPos, targetBoatPos)
@@ -1902,7 +1898,7 @@ function Utility.StartAutoShootLeviathan()
                                 end
                             else
                                 if os.clock() - lastNotify > 5 then
-                                    UILib.Notify("Auto Shoot", "Không tìm thấy Harpoon trên thuyền!", 3)
+                                    UILib.Notify("Auto Shoot", "Couldn't find harpoon!", 3)
                                     lastNotify = os.clock()
                                 end
                             end
@@ -1916,7 +1912,7 @@ function Utility.StartAutoShootLeviathan()
     end)
 end
 
---[[ Dừng vòng lặp Auto Shoot Leviathan Heart ]]
+--[[ Stop Auto Shoot Leviathan Heart loop ]]
 function Utility.StopAutoShootLeviathan()
     DisconnectConnection("autoShootLev")
     if ActiveBoat then
@@ -1925,7 +1921,7 @@ function Utility.StopAutoShootLeviathan()
     end
 end
 
---[[ Quản lý vòng lặp tự động nói chuyện với Frozen Watcher để mở cổng Leviathan ]]
+--[[ Start Auto Talk Frozen Watcher loop to open Leviathan Gate ]]
 function Utility.StartAutoTalkFrozenWatcher()
     DisconnectConnection("autoTalkWatcher")
     _conns["autoTalkWatcher"] = task.spawn(function()
@@ -1958,27 +1954,27 @@ function Utility.StartAutoTalkFrozenWatcher()
                             local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
                             Event:InvokeServer("OpenLeviathanGate")
                         end)
-                        UILib.Notify("Frozen Watcher", "Đã gửi lệnh mở cổng Leviathan Gate!", 3)
+                        UILib.Notify("Frozen Watcher", "Opened Leviathan Gate!", 3)
                         task.wait(3)
                     end
                 else
                     task.wait(1)
                 end
             else
-                UILib.Notify("Frozen Watcher", "Đang tìm kiếm NPC Frozen Watcher trong Workspace...", 3)
+                UILib.Notify("Frozen Watcher", "Finding Frozen Watcher", 3)
                 task.wait(2)
             end
         end
     end)
 end
 
---[[ Dừng vòng lặp tự động nói chuyện với Frozen Watcher ]]
+--[[ Stop Auto Talk Frozen Watcher loop ]]
 function Utility.StopAutoTalkFrozenWatcher()
     DisconnectConnection("autoTalkWatcher")
     Utility.StopPhysicsFly()
 end
 
---[[ Quản lý vòng lặp tự động hồi sinh khi thuyền bị phá huỷ ]]
+--[[ Start auto respawn loop when boat is destroyed ]]
 function Utility.StartResetWhenBoatDestroyed()
     DisconnectConnection("resetWhenBoatDestroyed")
     _conns["resetWhenBoatDestroyed"] = task.spawn(function()
@@ -2007,7 +2003,7 @@ function Utility.StartResetWhenBoatDestroyed()
 
                 if isDestroyed then
                     trackedBoat = nil
-                    UILib.Notify("Boat Destroyed", "Thuyền đã bị phá hủy hoặc chìm! Đang hồi sinh nhân vật...", 4)
+                    UILib.Notify("Boat Destroyed", "Boat destroyed! Respawning...", 4)
                     Utility.RespawnPlayer()
                     task.wait(3)
                 end
@@ -2018,12 +2014,12 @@ function Utility.StartResetWhenBoatDestroyed()
     end)
 end
 
---[[ Dừng vòng lặp tự động hồi sinh khi thuyền bị phá huỷ ]]
+--[[ Stop auto respawn loop when boat is destroyed ]]
 function Utility.StopResetWhenBoatDestroyed()
     DisconnectConnection("resetWhenBoatDestroyed")
 end
 
---[[ Quản lý vòng lặp tự động hồi sinh khi chủ thuyền được chọn bị chết ]]
+--[[ Start auto respawn loop when selected boat owner dies ]]
 function Utility.StartResetWhenSelectedOwnerDie()
     DisconnectConnection("resetWhenOwnerDie")
     _conns["resetWhenOwnerDie"] = task.spawn(function()
@@ -2039,7 +2035,7 @@ function Utility.StartResetWhenSelectedOwnerDie()
                         ownerHadCharacter = true
                     elseif ownerHadCharacter and (not tHum or tHum.Health <= 0) then
                         ownerHadCharacter = false
-                        UILib.Notify("Owner Died", "Chủ thuyền " .. S.SelectedBoatOwner .. " đã chết! Đang hồi sinh nhân vật...", 4)
+                        UILib.Notify("Owner Died", S.SelectedBoatOwner .. " died! Respawning...", 4)
                         Utility.RespawnPlayer()
                         task.wait(3)
                     end
@@ -2050,15 +2046,15 @@ function Utility.StartResetWhenSelectedOwnerDie()
     end)
 end
 
---[[ Dừng vòng lặp tự động hồi sinh khi chủ thuyền được chọn bị chết ]]
+--[[ Stop auto respawn loop when selected boat owner dies ]]
 function Utility.StopResetWhenSelectedOwnerDie()
     DisconnectConnection("resetWhenOwnerDie")
 end
 
---[[ Quản lý vòng lặp Fly Follow Player ]]
+--[[ Start Fly Follow Player loop ]]
 function Utility.StartFlyFollowPlayer()
     if not S.SelectedPlayer then
-        UILib.Notify("Lỗi", "Hãy chọn người chơi hợp lệ!", 3)
+        UILib.Notify("Error", "Please select a player!", 3)
         return
     end
 
@@ -2082,13 +2078,13 @@ function Utility.StartFlyFollowPlayer()
     end)
 end
 
---[[ Dừng vòng lặp Fly Follow Player ]]
+--[[ Stop Fly Follow Player loop ]]
 function Utility.StopFlyFollowPlayer()
     DisconnectConnection("teleportPlayerLoop")
     Utility.ResetCameraAndCharacter()
 end
 
---[[ Quản lý vòng lặp Island ESP ]]
+--[[ Start Island ESP loop ]]
 function Utility.StartIslandESP()
     if not IslandESP_Folder then
         IslandESP_Folder = Instance.new("Folder")
@@ -2131,13 +2127,13 @@ function Utility.StartIslandESP()
     end)
 end
 
---[[ Dừng vòng lặp Island ESP ]]
+--[[ Stop Island ESP loop ]]
 function Utility.StopIslandESP()
     DisconnectConnection("islandEspLoop")
     if IslandESP_Folder then IslandESP_Folder:ClearAllChildren() end
 end
 
---[[ Quản lý vòng lặp Player ESP ]]
+--[[ Start Player ESP loop ]]
 function Utility.StartPlayerESP()
     if not PlayerESP_Folder then
         PlayerESP_Folder = Instance.new("Folder")
@@ -2179,13 +2175,13 @@ function Utility.StartPlayerESP()
     end)
 end
 
---[[ Dừng vòng lặp Player ESP ]]
+--[[ Stop Player ESP loop ]]
 function Utility.StopPlayerESP()
     DisconnectConnection("playerEspLoop")
     if PlayerESP_Folder then PlayerESP_Folder:ClearAllChildren() end
 end
 
---[[ Quản lý vòng lặp Boat Seat Live ESP ]]
+--[[ Start Boat Seat Live ESP loop ]]
 function Utility.StartBoatSeatESP(targetOwnerName)
     if not SeatESP_Folder then
         SeatESP_Folder = Instance.new("Folder")
@@ -2212,8 +2208,8 @@ function Utility.StartBoatSeatESP(targetOwnerName)
                 local esp = SeatESP_Folder:FindFirstChild("ESP_VehicleSeat")
                 local pos = vSeat.Position
                 local d = math.floor((pos - myPos).Magnitude)
-                local occ = vSeat.Occupant and vSeat.Occupant.Parent and vSeat.Occupant.Parent.Name or "Trống"
-                local textStr = string.format("🚗 Ghế Lái [%s]\n(%.1f, %.1f, %.1f)\n[%d studs]", occ, pos.X, pos.Y, pos.Z, d)
+                local occ = vSeat.Occupant and vSeat.Occupant.Parent and vSeat.Occupant.Parent.Name or "Empty"
+                local textStr = string.format("🚗 Driver Seat [%s]\n(%.1f, %.1f, %.1f)\n[%d studs]", occ, pos.X, pos.Y, pos.Z, d)
                 if not esp then
                     esp = Utility.CreateESPLabel(vSeat, textStr, Color3.fromRGB(0, 255, 170))
                     esp.Name = "ESP_VehicleSeat"
@@ -2234,9 +2230,9 @@ function Utility.StartBoatSeatESP(targetOwnerName)
                         local esp = SeatESP_Folder:FindFirstChild(espName)
                         local pos = seat.Position
                         local d = math.floor((pos - myPos).Magnitude)
-                        local occ = seat.Occupant and seat.Occupant.Parent and seat.Occupant.Parent.Name or "Trống"
+                        local occ = seat.Occupant and seat.Occupant.Parent and seat.Occupant.Parent.Name or "Empty"
                         local textStr = string.format("💣 Cannon %d [%s]\n(%.1f, %.1f, %.1f)\n[%d studs]", cIndex, occ, pos.X, pos.Y, pos.Z, d)
-                        local color = (occ == "Trống") and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 80, 80)
+                        local color = (occ == "Empty") and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 80, 80)
                         if not esp then
                             esp = Utility.CreateESPLabel(seat, textStr, color)
                             esp.Name = espName
@@ -2257,7 +2253,7 @@ function Utility.StartBoatSeatESP(targetOwnerName)
     end)
 end
 
---[[ Dừng vòng lặp Boat Seat Live ESP ]]
+--[[ Stop Boat Seat Live ESP loop ]]
 function Utility.StopBoatSeatESP()
     DisconnectConnection("boatSeatEspLoop")
     if SeatESP_Folder then SeatESP_Folder:ClearAllChildren() end
@@ -2276,7 +2272,7 @@ local Window = UILib.CreateWindow({
     Subtitle = "made by Hilichurl",
 })
 
---[[ Dọn dẹp toàn bộ script khi unload ]]
+--[[ Clean up entire script on unload ]]
 function Utility.UnloadAllScript()
     S.AutoBuyBoatEnabled = false
     S.FindLeviathanEnabled = false
@@ -2318,6 +2314,7 @@ function Utility.UnloadAllScript()
     if IslandESP_Folder then IslandESP_Folder:Destroy() end
     if PlayerESP_Folder then PlayerESP_Folder:Destroy() end
     if SeatESP_Folder then SeatESP_Folder:Destroy() end
+    if WaterPart and WaterPart.Parent then WaterPart:Destroy() end
 
     Window:Destroy()
     _G.UnloadScript = nil
@@ -2332,17 +2329,17 @@ local LevTab = Window:AddTab({ Name = "Leviathan", Icon = "" })
 LevTab:AddSection("Auto Shoot Leviathan Heart (Beast Hunter)")
 
 LevTab:AddDropdown({
-    Name    = "Select Shoot Boat Mode",
-    Desc    = "Chọn dùng thuyền của bạn hay thuyền của chủ thuyền",
-    Options = { "Shoot with your boat", "Shoot with other boat" },
+    Name    = "Select Boat",
+    Desc    = "Choose boat for Auto Shoot Heart",
+    Options = { "Shoot with your boat", "Shoot with owner boat" },
     Callback = function(opt)
         S.AutoShootBoatMode = opt
     end,
 })
 
 LevTab:AddToggle({
-    Name    = "Auto Shoot Leviathan",
-    Desc    = "Lái thuyền đến Z=0, X=10, Y=50 so với FrozenHeart, cố định thuyền và ngồi Harpoon bắn",
+    Name    = "Auto Shoot Leviathan Heart",
+    Desc    = "Auto fly to boat and use harpoon",
     Default = false,
     Callback = function(val)
         S.AutoShootLeviEnabled = val
@@ -2358,7 +2355,7 @@ LevTab:AddSection("Frozen Watcher & Gate")
 
 LevTab:AddToggle({
     Name    = "Auto Talk Frozen Watcher",
-    Desc    = "Tự động bay đến NPC Frozen Watcher trong NPCs và gửi lệnh mở cổng Leviathan",
+    Desc    = "Auto start Leviathan",
     Default = false,
     Callback = function(val)
         S.AutoTalkFrozenWatcherEnabled = val
@@ -2374,7 +2371,7 @@ LevTab:AddSection("Leviathan Finder")
 
 FindLeviathanToggle = LevTab:AddToggle({
     Name    = "Find Leviathan",
-    Desc    = "Bay đến ghế lái thuyền đã chọn (hoặc mua 1 lần) & bay tìm Leviathan",
+    Desc    = "Auto Find Leviathan",
     Default = false,
     Callback = function(val)
         S.FindLeviathanEnabled = val
@@ -2388,15 +2385,15 @@ FindLeviathanToggle = LevTab:AddToggle({
 })
 
 LevTab:AddSlider({
-    Name    = "Required Cannon Passengers",
-    Desc    = "Số người tối thiểu ngồi Cannon để thuyền bắt đầu bay tìm Leviathan",
-    Min     = 0, Max = 5, Default = 4, Suffix = " ppl",
+    Name    = "Required Passengers",
+    Desc    = "Minimum players sit on your boat (not include you)",
+    Min     = 0, Max = 6, Default = 4, Suffix = "",
     Callback = function(v) S.RequiredCannonPassengers = v end,
 })
 
 LevTab:AddToggle({
     Name    = "Reset When Boat Destroyed",
-    Desc    = "Tự động hồi sinh nhân vật nếu thuyền đang sử dụng bị phá hủy/biến mất",
+    Desc    = "Respawn when your boat destroyed",
     Default = false,
     Callback = function(val)
         S.ResetWhenBoatDestroyed = val
@@ -2408,11 +2405,11 @@ LevTab:AddToggle({
     end,
 })
 
-LevTab:AddSection("Multiple Find Leviathan (Cannon Passenger)")
+LevTab:AddSection("Multiple Find Leviathan")
 
 local BoatOwnerDD = LevTab:AddDropdown({
     Name    = "Select Boat Owner",
-    Desc    = "Chọn chủ thuyền để bay đến ngồi ké Cannon",
+    Desc    = "Select boat owner to multiple find Leviathan",
     Options = Utility.GetPlayerList(),
     Callback = function(opt)
         S.SelectedBoatOwner = opt
@@ -2421,16 +2418,16 @@ local BoatOwnerDD = LevTab:AddDropdown({
 
 LevTab:AddButton({
     Name = "Refresh Boat Owner List",
-    Desc = "Cập nhật lại danh sách người chơi trong server",
+    Desc = "Refresh list of boat owner",
     Callback = function()
         BoatOwnerDD:Refresh(Utility.GetPlayerList())
-        UILib.Notify("Leviathan", "Đã cập nhật danh sách chủ thuyền!", 2)
+        UILib.Notify("Leviathan", "List of boat owner refreshed!", 2)
     end,
 })
 
 MultipleFindLeviathanToggle = LevTab:AddToggle({
     Name    = "Multiple Find Leviathan",
-    Desc    = "Tự động bay đến và ngồi ghế Cannon trên thuyền của Owner, tự dừng khi đã ngồi",
+    Desc    = "Sit on owner boat to find Leviathan",
     Default = false,
     Callback = function(val)
         S.MultipleFindLeviathanEnabled = val
@@ -2444,7 +2441,7 @@ MultipleFindLeviathanToggle = LevTab:AddToggle({
 
 LevTab:AddToggle({
     Name    = "Reset When Selected Owner Die",
-    Desc    = "Tự động hồi sinh nhân vật nếu chủ thuyền đang chọn bị chết",
+    Desc    = "Respawn when selected owner die",
     Default = false,
     Callback = function(val)
         S.ResetWhenSelectedOwnerDie = val
@@ -2460,7 +2457,7 @@ LevTab:AddSection("Auto Buy Boat")
 
 LevTab:AddDropdown({
     Name    = "Select Boat",
-    Desc    = "Chọn loại thuyền cần mua",
+    Desc    = "Choose boat",
     Options = {
         "Beast Hunter",
         "Grand Brigade",
@@ -2482,21 +2479,21 @@ LevTab:AddDropdown({
 
 LevTab:AddButton({
     Name = "Buy Boat",
-    Desc = "Mua thuyền đã chọn (Mặc định: Beast Hunter)",
+    Desc = "Beast Hunter is default",
     Callback = function()
         local boatName = S.SelectedBoat or "Beast Hunter"
         local ok, err = Utility.BuyBoat(boatName)
         if ok then
-            UILib.Notify("Boat", "Đã gửi yêu cầu mua thuyền " .. boatName .. "!", 3)
+            UILib.Notify("Boat", "Bought succesfully " .. boatName .. "!", 3)
         else
-            UILib.Notify("Lỗi", "Không thể mua thuyền: " .. tostring(err), 3)
+            UILib.Notify("Error", "Couldn't buy boat: " .. tostring(err), 3)
         end
     end,
 })
 
 LevTab:AddToggle({
     Name    = "Auto Buy Boat",
-    Desc    = "Tự động mua thuyền nếu hiện tại chưa có thuyền",
+    Desc    = "Auto buy boat (Beast Hunter is default)",
     Default = false,
     Callback = function(val)
         S.AutoBuyBoatEnabled = val
@@ -2512,21 +2509,21 @@ LevTab:AddSection("Fly & Boat Settings")
 
 LevTab:AddSlider({
     Name    = "Boat Fly Speed",
-    Desc    = "Tốc độ bay thuyền khi tìm Leviathan",
+    Desc    = "Boat fly speed when find Leviathan",
     Min     = 100, Max = 350, Default = 220, Suffix  = " s/s",
     Callback = function(v) S.BoatFlySpeed = v end,
 })
 
 LevTab:AddSlider({
     Name    = "Boat Fly Height",
-    Desc    = "Độ cao khi bay của thuyền khi tìm Leviathan",
+    Desc    = "Boat height when find Leviathan",
     Min     = 20, Max = 300, Default = 190, Suffix  = " Y",
     Callback = function(v) S.BoatFlyHeight = v end,
 })
 
 LevTab:AddToggle({
     Name    = "Enable Boat Speed",
-    Desc    = "Thay đổi tốc độ lướt mặt nước của thuyền",
+    Desc    = "Change speed boat",
     Default = false,
     Callback = function(val)
         S.EnableBoatSpeed = val
@@ -2551,8 +2548,8 @@ LevTab:AddToggle({
 })
 
 LevTab:AddSlider({
-    Name    = "Boat Custom Speed",
-    Desc    = "Tốc độ di chuyển mặt nước của thuyền",
+    Name    = "Boat Speed",
+    Desc    = "Boat speed setting",
     Min     = 40, Max = 500, Default = 250, Suffix  = " sp",
     Callback = function(v) S.CustomBoatSpeed = v end,
 })
@@ -2567,7 +2564,7 @@ TelTab:AddSection("Teleport Settings")
 
 TelTab:AddSlider({
     Name    = "Teleport Fly Speed",
-    Desc    = "Tốc độ bay của nhân vật",
+    Desc    = "Fly speed",
     Min     = 50, Max = 350, Default = 180, Suffix = " sp",
     Callback = function(v)
         S.TeleportFlySpeed = v
@@ -2578,7 +2575,7 @@ TelTab:AddSection("Teleport to Island")
 
 local IslandDD = TelTab:AddDropdown({
     Name    = "Select Island",
-    Desc    = "Chọn đảo muốn bay tới",
+    Desc    = "Select island to teleport",
     Options = Utility.GetIslandList(),
     Callback = function(opt)
         S.SelectedIsland = opt
@@ -2586,22 +2583,22 @@ local IslandDD = TelTab:AddDropdown({
 })
 
 TelTab:AddButton({
-    Name = "Fly to Selected Island",
-    Desc = "Bay nhân vật mượt mà tới đảo bằng Physics Fly",
+    Name = "Teleport to Island",
+    Desc = "Teleport to selected island",
     Callback = function()
         if not S.SelectedIsland then
-            UILib.Notify("Lỗi", "Chưa chọn đảo!", 3); return
+            UILib.Notify("Error", "Select island!", 3); return
         end
 
         local islObj = Utility.GetIslandObject(S.SelectedIsland)
         if islObj then
             local targetCF = islObj:GetPivot()
-            UILib.Notify("Teleport", "Đang bay đến " .. S.SelectedIsland .. "...", 4)
+            UILib.Notify("Teleport", "Teleporting " .. S.SelectedIsland .. "...", 4)
             Utility.PhysicsFlyTo(targetCF + Vector3.new(0, 100, 0), S.TeleportFlySpeed, function()
-                UILib.Notify("Teleport", "Đã đến đảo " .. S.SelectedIsland .. "!", 4)
+                UILib.Notify("Teleport", "Done! " .. S.SelectedIsland .. "!", 4)
             end)
         else
-            UILib.Notify("Lỗi", "Không tìm thấy vị trí đảo!", 3)
+            UILib.Notify("Error", "Can't find island!", 3)
         end
     end,
 })
@@ -2610,7 +2607,7 @@ TelTab:AddSection("Teleport to Player")
 
 local PlayerDD = TelTab:AddDropdown({
     Name    = "Select Player",
-    Desc    = "Chọn người chơi để theo dõi bay",
+    Desc    = "Select player to teleport",
     Options = Utility.GetPlayerList(),
     Callback = function(opt)
         S.SelectedPlayer = Players:FindFirstChild(opt)
@@ -2619,16 +2616,16 @@ local PlayerDD = TelTab:AddDropdown({
 
 TelTab:AddButton({
     Name = "Refresh Player List",
-    Desc = "Cập nhật lại danh sách người chơi",
+    Desc = "Refresh player list",
     Callback = function()
         PlayerDD:Refresh(Utility.GetPlayerList())
-        UILib.Notify("Teleport", "Đã cập nhật danh sách người chơi!", 2)
+        UILib.Notify("Teleport", "Refreshed players list!", 2)
     end,
 })
 
 TelTab:AddToggle({
     Name    = "Fly Follow Player",
-    Desc    = "Tự động bay bám theo người chơi đã chọn bằng Physics Fly",
+    Desc    = "Fly follow player",
     Default = false,
     Callback = function(val)
         S.TeleportPlayerEnabled = val
@@ -2650,7 +2647,7 @@ EspTab:AddSection("Visual ESP")
 
 EspTab:AddToggle({
     Name    = "Island ESP",
-    Desc    = "Hiển thị Tên Đảo và Khoảng cách trên UI người dùng",
+    Desc    = "Show island name and distance on UI",
     Default = false,
     Callback = function(val)
         S.IslandESPEnabled = val
@@ -2663,19 +2660,18 @@ EspTab:AddToggle({
 })
 
 EspTab:AddToggle({
-    Name    = "Player ESP",
-    Desc    = "Hiển thị Tên Người Chơi từ xa qua HumanoidRootPart",
+    Name    = "Boat Seat ESP",
+    Desc    = "Show boat driver and cannon seats on UI",
     Default = false,
     Callback = function(val)
-        S.PlayerESPEnabled = val
+        S.BoatSeatESPEnabled = val
         if val then
-            Utility.StartPlayerESP()
+            Utility.StartBoatSeatESP()
         else
-            Utility.StopPlayerESP()
+            Utility.StopBoatSeatESP()
         end
     end,
 })
-
 
 -- ═══════════════════════════════════════════════════════════
 --  TAB 4 : MISC
@@ -2686,7 +2682,7 @@ MiscTab:AddSection("Fix & Unstuck Controls")
 
 MiscTab:AddButton({
     Name = "Fix Camera & Unstuck Character",
-    Desc = "Gỡ kẹt góc nhìn Camera và trả lại quyền điều khiển nhân vật",
+    Desc = "Fix camera and unstuck character",
     Callback = function()
         Utility.ResetCameraAndCharacter()
     end,
@@ -2695,21 +2691,21 @@ MiscTab:AddButton({
 MiscTab:AddSection("Movement")
 
 MiscTab:AddSlider({
-    Name = "Walk Speed", Desc = "Tốc độ di chuyển nhân vật",
-    Min = 16, Max = 300, Default = 100, Suffix = " sp",
+    Name = "Walk Speed", Desc = "Walk speed",
+    Min = 16, Max = 300, Default = 100, Suffix = "",
     Callback = function(v) S.CustomWalkSpeed = v end,
 })
 
 MiscTab:AddSlider({
-    Name = "Jump Power", Desc = "Lực nhảy",
-    Min = 50, Max = 500, Default = 50, Suffix = " jp",
+    Name = "Jump Power", Desc = "Jump power",
+    Min = 50, Max = 500, Default = 50, Suffix = "",
     Callback = function(v) S.CustomJumpPower = v end,
 })
 
 MiscTab:AddSection("NoClip")
 
 MiscTab:AddToggle({
-    Name = "Player Noclip", Desc = "Cho phép nhân vật xuyên qua vật thể", Default = false,
+    Name = "Player Noclip", Desc = "Player noclip", Default = false,
     Callback = function(val) 
         S.PlayerNoClipEnabled = val
         if val then
@@ -2725,12 +2721,12 @@ MiscTab:AddToggle({
 MiscTab:AddSection("Water & AFK")
 
 MiscTab:AddToggle({
-    Name = "Walk on Water", Desc = "Tạo mặt phẳng ảo đứng trên nước ở Y = 0", Default = true,
+    Name = "Walk on Water", Desc = "Walk on water", Default = true,
     Callback = function(val) S.WalkOnWaterEnabled = val end,
 })
 
 MiscTab:AddToggle({
-    Name = "Anti-AFK", Desc = "Ngăn bị kick khi AFK", Default = true,
+    Name = "Anti-AFK", Desc = "Anti-AFK", Default = true,
     Callback = function(val) S.AntiAFKEnabled = val end,
 })
 
@@ -2738,7 +2734,7 @@ MiscTab:AddSection("Graphics")
 
 MiscTab:AddButton({
     Name = "Boost FPS / Smooth Graphics",
-    Desc = "Xoá hiệu ứng, tối ưu render",
+    Desc = "Smooth graphics",
     Callback = function() Utility.OptimizeGraphics() end,
 })
 
@@ -2752,19 +2748,19 @@ WhTab:AddSection("Discord Webhook")
 
 WhTab:AddToggle({
     Name = "Webhook Leviathan Spawn",
-    Desc = "Gửi thông báo Discord khi xuất hiện Leviathan",
+    Desc = "Webhook leviathan spawn",
     Default = true,
     Callback = function(val) S.WebhookEnabled = val end,
 })
 
 WhTab:AddInput({
     Name = "Discord Webhook URL",
-    Desc = "Dán link webhook vào đây",
+    Desc = "Webhook URL",
     Placeholder = "https://discord.com/api/webhooks/...",
     Callback = function(text)
         if string.find(text, "http") then
             S.WebhookURL = text
-            UILib.Notify("Webhook", "Đã nhận Webhook URL thành công!", 3)
+            UILib.Notify("Webhook", "Webhook URL recived!", 3)
         end
     end,
 })
@@ -2773,13 +2769,13 @@ WhTab:AddSection("Manual Test")
 
 WhTab:AddButton({
     Name = "Test Webhook",
-    Desc = "Gửi thử webhook để kiểm tra",
+    Desc = "Webhook test",
     Callback = function()
         if S.WebhookURL == "" then
-            UILib.Notify("Lỗi", "Chưa nhập Webhook URL!", 3); return
+            UILib.Notify("Error", "Webhook URL not recived!", 3); return
         end
         Utility.SendWebhook(S.WebhookURL, LocalPlayer)
-        UILib.Notify("Webhook", "Đã gửi test webhook!", 3)
+        UILib.Notify("Webhook", "Webhook test sended!", 3)
     end,
 })
 
@@ -2796,10 +2792,10 @@ if LocalPlayer.Character then Utility.UpdateCharacterCache() end
 
 local WaterPart = Instance.new("Part")
 WaterPart.Name = "WalkOnWaterPlatform"
-WaterPart.Size = Vector3.new(3, 1, 3)
+WaterPart.Size = Vector3.new(6, 0.3, 6)
 WaterPart.Transparency = 1
 WaterPart.Anchored = true
-WaterPart.CanCollide = true
+WaterPart.CanCollide = false
 WaterPart.Parent = workspace
 
 _conns["renderLoop"] = RunService.RenderStepped:Connect(function()
@@ -2817,8 +2813,12 @@ _conns["renderLoop"] = RunService.RenderStepped:Connect(function()
             if hum.SeatPart then
                 WaterPart.CanCollide = false
             elseif S.WalkOnWaterEnabled then
-                WaterPart.Position = Vector3.new(root.Position.X, 0, root.Position.Z)
-                WaterPart.CanCollide = true
+                if root.Position.Y >= -3.0 then
+                    WaterPart.Position = Vector3.new(root.Position.X, -4.2, root.Position.Z)
+                    WaterPart.CanCollide = true
+                else
+                    WaterPart.CanCollide = false
+                end
             else
                 WaterPart.CanCollide = false
             end
