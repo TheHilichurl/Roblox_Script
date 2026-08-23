@@ -3,7 +3,7 @@
 --  Author  : Hilichurl  |  Version : 7.0.0 (Standardized Architecture)
 -- ============================================================
 -- Link loading script:
-----loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/blox%20fruit%20script/Blox_Fruit_Script.lua"))()
+--loadstring(game:HttpGet(""))()
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║                     [GLOBAL CLEANUP]                     ║
