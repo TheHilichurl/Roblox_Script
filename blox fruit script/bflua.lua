@@ -168,15 +168,15 @@ local UILib = {}
 --[[ Hiển thị thông báo dạng thẻ nổi mượt mà ]]
 function UILib.Notify(title, msg, dur)
     dur = dur or 3; EnsureNotificationHolder()
-    local card = CreateFrame({Color = THEME.NOTIFY_BG, Size = UDim2.new(1, 0, 0, 78), Name = "NC", Parent = _notificationHolder, Radius = 8, Alpha = 0.08})
+    local card = CreateFrame({Color = THEME.NOTIFY_BG, Size = UDim2.new(1, 0, 0, 56), Name = "NC", Parent = _notificationHolder, Radius = 6, Alpha = 0.08})
     card.ClipsDescendants = true
     local ac = Instance.new("Frame"); ac.BackgroundColor3 = THEME.ACCENT; ac.BorderSizePixel = 0
-    ac.Size = UDim2.new(0, 4, 1, 0); ac.Parent = card; Instance.new("UICorner").Parent = ac
+    ac.Size = UDim2.new(0, 3, 1, 0); ac.Parent = card; Instance.new("UICorner").Parent = ac
     local inn = Instance.new("Frame"); inn.BackgroundTransparency = 1
-    inn.Size = UDim2.new(1, -12, 1, 0); inn.Position = UDim2.fromOffset(10, 0); inn.Parent = card
-    CreateLabel({Text = title,   Size = 18, Color = THEME.ACCENT,   Pos = UDim2.fromOffset(0, 6),  FS = UDim2.new(1, 0, 0, 22), Parent = inn})
-    CreateLabel({Text = msg,     Size = 15, Color = THEME.TEXT,      Pos = UDim2.fromOffset(0, 28), FS = UDim2.new(1, 0, 0, 20), Font = Enum.Font.Gotham, Parent = inn})
-    CreateLabel({Text = os.date("%H:%M"), Size = 13, Color = THEME.TEXT_SUB, Pos = UDim2.fromOffset(0, 52), FS = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, Parent = inn})
+    inn.Size = UDim2.new(1, -10, 1, 0); inn.Position = UDim2.fromOffset(8, 0); inn.Parent = card
+    CreateLabel({Text = title,   Size = 12, Color = THEME.ACCENT,   Pos = UDim2.fromOffset(0, 4),  FS = UDim2.new(1, 0, 0, 16), Parent = inn})
+    CreateLabel({Text = msg,     Size = 10, Color = THEME.TEXT,      Pos = UDim2.fromOffset(0, 20), FS = UDim2.new(1, 0, 0, 16), Font = Enum.Font.Gotham, Parent = inn})
+    CreateLabel({Text = os.date("%H:%M"), Size = 8, Color = THEME.TEXT_SUB, Pos = UDim2.fromOffset(0, 38), FS = UDim2.new(1, 0, 0, 14), Font = Enum.Font.Gotham, Parent = inn})
     card.Position = UDim2.new(1, 8, 0, 0)
     TweenService:Create(card, TI_MED, {Position = UDim2.new(0, 0, 0, 0)}):Play()
     task.delay(dur, function()
@@ -225,7 +225,7 @@ local function BuildIconToggle(iconUrl)
     EnableDragging(btn, btn)
 end
 
---[[ Khởi tạo cửa sổ chính Responsive tỉ lệ 65% màn hình với tính năng phóng to thu nhỏ ]]
+--[[ Khởi tạo cửa sổ chính Responsive chuẩn xác cho cả Mobile và PC ]]
 function UILib.CreateWindow(cfg)
     cfg = cfg or {}
     local title = cfg.Title or "Hili Hub"
@@ -235,28 +235,34 @@ function UILib.CreateWindow(cfg)
     sg.Name = "LevHub"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true
     ProtectGui(sg)
 
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+    local winW = 450
+    local winH = 290
+
     local win = CreateFrame({
-        Color = THEME.BG, Alpha = 0, Size = UDim2.new(0.65, 0, 0.65, 0),
-        Pos = UDim2.new(0.175, 0, 0.175, 0), Name = "Window", Parent = sg, Radius = 10,
+        Color = THEME.BG, Alpha = 0, Size = UDim2.fromOffset(winW, winH),
+        Pos = UDim2.new(0.5, -winW / 2, 0.5, -winH / 2), Name = "Window", Parent = sg, Radius = 8,
     })
     win.ClipsDescendants = true; _winRef = win
 
-    local uiScale = Instance.new("UIScale")
-    uiScale.Scale = 1.0
-    uiScale.Parent = win
+    local initialScale = 1.0
+    if isMobile or vp.Y < 450 then
+        initialScale = math.clamp(vp.Y / 380, 0.75, 0.95)
+    end
 
-    local aspectConstraint = Instance.new("UIAspectRatioConstraint")
-    aspectConstraint.AspectRatio = 1.45
-    aspectConstraint.AspectType = Enum.AspectType.FitWithinMaxSize
-    aspectConstraint.DominantAxis = Enum.DominantAxis.Width
-    aspectConstraint.Parent = win
+    local uiScale = Instance.new("UIScale")
+    uiScale.Scale = initialScale
+    uiScale.Parent = win
 
     local outStroke = Instance.new("UIStroke")
     outStroke.Color = THEME.BORDER; outStroke.Thickness = 1.2; outStroke.Parent = win
 
-    local tb = CreateFrame({Color = THEME.BG_OVERLAY, Size = UDim2.new(1, 0, 0.12, 0), Name = "TitleBar", Parent = win, Radius = 10})
+    local tb = CreateFrame({Color = THEME.BG_OVERLAY, Size = UDim2.new(1, 0, 0, 36), Name = "TitleBar", Parent = win, Radius = 8})
     local tbMask = Instance.new("Frame"); tbMask.Name = "TitleBarMask"; tbMask.BackgroundColor3 = THEME.BG_OVERLAY; tbMask.BorderSizePixel = 0
-    tbMask.Size = UDim2.new(1, 0, 0, 10); tbMask.Position = UDim2.new(0, 0, 1, -10); tbMask.Parent = tb
+    tbMask.Size = UDim2.new(1, 0, 0, 8); tbMask.Position = UDim2.new(0, 0, 1, -8); tbMask.Parent = tb
 
     local strip = Instance.new("Frame"); strip.Name = "AccentStrip"; strip.BackgroundColor3 = THEME.ACCENT; strip.BorderSizePixel = 0
     strip.Size = UDim2.new(0, 3, 1, -4); strip.Position = UDim2.fromOffset(2, 2); strip.Parent = tb
@@ -268,62 +274,62 @@ function UILib.CreateWindow(cfg)
 
     local titleListLayout = Instance.new("UIListLayout")
     titleListLayout.FillDirection = Enum.FillDirection.Horizontal; titleListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    titleListLayout.Padding = UDim.new(0, 8); titleListLayout.SortOrder = Enum.SortOrder.LayoutOrder; titleListLayout.Parent = titleContainer
+    titleListLayout.Padding = UDim.new(0, 6); titleListLayout.SortOrder = Enum.SortOrder.LayoutOrder; titleListLayout.Parent = titleContainer
 
     local tLbl = Instance.new("TextLabel")
     tLbl.BackgroundTransparency = 1; tLbl.TextColor3 = THEME.TEXT; tLbl.Text = title; tLbl.Font = Enum.Font.GothamBold
-    tLbl.TextSize = 18; tLbl.AutomaticSize = Enum.AutomaticSize.X; tLbl.Size = UDim2.new(0, 0, 1, 0); tLbl.LayoutOrder = 1; tLbl.Parent = titleContainer
+    tLbl.TextSize = 13; tLbl.AutomaticSize = Enum.AutomaticSize.X; tLbl.Size = UDim2.new(0, 0, 1, 0); tLbl.LayoutOrder = 1; tLbl.Parent = titleContainer
 
     local subLbl = Instance.new("TextLabel")
     subLbl.BackgroundTransparency = 1; subLbl.TextColor3 = THEME.TEXT_SUB; subLbl.Text = sub; subLbl.Font = Enum.Font.Gotham
-    subLbl.TextSize = 14; subLbl.AutomaticSize = Enum.AutomaticSize.X; subLbl.Size = UDim2.new(0, 0, 1, 0); subLbl.LayoutOrder = 2; subLbl.Parent = titleContainer
+    subLbl.TextSize = 10; subLbl.AutomaticSize = Enum.AutomaticSize.X; subLbl.Size = UDim2.new(0, 0, 1, 0); subLbl.LayoutOrder = 2; subLbl.Parent = titleContainer
 
     local function CreateWinButton(icon, xOff, bgColor)
         local b = Instance.new("TextButton")
-        b.Text = icon; b.Font = Enum.Font.GothamBold; b.TextSize = 16; b.TextColor3 = THEME.TEXT_SUB; b.BackgroundColor3 = bgColor
-        b.BackgroundTransparency = 1; b.AutoButtonColor = false; b.Size = UDim2.fromOffset(28, 28); b.Position = UDim2.new(1, xOff, 0.5, -14); b.Parent = tb
+        b.Text = icon; b.Font = Enum.Font.GothamBold; b.TextSize = 12; b.TextColor3 = THEME.TEXT_SUB; b.BackgroundColor3 = bgColor
+        b.BackgroundTransparency = 1; b.AutoButtonColor = false; b.Size = UDim2.fromOffset(24, 24); b.Position = UDim2.new(1, xOff, 0.5, -12); b.Parent = tb
         Instance.new("UICorner").Parent = b
         b.MouseEnter:Connect(function() TweenService:Create(b, TI_FAST, {BackgroundTransparency = 0, TextColor3 = Color3.new(1, 1, 1)}):Play() end)
         b.MouseLeave:Connect(function() TweenService:Create(b, TI_FAST, {BackgroundTransparency = 1, TextColor3 = THEME.TEXT_SUB}):Play() end)
         return b
     end
 
-    local closeBtn = CreateWinButton("X", -34, Color3.fromRGB(180, 40, 40))
+    local closeBtn = CreateWinButton("X", -30, Color3.fromRGB(180, 40, 40))
     closeBtn.MouseButton1Click:Connect(function() if _G.UnloadScript then _G.UnloadScript() end end)
 
-    local minBtn = CreateWinButton("─", -68, Color3.fromRGB(60, 60, 60))
+    local minBtn = CreateWinButton("─", -58, Color3.fromRGB(60, 60, 60))
     local minimized = false
     minBtn.MouseButton1Click:Connect(function()
         minimized = not minimized
-        TweenService:Create(win, TI_MED, {Size = minimized and UDim2.new(0.65, 0, 0.12, 0) or UDim2.new(0.65, 0, 0.65, 0)}):Play()
+        TweenService:Create(win, TI_MED, {Size = minimized and UDim2.fromOffset(winW, 36) or UDim2.fromOffset(winW, winH)}):Play()
     end)
 
-    local body = CreateFrame({Color = THEME.BG, Size = UDim2.new(1, 0, 0.88, 0), Pos = UDim2.new(0, 0, 0.12, 0), Name = "Body", Parent = win, Radius = 10})
+    local body = CreateFrame({Color = THEME.BG, Size = UDim2.new(1, 0, 1, -36), Pos = UDim2.new(0, 0, 0, 36), Name = "Body", Parent = win, Radius = 8})
     local bodyMask = Instance.new("Frame"); bodyMask.Name = "BodyMask"; bodyMask.BackgroundColor3 = THEME.BG; bodyMask.BorderSizePixel = 0
-    bodyMask.Size = UDim2.new(1, 0, 0, 10); bodyMask.Position = UDim2.new(0, 0, 0, 0); bodyMask.Parent = body
+    bodyMask.Size = UDim2.new(1, 0, 0, 8); bodyMask.Position = UDim2.new(0, 0, 0, 0); bodyMask.Parent = body
 
-    local sidebar = CreateFrame({Color = THEME.BG_OVERLAY, Size = UDim2.new(0.24, 0, 1, 0), Name = "Sidebar", Parent = body, Radius = 10})
+    local sidebar = CreateFrame({Color = THEME.BG_OVERLAY, Size = UDim2.new(0.26, 0, 1, 0), Name = "Sidebar", Parent = body, Radius = 8})
     
     local sidebarScroll = Instance.new("ScrollingFrame")
     sidebarScroll.Name = "SidebarScroll"; sidebarScroll.BackgroundTransparency = 1; sidebarScroll.BorderSizePixel = 0
-    sidebarScroll.Size = UDim2.new(1, 0, 1, -44); sidebarScroll.CanvasSize = UDim2.new(0, 0, 0, 0); sidebarScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    sidebarScroll.Size = UDim2.new(1, 0, 1, -34); sidebarScroll.CanvasSize = UDim2.new(0, 0, 0, 0); sidebarScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     sidebarScroll.ScrollBarThickness = 0; sidebarScroll.Parent = sidebar
 
     local sbll = Instance.new("UIListLayout"); sbll.SortOrder = Enum.SortOrder.LayoutOrder; sbll.Padding = UDim.new(0, 4); sbll.Parent = sidebarScroll
-    local sbp = Instance.new("UIPadding"); sbp.PaddingTop = UDim.new(0, 8); sbp.PaddingLeft = UDim.new(0, 6); sbp.PaddingRight = UDim.new(0, 6); sbp.Parent = sidebarScroll
+    local sbp = Instance.new("UIPadding"); sbp.PaddingTop = UDim.new(0, 6); sbp.PaddingLeft = UDim.new(0, 5); sbp.PaddingRight = UDim.new(0, 5); sbp.Parent = sidebarScroll
 
     -- Nút điều chỉnh độ to nhỏ của UI ở góc dưới bên trái
     local scaleBtn = Instance.new("TextButton")
-    scaleBtn.Name = "ScaleToggleBtn"; scaleBtn.Text = "📏 UI: 100%"
-    scaleBtn.Font = Enum.Font.GothamBold; scaleBtn.TextSize = 13; scaleBtn.TextColor3 = THEME.ACCENT
+    scaleBtn.Name = "ScaleToggleBtn"; scaleBtn.Text = string.format("📏 UI: %.0f%%", uiScale.Scale * 100)
+    scaleBtn.Font = Enum.Font.GothamBold; scaleBtn.TextSize = 10; scaleBtn.TextColor3 = THEME.ACCENT
     scaleBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 24); scaleBtn.AutoButtonColor = false
-    scaleBtn.Size = UDim2.new(1, -12, 0, 32); scaleBtn.Position = UDim2.new(0, 6, 1, -38); scaleBtn.Parent = sidebar
+    scaleBtn.Size = UDim2.new(1, -10, 0, 24); scaleBtn.Position = UDim2.new(0, 5, 1, -28); scaleBtn.Parent = sidebar
 
-    local scaleCorner = Instance.new("UICorner"); scaleCorner.CornerRadius = UDim.new(0, 6); scaleCorner.Parent = scaleBtn
+    local scaleCorner = Instance.new("UICorner"); scaleCorner.CornerRadius = UDim.new(0, 4); scaleCorner.Parent = scaleBtn
     local scaleStroke = Instance.new("UIStroke"); scaleStroke.Color = THEME.BORDER; scaleStroke.Thickness = 1; scaleStroke.Parent = scaleBtn
 
-    local scaleLevels = { 0.75, 1.0, 1.25, 1.5 }
-    local currentScaleIdx = 2
+    local scaleLevels = { 0.75, 0.85, 1.0, 1.15, 1.3 }
+    local currentScaleIdx = 3
 
     scaleBtn.MouseEnter:Connect(function()
         TweenService:Create(scaleStroke, TI_FAST, {Color = THEME.ACCENT}):Play()
@@ -342,7 +348,7 @@ function UILib.CreateWindow(cfg)
         UILib.Notify("UI Scale", string.format("Đã chỉnh kích thước UI về %.0f%%!", newScale * 100), 2)
     end)
 
-    local cpane = CreateFrame({Color = THEME.BG, Size = UDim2.new(0.76, 0, 1, 0), Pos = UDim2.new(0.24, 0, 0, 0), Name = "Content", Parent = body, Radius = 10})
+    local cpane = CreateFrame({Color = THEME.BG, Size = UDim2.new(0.74, 0, 1, 0), Pos = UDim2.new(0.26, 0, 0, 0), Name = "Content", Parent = body, Radius = 8})
     cpane.ClipsDescendants = true
 
     EnableDragging(tb, win)
@@ -362,10 +368,10 @@ function UILib.CreateWindow(cfg)
 
         local tabBtn = Instance.new("TextButton")
         tabBtn.Name = "Tab_" .. tname; tabBtn.Text = (ticon ~= "" and ticon .. "  " or "") .. tname
-        tabBtn.Font = Enum.Font.GothamSemibold; tabBtn.TextSize = 18; tabBtn.TextColor3 = THEME.TEXT_SUB
-        tabBtn.BackgroundColor3 = THEME.TAB_IDLE; tabBtn.AutoButtonColor = false; tabBtn.Size = UDim2.new(1, 0, 0, 36)
+        tabBtn.Font = Enum.Font.GothamSemibold; tabBtn.TextSize = 11; tabBtn.TextColor3 = THEME.TEXT_SUB
+        tabBtn.BackgroundColor3 = THEME.TAB_IDLE; tabBtn.AutoButtonColor = false; tabBtn.Size = UDim2.new(1, 0, 0, 28)
         tabBtn.TextXAlignment = Enum.TextXAlignment.Left; tabBtn.Parent = sidebarScroll
-        local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0, 6); tc.Parent = tabBtn
+        local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0, 5); tc.Parent = tabBtn
         local tp = Instance.new("UIPadding"); tp.PaddingLeft = UDim.new(0, 8); tp.Parent = tabBtn
 
         local page = Instance.new("ScrollingFrame")
@@ -373,8 +379,8 @@ function UILib.CreateWindow(cfg)
         page.CanvasSize = UDim2.new(0, 0, 0, 0); page.AutomaticCanvasSize = Enum.AutomaticSize.Y
         page.ScrollBarThickness = 2; page.ScrollBarImageColor3 = THEME.ACCENT
         page.Visible = false; page.BorderSizePixel = 0; page.ClipsDescendants = true; page.Parent = cpane
-        local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0, 6); pl.Parent = page
-        local pp = Instance.new("UIPadding"); pp.PaddingTop = UDim.new(0, 8); pp.PaddingLeft = UDim.new(0, 10); pp.PaddingRight = UDim.new(0, 10); pp.PaddingBottom = UDim.new(0, 8); pp.Parent = page
+        local pl = Instance.new("UIListLayout"); pl.SortOrder = Enum.SortOrder.LayoutOrder; pl.Padding = UDim.new(0, 5); pl.Parent = page
+        local pp = Instance.new("UIPadding"); pp.PaddingTop = UDim.new(0, 6); pp.PaddingLeft = UDim.new(0, 8); pp.PaddingRight = UDim.new(0, 8); pp.PaddingBottom = UDim.new(0, 6); pp.Parent = page
 
         local function ActivateTab()
             if activePage   then activePage.Visible   = false end
@@ -395,8 +401,8 @@ function UILib.CreateWindow(cfg)
         local Tab = {}
 
         function Tab:AddSection(name)
-            local s = CreateFrame({Color = Color3.fromRGB(0, 0, 0), Size = UDim2.new(1, 0, 0, 28), Name = "Sec_" .. name, Parent = page, Alpha = 1, Radius = 0})
-            CreateLabel({Text = "• " .. name:upper(), Size = 16, Color = THEME.ACCENT, Font = Enum.Font.GothamBold, FS = UDim2.new(1, 0, 1, 0), Parent = s})
+            local s = CreateFrame({Color = Color3.fromRGB(0, 0, 0), Size = UDim2.new(1, 0, 0, 22), Name = "Sec_" .. name, Parent = page, Alpha = 1, Radius = 0})
+            CreateLabel({Text = "• " .. name:upper(), Size = 9, Color = THEME.ACCENT, Font = Enum.Font.GothamBold, FS = UDim2.new(1, 0, 1, 0), Parent = s})
             local d = Instance.new("Frame"); d.BackgroundColor3 = THEME.BORDER; d.BorderSizePixel = 0; d.Size = UDim2.new(1, 0, 0, 1); d.Position = UDim2.new(0, 0, 1, 0); d.Parent = s
             return s
         end
@@ -404,11 +410,11 @@ function UILib.CreateWindow(cfg)
         function Tab:AddButton(bc)
             bc = bc or {}
             local lbl = bc.Name or "Button"; local desc = bc.Desc or ""; local cb = bc.Callback or function() end
-            local rH = desc ~= "" and 56 or 38
-            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Btn_" .. lbl, Parent = page, Radius = 6})
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 10); ip.PaddingRight = UDim.new(0, 10); ip.Parent = row
-            CreateLabel({Text = lbl, Size = 18, Color = THEME.TEXT, FS = UDim2.new(1, 0, 0, 22), Pos = UDim2.fromOffset(0, 6), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 14, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, 0, 0, 18), Pos = UDim2.fromOffset(0, 30), Parent = row}) end
+            local rH = desc ~= "" and 44 or 30
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Btn_" .. lbl, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, 0, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, 0, 0, 14), Pos = UDim2.fromOffset(0, 22), Parent = row}) end
             local cl = Instance.new("TextButton"); cl.Text = ""; cl.BackgroundTransparency = 1; cl.Size = UDim2.new(1, 0, 1, 0); cl.AutoButtonColor = false; cl.Parent = row
             cl.MouseEnter:Connect(function()
                 TweenService:Create(row, TI_FAST, {BackgroundColor3 = THEME.BTN_HOVER}):Play()
@@ -416,13 +422,13 @@ function UILib.CreateWindow(cfg)
             end)
             cl.MouseLeave:Connect(function()
                 TweenService:Create(row, TI_FAST, {BackgroundColor3 = THEME.BTN_IDLE}):Play()
-                for _, v in ipairs(row:GetChildren()) do if v:IsA("TextLabel") then TweenService:Create(v, TI_FAST, {TextColor3 = v.TextSize >= 18 and THEME.TEXT or THEME.TEXT_SUB}):Play() end end
+                for _, v in ipairs(row:GetChildren()) do if v:IsA("TextLabel") then TweenService:Create(v, TI_FAST, {TextColor3 = v.TextSize >= 11 and THEME.TEXT or THEME.TEXT_SUB}):Play() end end
             end)
             cl.MouseButton1Click:Connect(function()
                 pcall(cb)
                 TweenService:Create(row, TI_FAST, {BackgroundColor3 = THEME.ACCENT_DIM}):Play()
                 task.delay(0.1, function() TweenService:Create(row, TI_FAST, {BackgroundColor3 = THEME.BTN_IDLE}):Play()
-                    for _, v in ipairs(row:GetChildren()) do if v:IsA("TextLabel") then TweenService:Create(v, TI_FAST, {TextColor3 = v.TextSize >= 18 and THEME.TEXT or THEME.TEXT_SUB}):Play() end end end)
+                    for _, v in ipairs(row:GetChildren()) do if v:IsA("TextLabel") then TweenService:Create(v, TI_FAST, {TextColor3 = v.TextSize >= 11 and THEME.TEXT or THEME.TEXT_SUB}):Play() end end end)
             end)
             return row
         end
@@ -430,18 +436,18 @@ function UILib.CreateWindow(cfg)
         function Tab:AddToggle(tc2)
             tc2 = tc2 or {}
             local lbl = tc2.Name or "Toggle"; local desc = tc2.Desc or ""; local def = tc2.Default or false; local cb = tc2.Callback or function() end
-            local rH = desc ~= "" and 56 or 38; local st = def
-            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Tog_" .. lbl, Parent = page, Radius = 6})
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 10); ip.PaddingRight = UDim.new(0, 10); ip.Parent = row
-            CreateLabel({Text = lbl, Size = 18, Color = THEME.TEXT, FS = UDim2.new(1, -55, 0, 22), Pos = UDim2.fromOffset(0, 6), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 14, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -55, 0, 18), Pos = UDim2.fromOffset(0, 30), Parent = row}) end
+            local rH = desc ~= "" and 44 or 30; local st = def
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Tog_" .. lbl, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -45, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -45, 0, 14), Pos = UDim2.fromOffset(0, 22), Parent = row}) end
 
-            local pill = CreateFrame({Color = st and THEME.TOGGLE_ON or THEME.TOGGLE_OFF, Size = UDim2.fromOffset(40, 22), Pos = UDim2.new(1, -40, 0.5, -11), Name = "Pill", Parent = row, Radius = 11})
-            local knob = CreateFrame({Color = Color3.new(1, 1, 1), Size = UDim2.fromOffset(16, 16), Pos = st and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3), Name = "Knob", Parent = pill, Radius = 8})
+            local pill = CreateFrame({Color = st and THEME.TOGGLE_ON or THEME.TOGGLE_OFF, Size = UDim2.fromOffset(34, 18), Pos = UDim2.new(1, -34, 0.5, -9), Name = "Pill", Parent = row, Radius = 9})
+            local knob = CreateFrame({Color = Color3.new(1, 1, 1), Size = UDim2.fromOffset(14, 14), Pos = st and UDim2.fromOffset(18, 2) or UDim2.fromOffset(2, 2), Name = "Knob", Parent = pill, Radius = 7})
 
             local function UpdateToggle()
                 TweenService:Create(pill, TI_FAST, {BackgroundColor3 = st and THEME.TOGGLE_ON or THEME.TOGGLE_OFF}):Play()
-                TweenService:Create(knob, TI_FAST, {Position = st and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3)}):Play()
+                TweenService:Create(knob, TI_FAST, {Position = st and UDim2.fromOffset(18, 2) or UDim2.fromOffset(2, 2)}):Play()
             end
 
             local cl = Instance.new("TextButton"); cl.Text = ""; cl.BackgroundTransparency = 1; cl.Size = UDim2.new(1, 0, 1, 0); cl.AutoButtonColor = false; cl.Parent = row
@@ -460,33 +466,33 @@ function UILib.CreateWindow(cfg)
             sc = sc or {}
             local lbl = sc.Name or "Slider"; local desc = sc.Desc or ""; local mn = sc.Min or 0; local mx = sc.Max or 100
             local def = sc.Default or mn; local sfx = sc.Suffix or ""; local cb = sc.Callback or function() end
-            local rH = desc ~= "" and 72 or 54; local value = math.clamp(def, mn, mx)
-            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Sl_" .. lbl, Parent = page, Radius = 6})
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 10); ip.PaddingRight = UDim.new(0, 10); ip.Parent = row
+            local rH = desc ~= "" and 56 or 42; local value = math.clamp(def, mn, mx)
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Sl_" .. lbl, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
             
-            CreateLabel({Text = lbl, Size = 18, Color = THEME.TEXT, FS = UDim2.new(1, -75, 0, 22), Pos = UDim2.fromOffset(0, 6), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 14, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -75, 0, 18), Pos = UDim2.fromOffset(0, 28), Parent = row}) end
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -60, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -60, 0, 14), Pos = UDim2.fromOffset(0, 20), Parent = row}) end
             
-            local valBoxBG = CreateFrame({Color = Color3.fromRGB(10, 10, 14), Size = UDim2.fromOffset(65, 22), Pos = UDim2.new(1, -65, 0, 6), Name = "ValBoxBG", Parent = row, Radius = 4})
+            local valBoxBG = CreateFrame({Color = Color3.fromRGB(10, 10, 14), Size = UDim2.fromOffset(52, 18), Pos = UDim2.new(1, -52, 0, 4), Name = "ValBoxBG", Parent = row, Radius = 3})
             local valBoxSt = Instance.new("UIStroke"); valBoxSt.Color = THEME.BORDER; valBoxSt.Thickness = 1; valBoxSt.Parent = valBoxBG
             
             local valBox = Instance.new("TextBox")
             valBox.Size = UDim2.new(1, 0, 1, 0); valBox.BackgroundTransparency = 1; valBox.Text = tostring(value) .. sfx
-            valBox.TextColor3 = THEME.ACCENT; valBox.Font = Enum.Font.GothamBold; valBox.TextSize = 14
+            valBox.TextColor3 = THEME.ACCENT; valBox.Font = Enum.Font.GothamBold; valBox.TextSize = 10
             valBox.TextXAlignment = Enum.TextXAlignment.Center; valBox.ClearTextOnFocus = false; valBox.Parent = valBoxBG
 
-            local tY = desc ~= "" and 50 or 34
-            local track = CreateFrame({Color = THEME.SLIDER_TRACK, Size = UDim2.new(1, 0, 0, 6), Pos = UDim2.fromOffset(0, tY), Name = "Tr", Parent = row, Radius = 3})
+            local tY = desc ~= "" and 38 or 24
+            local track = CreateFrame({Color = THEME.SLIDER_TRACK, Size = UDim2.new(1, 0, 0, 4), Pos = UDim2.fromOffset(0, tY), Name = "Tr", Parent = row, Radius = 2})
             local fp = (value - mn) / (mx - mn)
-            local fill = CreateFrame({Color = THEME.SLIDER_FILL, Size = UDim2.new(fp, 0, 1, 0), Name = "Fl", Parent = track, Radius = 3})
-            local thumb = CreateFrame({Color = Color3.new(1, 1, 1), Size = UDim2.fromOffset(13, 13), Pos = UDim2.new(fp, -6, 0.5, -6), Name = "Th", Parent = track, Radius = 6})
-            local ts = Instance.new("UIStroke"); ts.Color = THEME.ACCENT; ts.Thickness = 1.2; ts.Parent = thumb
+            local fill = CreateFrame({Color = THEME.SLIDER_FILL, Size = UDim2.new(fp, 0, 1, 0), Name = "Fl", Parent = track, Radius = 2})
+            local thumb = CreateFrame({Color = Color3.new(1, 1, 1), Size = UDim2.fromOffset(10, 10), Pos = UDim2.new(fp, -5, 0.5, -5), Name = "Th", Parent = track, Radius = 5})
+            local ts = Instance.new("UIStroke"); ts.Color = THEME.ACCENT; ts.Thickness = 1; ts.Parent = thumb
             local dSlider = false
 
             local function UpdateUI(val)
                 value = math.clamp(val, mn, mx)
                 local p = (value - mn) / (mx - mn)
-                fill.Size = UDim2.new(p, 0, 1, 0); thumb.Position = UDim2.new(p, -6, 0.5, -6)
+                fill.Size = UDim2.new(p, 0, 1, 0); thumb.Position = UDim2.new(p, -5, 0.5, -5)
                 valBox.Text = tostring(value) .. sfx
                 pcall(cb, value)
             end
@@ -528,12 +534,12 @@ function UILib.CreateWindow(cfg)
         function Tab:AddDropdown(dc)
             dc = dc or {}
             local lbl = dc.Name or "Dropdown"; local opts = dc.Options or {}; local cb = dc.Callback or function() end
-            local desc = dc.Desc or ""; local rH = desc ~= "" and 56 or 38; local selectedText = "None"
-            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "DD_" .. lbl, Parent = page, Radius = 6})
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 10); ip.PaddingRight = UDim.new(0, 10); ip.Parent = row
-            CreateLabel({Text = lbl, Size = 18, Color = THEME.TEXT, FS = UDim2.new(1, -120, 0, 22), Pos = UDim2.fromOffset(0, 6), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 14, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -120, 0, 18), Pos = UDim2.fromOffset(0, 30), Parent = row}) end
-            local selLbl = CreateLabel({Text = selectedText .. "", Size = 15, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0, 120, 0, 22), Pos = UDim2.new(1, -120, 0, 6), Name = "SelLbl", Parent = row})
+            local desc = dc.Desc or ""; local rH = desc ~= "" and 44 or 30; local selectedText = "None"
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "DD_" .. lbl, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -100, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -100, 0, 14), Pos = UDim2.fromOffset(0, 22), Parent = row}) end
+            local selLbl = CreateLabel({Text = selectedText .. "", Size = 10, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0, 95, 0, 16), Pos = UDim2.new(1, -95, 0, 4), Name = "SelLbl", Parent = row})
 
             local activeDropdown = nil
 
@@ -542,11 +548,11 @@ function UILib.CreateWindow(cfg)
                 local n = #opts
                 if n == 0 then return end
 
-                local ddH = math.min(n, 5) * 32 + 6
+                local ddH = math.min(n, 5) * 26 + 4
                 local dropdown = CreateFrame({
                     Color = THEME.BG_OVERLAY, Size = UDim2.fromOffset(row.AbsoluteSize.X, ddH),
                     Pos = UDim2.fromOffset(row.AbsolutePosition.X, row.AbsolutePosition.Y + row.AbsoluteSize.Y + 4),
-                    Name = "GlobalDDList", Parent = sg, Radius = 6
+                    Name = "GlobalDDList", Parent = sg, Radius = 5
                 })
                 dropdown.ZIndex = 500; activeDropdown = dropdown
 
@@ -554,18 +560,18 @@ function UILib.CreateWindow(cfg)
 
                 local scrollDD = Instance.new("ScrollingFrame")
                 scrollDD.Size = UDim2.new(1, 0, 1, 0); scrollDD.BackgroundTransparency = 1; scrollDD.BorderSizePixel = 0
-                scrollDD.ScrollBarThickness = 3; scrollDD.ScrollBarImageColor3 = THEME.ACCENT
-                scrollDD.CanvasSize = UDim2.new(0, 0, 0, n * 32); scrollDD.ZIndex = 501; scrollDD.Parent = dropdown
+                scrollDD.ScrollBarThickness = 2; scrollDD.ScrollBarImageColor3 = THEME.ACCENT
+                scrollDD.CanvasSize = UDim2.new(0, 0, 0, n * 26); scrollDD.ZIndex = 501; scrollDD.Parent = dropdown
 
                 local dll = Instance.new("UIListLayout"); dll.SortOrder = Enum.SortOrder.LayoutOrder; dll.Padding = UDim.new(0, 2); dll.Parent = scrollDD
 
                 for _, opt in ipairs(opts) do
                     local ob = Instance.new("TextButton")
-                    ob.Text = opt; ob.Font = Enum.Font.GothamMedium; ob.TextSize = 15; ob.TextColor3 = THEME.TEXT
+                    ob.Text = opt; ob.Font = Enum.Font.GothamMedium; ob.TextSize = 10; ob.TextColor3 = THEME.TEXT
                     ob.BackgroundColor3 = THEME.BTN_IDLE; ob.BackgroundTransparency = 0.2; ob.AutoButtonColor = false
-                    ob.Size = UDim2.new(1, 0, 0, 30); ob.TextXAlignment = Enum.TextXAlignment.Left; ob.ZIndex = 502; ob.Parent = scrollDD
+                    ob.Size = UDim2.new(1, 0, 0, 24); ob.TextXAlignment = Enum.TextXAlignment.Left; ob.ZIndex = 502; ob.Parent = scrollDD
 
-                    local op = Instance.new("UIPadding"); op.PaddingLeft = UDim.new(0, 10); op.Parent = ob
+                    local op = Instance.new("UIPadding"); op.PaddingLeft = UDim.new(0, 8); op.Parent = ob
 
                     ob.MouseEnter:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0, TextColor3 = THEME.BTN_TEXT_HOV, BackgroundColor3 = THEME.BTN_HOVER}):Play() end)
                     ob.MouseLeave:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() end)
@@ -593,17 +599,17 @@ function UILib.CreateWindow(cfg)
         function Tab:AddInput(ic)
             ic = ic or {}
             local lbl = ic.Name or "Input"; local desc = ic.Desc or ""; local ph = ic.Placeholder or "Type here..."; local cb = ic.Callback or function() end
-            local rH = desc ~= "" and 72 or 54
-            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Inp_" .. lbl, Parent = page, Radius = 6})
-            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 10); ip.PaddingRight = UDim.new(0, 10); ip.Parent = row
-            CreateLabel({Text = lbl, Size = 18, Color = THEME.TEXT, FS = UDim2.new(1, 0, 0, 22), Pos = UDim2.fromOffset(0, 6), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 14, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, 0, 0, 18), Pos = UDim2.fromOffset(0, 28), Parent = row}) end
-            local bxY = desc ~= "" and 48 or 30
-            local bxBG = CreateFrame({Color = Color3.fromRGB(10, 10, 14), Size = UDim2.new(1, 0, 0, 22), Pos = UDim2.fromOffset(0, bxY), Name = "BxBG", Parent = row, Radius = 5})
+            local rH = desc ~= "" and 56 or 42
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Inp_" .. lbl, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, 0, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, 0, 0, 14), Pos = UDim2.fromOffset(0, 20), Parent = row}) end
+            local bxY = desc ~= "" and 36 or 22
+            local bxBG = CreateFrame({Color = Color3.fromRGB(10, 10, 14), Size = UDim2.new(1, 0, 0, 18), Pos = UDim2.fromOffset(0, bxY), Name = "BxBG", Parent = row, Radius = 4})
             local bxSt = Instance.new("UIStroke"); bxSt.Color = THEME.BORDER; bxSt.Thickness = 1; bxSt.Parent = bxBG
             local tbx = Instance.new("TextBox"); tbx.Text = ""; tbx.PlaceholderText = ph; tbx.PlaceholderColor3 = THEME.TEXT_SUB
-            tbx.TextColor3 = THEME.TEXT; tbx.Font = Enum.Font.Gotham; tbx.TextSize = 14
-            tbx.BackgroundTransparency = 1; tbx.Size = UDim2.new(1, -8, 1, 0); tbx.Position = UDim2.fromOffset(5, 0)
+            tbx.TextColor3 = THEME.TEXT; tbx.Font = Enum.Font.Gotham; tbx.TextSize = 10
+            tbx.BackgroundTransparency = 1; tbx.Size = UDim2.new(1, -6, 1, 0); tbx.Position = UDim2.fromOffset(4, 0)
             tbx.TextXAlignment = Enum.TextXAlignment.Left; tbx.ClearTextOnFocus = false; tbx.Parent = bxBG
             tbx.Focused:Connect(function() TweenService:Create(bxSt, TI_FAST, {Color = THEME.ACCENT}):Play() end)
             
@@ -876,9 +882,10 @@ function Utility.StopPhysicsFly()
         local root = char:FindFirstChild("HumanoidRootPart")
         if hum then
             hum.PlatformStand = false
-            hum.Sit = false
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
         end
         if root then
+            root.Anchored = false
             if root:FindFirstChild("PlayerFlyBV") then root.PlayerFlyBV:Destroy() end
             if root:FindFirstChild("PlayerFlyBG") then root.PlayerFlyBG:Destroy() end
             if root:FindFirstChild("PlayerFlyLV") then root.PlayerFlyLV:Destroy() end
@@ -886,6 +893,11 @@ function Utility.StopPhysicsFly()
             if root:FindFirstChild("PlayerFlyAtt") then root.PlayerFlyAtt:Destroy() end
             root.AssemblyLinearVelocity = Vector3.zero
             root.AssemblyAngularVelocity = Vector3.zero
+        end
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
         end
     end
 
@@ -933,54 +945,6 @@ function Utility.ResetCameraAndCharacter()
     end)
 
     UILib.Notify("Unstuck", "Đã giải phóng Camera & Nhân vật thành công!", 3)
-end
-
---[[ Dịch chuyển thuyền gần nhất đến vị trí người chơi ]]
-function Utility.TeleportBoatToPlayer()
-    local char = LocalPlayer.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then
-        UILib.Notify("Lỗi", "Không tìm thấy vị trí nhân vật!", 3)
-        return
-    end
-
-    local boat = Utility.GetBoat()
-    if not boat then
-        local boatsFolder = workspace:FindFirstChild("Boats")
-        if boatsFolder then
-            local minDist = math.huge
-            for _, b in ipairs(boatsFolder:GetChildren()) do
-                local primary = b.PrimaryPart or b:FindFirstChildOfClass("BasePart")
-                if primary then
-                    local d = (primary.Position - root.Position).Magnitude
-                    if d < minDist then
-                        minDist = d
-                        boat = b
-                    end
-                end
-            end
-        end
-    end
-
-    if boat then
-        Utility.ForceStopBoat(boat)
-        task.wait(0.1)
-        local targetBoatCF = root.CFrame * CFrame.new(0, 3, -8)
-
-        for _, part in ipairs(boat:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.AssemblyLinearVelocity = Vector3.zero
-                part.AssemblyAngularVelocity = Vector3.zero
-            end
-        end
-
-        pcall(function()
-            boat:PivotTo(targetBoatCF)
-        end)
-        UILib.Notify("Boat", "Đã dịch chuyển thuyền tới vị trí của bạn!", 3)
-    else
-        UILib.Notify("Lỗi", "Không tìm thấy thuyền nào gần đây!", 3)
-    end
 end
 
 --[[ Lấy chuỗi tên chủ nhân từ đối tượng thuyền ]]
@@ -1159,48 +1123,56 @@ function Utility.GetPlayerBoat(boatName)
 end
 
 --[[ Bay đến vị trí ghế và ngồi vào ghế an toàn ]]
-function Utility.FlyToAndSitSeat(targetSeat)
+function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
     if not targetSeat or not targetSeat.Parent then return false end
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not hum or not root then return false end
 
+    -- 1. Nếu đã thực sự ngồi đúng ghế mục tiêu
     if hum.SeatPart == targetSeat then
         if FlyActive then Utility.StopPhysicsFly() end
+        if onSeatSuccess then onSeatSuccess() end
         return true
     end
 
-    local seatPos = targetSeat.Position
-    local targetPos = seatPos + Vector3.new(0, 1.5, 0)
-    local dist = (seatPos - root.Position).Magnitude
-
-    if dist <= 6 then
-        if FlyActive then Utility.StopPhysicsFly() end
+    local function AttemptNativeSit()
+        Utility.StopPhysicsFly()
         hum.PlatformStand = false
-        hum.Sit = false
-        root.CFrame = targetSeat.CFrame * CFrame.new(0, 1.5, 0)
-        task.wait(0.1)
-        pcall(function()
-            targetSeat:Sit(hum)
-        end)
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+
+        root.CFrame = targetSeat.CFrame * CFrame.new(0, 1.2, 0)
+        task.wait(0.05)
+        pcall(function() targetSeat:Sit(hum) end)
+
+        -- Kiểm tra xác thực trạng thái NGỒI THẬT SỰ từ hệ thống Roblox
+        for _ = 1, 15 do
+            if hum.SeatPart == targetSeat then
+                if onSeatSuccess then onSeatSuccess() end
+                return true
+            end
+            task.wait(0.1)
+        end
+
         return (hum.SeatPart == targetSeat)
     end
 
+    local seatPos = targetSeat.Position
+    local dist = (seatPos - root.Position).Magnitude
+
+    -- 2. Nếu đã ở cự ly gần (<= 5 studs) -> Thực hiện ngồi trực tiếp
+    if dist <= 5 then
+        return AttemptNativeSit()
+    end
+
+    -- 3. Nếu ở xa -> Bay Physics Fly đến ghế rồi ngồi thật
     local speed = S.TeleportFlySpeed or 180
+    local targetPos = seatPos + Vector3.new(0, 1.5, 0)
+
     Utility.PhysicsFlyTo(targetPos, speed, function()
         if targetSeat and targetSeat.Parent and LocalPlayer.Character then
-            local cHum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local cRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if cHum and cRoot then
-                cHum.PlatformStand = false
-                cHum.Sit = false
-                cRoot.CFrame = targetSeat.CFrame * CFrame.new(0, 1.5, 0)
-                task.wait(0.1)
-                pcall(function()
-                    targetSeat:Sit(cHum)
-                end)
-            end
+            AttemptNativeSit()
         end
     end)
 
@@ -1603,66 +1575,36 @@ function Utility.StopFindLeviathan()
     S.BoatNoClipEnabled = false
 end
 
---[[ Quản lý vòng lặp Multiple Find Leviathan (Cannon) ]]
-function Utility.StartMultipleFindLeviathan()
+--[[ Bay đến và ngồi vào ghế Cannon trên thuyền của Owner đã chọn (Kích hoạt 1 lần) ]]
+function Utility.FlyToOwnerBoatCannon()
     if not S.SelectedBoatOwner or S.SelectedBoatOwner == "" then
         UILib.Notify("Lỗi", "Vui lòng chọn chủ thuyền trước!", 3)
-        if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
         return
     end
 
-    WebhookSent = false
-    Utility.EnableLeviathanWatcher()
-
-    if Utility.IsFrozenWatcher() then
-        Utility.HandleLeviathanFound()
+    local ownerBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
+    if not ownerBoat or not ownerBoat.Parent then
+        UILib.Notify("Lỗi", "Không tìm thấy thuyền của " .. S.SelectedBoatOwner .. "!", 3)
         return
     end
 
-    DisconnectConnection("multiFindLev")
-    _conns["multiFindLev"] = task.spawn(function()
-        local lastNotifyTime = 0
-        while S.MultipleFindLeviathanEnabled do
-            if Utility.IsFrozenWatcher() then
-                Utility.HandleLeviathanFound()
-                break
-            end
+    local cannonSeat = Utility.GetAvailableCannonSeat(ownerBoat)
+    if not cannonSeat then
+        UILib.Notify("Lỗi", "Không tìm thấy ghế Cannon trống trên thuyền của " .. S.SelectedBoatOwner .. "!", 3)
+        return
+    end
 
-            local ownerBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.SeatPart == cannonSeat then
+        UILib.Notify("Cannon", "Bạn đã đang ngồi trên ghế Cannon này rồi!", 3)
+        return
+    end
 
-            if ownerBoat and ownerBoat.Parent then
-                local cannonSeat = Utility.GetAvailableCannonSeat(ownerBoat)
-                if cannonSeat then
-                    local char = LocalPlayer.Character
-                    local hum = char and char:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.SeatPart ~= cannonSeat then
-                        Utility.SitCannonSeat(ownerBoat)
-                    end
-                else
-                    if os.clock() - lastNotifyTime > 5 then
-                        UILib.Notify("Cannon", "Không tìm thấy ghế Cannon trống trên thuyền của " .. S.SelectedBoatOwner .. "!", 3)
-                        lastNotifyTime = os.clock()
-                    end
-                end
-            else
-                if os.clock() - lastNotifyTime > 5 then
-                    UILib.Notify("Cannon", "Đang chờ xuất hiện thuyền của " .. S.SelectedBoatOwner .. "...", 3)
-                    lastNotifyTime = os.clock()
-                end
-            end
-
-            task.wait(0.5)
-        end
+    UILib.Notify("Cannon", "Đang bay đến ghế Cannon thuyền của " .. S.SelectedBoatOwner .. "...", 3)
+    Utility.FlyToAndSitSeat(cannonSeat, function()
+        UILib.Notify("Thành công", "Đã ngồi lên Cannon thuyền của " .. S.SelectedBoatOwner .. "!", 3)
     end)
-end
-
---[[ Dừng vòng lặp Multiple Find Leviathan ]]
-function Utility.StopMultipleFindLeviathan()
-    DisconnectConnection("multiFindLev")
-    DisconnectConnection("levNpcAdded")
-    DisconnectConnection("levSeaAdded")
-    DisconnectConnection("levMapAdded")
-    Utility.StopPhysicsFly()
 end
 
 --[[ Quản lý vòng lặp tự động mua thuyền ]]
@@ -1757,25 +1699,6 @@ function Utility.StopAutoShootLeviathan()
         Utility.ForceStopBoat(ActiveBoat)
         ActiveBoat = nil
     end
-end
-
---[[ Quản lý vòng lặp Auto Attack Enemy ]]
-function Utility.StartAutoAttackEnemy()
-    DisconnectConnection("autoAttackLoop")
-    _conns["autoAttackLoop"] = task.spawn(function()
-        while S.AutoAttackEnemyEnabled do
-            pcall(function()
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new(0, 0))
-            end)
-            task.wait(0.1)
-        end
-    end)
-end
-
---[[ Dừng vòng lặp Auto Attack Enemy ]]
-function Utility.StopAutoAttackEnemy()
-    DisconnectConnection("autoAttackLoop")
 end
 
 --[[ Quản lý vòng lặp Fly Follow Player ]]
@@ -2019,7 +1942,6 @@ function Utility.UnloadAllScript()
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
     DisconnectConnection("autoShootLev")
-    DisconnectConnection("autoAttackLoop")
     DisconnectConnection("bspd")
     DisconnectConnection("teleportPlayerLoop")
     DisconnectConnection("islandEspLoop")
@@ -2100,17 +2022,11 @@ LevTab:AddButton({
     end,
 })
 
-MultipleFindLeviathanToggle = LevTab:AddToggle({
-    Name    = "Multiple Find Leviathan",
-    Desc    = "Tự động ngồi ghế Cannon trên thuyền của Owner để đi săn Leviathan",
-    Default = false,
-    Callback = function(val)
-        S.MultipleFindLeviathanEnabled = val
-        if val then
-            Utility.StartMultipleFindLeviathan()
-        else
-            Utility.StopMultipleFindLeviathan()
-        end
+LevTab:AddButton({
+    Name = "Sit Cannon (Selected Owner)",
+    Desc = "Bay nhân vật đến và ngồi vào ghế Cannon trên thuyền của Owner đã chọn",
+    Callback = function()
+        Utility.FlyToOwnerBoatCannon()
     end,
 })
 
@@ -2213,32 +2129,6 @@ LevTab:AddSlider({
     Desc    = "Tốc độ di chuyển mặt nước của thuyền",
     Min     = 40, Max = 500, Default = 250, Suffix  = " sp",
     Callback = function(v) S.CustomBoatSpeed = v end,
-})
-
-LevTab:AddSection("Teleport Boat")
-
-LevTab:AddButton({
-    Name = "Teleport Boat to Player",
-    Desc = "Dịch chuyển thuyền đang lái (hoặc gần nhất) đến vị trí người chơi",
-    Callback = function()
-        Utility.TeleportBoatToPlayer()
-    end,
-})
-
-LevTab:AddSection("Auto Attack")
-
-LevTab:AddToggle({
-    Name    = "Auto Attack Enemy",
-    Desc    = "Tự động đánh thường (M1) liên tục",
-    Default = false,
-    Callback = function(val)
-        S.AutoAttackEnemyEnabled = val
-        if val then
-            Utility.StartAutoAttackEnemy()
-        else
-            Utility.StopAutoAttackEnemy()
-        end
-    end,
 })
 
 
