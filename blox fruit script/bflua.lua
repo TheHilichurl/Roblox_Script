@@ -624,6 +624,24 @@ function UILib.CreateWindow(cfg)
             return IO
         end
 
+        function Tab:AddInfo(ic)
+            ic = ic or {}
+            local title = ic.Title or "Info"
+            local value = ic.Value or "-"
+            local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, 30), Name = "Info_" .. title, Parent = page, Radius = 5})
+            local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
+            CreateLabel({Text = title, Size = 11, Color = THEME.TEXT, FS = UDim2.new(0.35, 0, 1, 0), Pos = UDim2.fromOffset(0, 0), Parent = row})
+            local valLbl = CreateLabel({Text = tostring(value), Size = 10, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0.65, 0, 1, 0), Pos = UDim2.new(0.35, 0, 0, 0), Parent = row})
+            local InfoObj = {}
+            function InfoObj:Set(newVal)
+                valLbl.Text = tostring(newVal)
+            end
+            function InfoObj:Get()
+                return valLbl.Text
+            end
+            return InfoObj
+        end
+
         return Tab
     end
 
@@ -638,6 +656,7 @@ end
 local Utility = {}
 local _conns  = {}
 
+local SessionStartTime = os.clock()
 local CharacterParts = {}
 local BoatParts = {}
 local FlyActive = false
@@ -678,12 +697,34 @@ local S = {
     ResetWhenSelectedOwnerDie   = false,
     AutoTalkFrozenWatcherEnabled= false,
     AutoShootBoatMode           = "Shoot with your boat",
+    AutoDriveTikiEnabled        = false,
+    AutoDriveHydraEnabled       = false,
+    AutoFlyTikiEnabled          = false,
+    AutoFlyHydraEnabled         = false,
+}
+
+local WAYPOINTS_TIKI = {
+    Vector3.new(7048, 28, -5518),
+    Vector3.new(-5619, 28, 179),
+    Vector3.new(-13500, 28, 220),
+    Vector3.new(-16096, 28, 422),
+}
+
+local WAYPOINTS_HYDRA = {
+    Vector3.new(7048, 28, -5518),
+    Vector3.new(10488, 28, 799),
+    Vector3.new(5238, 28, 4308),
+    Vector3.new(5068, 28, 2201),
 }
 
 local WebhookSent                 = false
 local FindLeviathanConnection      = nil
 local FindLeviathanToggle          = nil
 local MultipleFindLeviathanToggle  = nil
+local AutoDriveTikiToggle         = nil
+local AutoDriveHydraToggle        = nil
+local AutoFlyTikiToggle           = nil
+local AutoFlyHydraToggle          = nil
 local BoatSpeedConnection         = nil
 local ActiveBoat                  = nil
 
@@ -2051,6 +2092,134 @@ function Utility.StopResetWhenSelectedOwnerDie()
     DisconnectConnection("resetWhenOwnerDie")
 end
 
+--[[ Start boat waypoint navigation routine for driving or flying ]]
+function Utility.StartBoatWaypointNavigation(waypoints, isFlyMode, locationName, completionCallback)
+    DisconnectConnection("boatNavLoop")
+
+    local targetBoat = Utility.GetBoat() or Utility.GetPlayerBoat()
+    if not targetBoat or not targetBoat.Parent then
+        UILib.Notify("Navigation", "Please spawn or sit on a boat first!", 3)
+        if completionCallback then completionCallback() end
+        return
+    end
+
+    ActiveBoat = targetBoat
+    Utility.UpdateBoatCache(targetBoat)
+
+    local vSeat = targetBoat:FindFirstChildOfClass("VehicleSeat") or targetBoat.PrimaryPart
+    if not vSeat then
+        UILib.Notify("Navigation", "VehicleSeat not found on boat!", 3)
+        if completionCallback then completionCallback() end
+        return
+    end
+
+    local currentIdx = 1
+    local totalPoints = #waypoints
+    local modeName = isFlyMode and "Fly" or "Drive"
+
+    UILib.Notify("Navigation", string.format("Starting %s to %s...", modeName, locationName), 3)
+
+    _conns["boatNavLoop"] = RunService.Heartbeat:Connect(function()
+        if not targetBoat or not targetBoat.Parent then
+            Utility.StopBoatWaypointNavigation()
+            if completionCallback then completionCallback() end
+            return
+        end
+
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum and hum.SeatPart ~= vSeat then
+            Utility.SitVehicleSeat(targetBoat)
+        end
+
+        local seatPos = vSeat.Position
+        local targetWP = waypoints[currentIdx]
+        if not targetWP then
+            Utility.StopBoatWaypointNavigation()
+            UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
+            if completionCallback then completionCallback() end
+            return
+        end
+
+        local flyY = isFlyMode and (S.BoatFlyHeight or 190) or targetWP.Y
+        local targetPos = Vector3.new(targetWP.X, flyY, targetWP.Z)
+        local flatDist = (Vector3.new(targetWP.X, 0, targetWP.Z) - Vector3.new(seatPos.X, 0, seatPos.Z)).Magnitude
+
+        if flatDist <= 40 then
+            currentIdx = currentIdx + 1
+            if currentIdx > totalPoints then
+                Utility.StopBoatWaypointNavigation()
+                UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
+                if completionCallback then completionCallback() end
+                return
+            else
+                UILib.Notify("Navigation", string.format("Approaching waypoint %d/%d...", currentIdx, totalPoints), 2)
+            end
+        end
+
+        local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+        att.Name = "FlyAttachment"; att.Parent = vSeat
+
+        local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+        lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+        lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
+
+        local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+        ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+        ao.MaxTorque = math.huge; ao.Responsiveness = 200
+        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
+
+        local dir = (targetPos - seatPos)
+        local speed = isFlyMode and (S.BoatFlySpeed or 220) or (S.CustomBoatSpeed or 250)
+        lv.VectorVelocity = dir.Unit * speed
+
+        local lookTarget = Vector3.new(targetPos.X, seatPos.Y, targetPos.Z)
+        if (lookTarget - seatPos).Magnitude > 1 then
+            ao.CFrame = CFrame.lookAt(seatPos, lookTarget)
+        end
+    end)
+end
+
+--[[ Stop boat waypoint navigation routine ]]
+function Utility.StopBoatWaypointNavigation()
+    DisconnectConnection("boatNavLoop")
+    if ActiveBoat then
+        Utility.ForceStopBoat(ActiveBoat)
+    end
+end
+
+--[[ Start auto drive boat to Tiki Outpost ]]
+function Utility.StartAutoDriveToTiki()
+    Utility.StartBoatWaypointNavigation(WAYPOINTS_TIKI, false, "Tiki Outpost", function()
+        S.AutoDriveTikiEnabled = false
+        if AutoDriveTikiToggle then AutoDriveTikiToggle:Set(false) end
+    end)
+end
+
+--[[ Start auto drive boat to Hydra Island ]]
+function Utility.StartAutoDriveToHydra()
+    Utility.StartBoatWaypointNavigation(WAYPOINTS_HYDRA, false, "Hydra Island", function()
+        S.AutoDriveHydraEnabled = false
+        if AutoDriveHydraToggle then AutoDriveHydraToggle:Set(false) end
+    end)
+end
+
+--[[ Start auto fly boat to Tiki Outpost ]]
+function Utility.StartAutoFlyToTiki()
+    Utility.StartBoatWaypointNavigation(WAYPOINTS_TIKI, true, "Tiki Outpost", function()
+        S.AutoFlyTikiEnabled = false
+        if AutoFlyTikiToggle then AutoFlyTikiToggle:Set(false) end
+    end)
+end
+
+--[[ Start auto fly boat to Hydra Island ]]
+function Utility.StartAutoFlyToHydra()
+    Utility.StartBoatWaypointNavigation(WAYPOINTS_HYDRA, true, "Hydra Island", function()
+        S.AutoFlyHydraEnabled = false
+        if AutoFlyHydraToggle then AutoFlyHydraToggle:Set(false) end
+    end)
+end
+
 --[[ Start Fly Follow Player loop ]]
 function Utility.StartFlyFollowPlayer()
     if not S.SelectedPlayer then
@@ -2259,6 +2428,67 @@ function Utility.StopBoatSeatESP()
     if SeatESP_Folder then SeatESP_Folder:ClearAllChildren() end
 end
 
+--[[ Start Player Panel live update loop ]]
+function Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
+    DisconnectConnection("playerPanelLoop")
+    _conns["playerPanelLoop"] = task.spawn(function()
+        while true do
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if statusInfo then
+                if not hum or hum.Health <= 0 then
+                    statusInfo:Set("Dead")
+                elseif hum.SeatPart then
+                    if hum.SeatPart:IsA("VehicleSeat") then
+                        local boatName = hum.SeatPart.Parent and hum.SeatPart.Parent.Name or "Boat"
+                        statusInfo:Set("Driving (" .. boatName .. ")")
+                    else
+                        statusInfo:Set("Seated (" .. (hum.SeatPart.Parent and hum.SeatPart.Parent.Name or "Seat") .. ")")
+                    end
+                elseif FlyActive then
+                    statusInfo:Set("Flying")
+                else
+                    statusInfo:Set(string.format("Alive (HP: %d/%d)", math.floor(hum.Health), math.floor(hum.MaxHealth)))
+                end
+            end
+
+            if coordsInfo then
+                if root then
+                    local p = root.Position
+                    coordsInfo:Set(string.format("X: %.0f, Y: %.0f, Z: %.0f", p.X, p.Y, p.Z))
+                else
+                    coordsInfo:Set("N/A")
+                end
+            end
+
+            if timeInfo then
+                local srvSec = math.floor(workspace.DistributedGameTime)
+                local sHrs = math.floor(srvSec / 3600)
+                local sMins = math.floor((srvSec % 3600) / 60)
+                local sSecs = srvSec % 60
+                timeInfo:Set(string.format("%02d:%02d:%02d", sHrs, sMins, sSecs))
+            end
+
+            if sessionInfo then
+                local sessSec = math.floor(os.clock() - SessionStartTime)
+                local pHrs = math.floor(sessSec / 3600)
+                local pMins = math.floor((sessSec % 3600) / 60)
+                local pSecs = sessSec % 60
+                sessionInfo:Set(string.format("%02d:%02d:%02d", pHrs, pMins, pSecs))
+            end
+
+            task.wait(0.5)
+        end
+    end)
+end
+
+--[[ Stop Player Panel live update loop ]]
+function Utility.StopPlayerPanelLoop()
+    DisconnectConnection("playerPanelLoop")
+end
+
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║                 [SECTION 5] UI INITIALIZATION            ║
@@ -2290,10 +2520,15 @@ function Utility.UnloadAllScript()
     S.ResetWhenBoatDestroyed = false
     S.ResetWhenSelectedOwnerDie = false
     S.AutoTalkFrozenWatcherEnabled = false
+    S.AutoDriveTikiEnabled = false
+    S.AutoDriveHydraEnabled = false
+    S.AutoFlyTikiEnabled = false
+    S.AutoFlyHydraEnabled = false
 
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
+    DisconnectConnection("boatNavLoop")
     DisconnectConnection("resetWhenBoatDestroyed")
     DisconnectConnection("resetWhenOwnerDie")
     DisconnectConnection("autoTalkWatcher")
@@ -2303,6 +2538,7 @@ function Utility.UnloadAllScript()
     DisconnectConnection("islandEspLoop")
     DisconnectConnection("playerEspLoop")
     DisconnectConnection("boatSeatEspLoop")
+    DisconnectConnection("playerPanelLoop")
     DisconnectConnection("renderLoop")
     DisconnectConnection("antiAfk")
     DisconnectConnection("boatNoClipStepped")
@@ -2554,6 +2790,76 @@ LevTab:AddSlider({
     Callback = function(v) S.CustomBoatSpeed = v end,
 })
 
+LevTab:AddSection("Boat Auto Navigation (Tiki / Hydra)")
+
+AutoDriveTikiToggle = LevTab:AddToggle({
+    Name    = "Auto Drive to Tiki",
+    Desc    = "Drive boat along waypoints to Tiki Outpost",
+    Default = false,
+    Callback = function(val)
+        S.AutoDriveTikiEnabled = val
+        if val then
+            if S.AutoDriveHydraEnabled and AutoDriveHydraToggle then AutoDriveHydraToggle:Set(false) end
+            if S.AutoFlyTikiEnabled and AutoFlyTikiToggle then AutoFlyTikiToggle:Set(false) end
+            if S.AutoFlyHydraEnabled and AutoFlyHydraToggle then AutoFlyHydraToggle:Set(false) end
+            Utility.StartAutoDriveToTiki()
+        else
+            Utility.StopBoatWaypointNavigation()
+        end
+    end,
+})
+
+AutoDriveHydraToggle = LevTab:AddToggle({
+    Name    = "Auto Drive to Hydra",
+    Desc    = "Drive boat along waypoints to Hydra Island",
+    Default = false,
+    Callback = function(val)
+        S.AutoDriveHydraEnabled = val
+        if val then
+            if S.AutoDriveTikiEnabled and AutoDriveTikiToggle then AutoDriveTikiToggle:Set(false) end
+            if S.AutoFlyTikiEnabled and AutoFlyTikiToggle then AutoFlyTikiToggle:Set(false) end
+            if S.AutoFlyHydraEnabled and AutoFlyHydraToggle then AutoFlyHydraToggle:Set(false) end
+            Utility.StartAutoDriveToHydra()
+        else
+            Utility.StopBoatWaypointNavigation()
+        end
+    end,
+})
+
+AutoFlyTikiToggle = LevTab:AddToggle({
+    Name    = "Auto Fly to Tiki",
+    Desc    = "Fly boat along waypoints to Tiki Outpost",
+    Default = false,
+    Callback = function(val)
+        S.AutoFlyTikiEnabled = val
+        if val then
+            if S.AutoDriveTikiEnabled and AutoDriveTikiToggle then AutoDriveTikiToggle:Set(false) end
+            if S.AutoDriveHydraEnabled and AutoDriveHydraToggle then AutoDriveHydraToggle:Set(false) end
+            if S.AutoFlyHydraEnabled and AutoFlyHydraToggle then AutoFlyHydraToggle:Set(false) end
+            Utility.StartAutoFlyToTiki()
+        else
+            Utility.StopBoatWaypointNavigation()
+        end
+    end,
+})
+
+AutoFlyHydraToggle = LevTab:AddToggle({
+    Name    = "Auto Fly to Hydra",
+    Desc    = "Fly boat along waypoints to Hydra Island",
+    Default = false,
+    Callback = function(val)
+        S.AutoFlyHydraEnabled = val
+        if val then
+            if S.AutoDriveTikiEnabled and AutoDriveTikiToggle then AutoDriveTikiToggle:Set(false) end
+            if S.AutoDriveHydraEnabled and AutoDriveHydraToggle then AutoDriveHydraToggle:Set(false) end
+            if S.AutoFlyTikiEnabled and AutoFlyTikiToggle then AutoFlyTikiToggle:Set(false) end
+            Utility.StartAutoFlyToHydra()
+        else
+            Utility.StopBoatWaypointNavigation()
+        end
+    end,
+})
+
 
 -- ═══════════════════════════════════════════════════════════
 --  TAB 2 : TELEPORT
@@ -2778,6 +3084,54 @@ WhTab:AddButton({
         UILib.Notify("Webhook", "Webhook test sended!", 3)
     end,
 })
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 6 : PLAYER PANEL
+-- ═══════════════════════════════════════════════════════════
+local PlayerTab = Window:AddTab({ Name = "Player Panel", Icon = "" })
+
+PlayerTab:AddSection("Player Status")
+
+local statusInfo = PlayerTab:AddInfo({ Title = "Status", Value = "Checking..." })
+local coordsInfo = PlayerTab:AddInfo({ Title = "Coordinates", Value = "Checking..." })
+
+PlayerTab:AddButton({
+    Name = "Copy Coordinates",
+    Desc = "Copy current coordinates to clipboard",
+    Callback = function()
+        local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local posStr = string.format("%.0f, %.0f, %.0f", root.Position.X, root.Position.Y, root.Position.Z)
+            pcall(function()
+                if setclipboard then setclipboard(posStr)
+                elseif toclipboard then toclipboard(posStr) end
+            end)
+            UILib.Notify("Clipboard", "Coordinates copied: " .. posStr, 3)
+        end
+    end,
+})
+
+PlayerTab:AddSection("Server & Session")
+
+local timeInfo = PlayerTab:AddInfo({ Title = "Server Lifetime", Value = "00:00:00" })
+local sessionInfo = PlayerTab:AddInfo({ Title = "Time in Server", Value = "00:00:00" })
+local jobIdStr = (game.JobId ~= "") and game.JobId or "SinglePlayer / Studio"
+local jobIdInfo = PlayerTab:AddInfo({ Title = "Job ID", Value = string.sub(jobIdStr, 1, 14) .. "..." })
+
+PlayerTab:AddButton({
+    Name = "Copy Job ID",
+    Desc = "Copy server Job ID to clipboard",
+    Callback = function()
+        pcall(function()
+            if setclipboard then setclipboard(game.JobId)
+            elseif toclipboard then toclipboard(game.JobId) end
+        end)
+        UILib.Notify("Clipboard", "Job ID copied to clipboard!", 3)
+    end,
+})
+
+Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
 
 
 -- ═══════════════════════════════════════════════════════════
