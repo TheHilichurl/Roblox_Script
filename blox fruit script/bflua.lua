@@ -1187,19 +1187,37 @@ function Utility.FlyToAndSitSeat(targetSeat, onSeatSuccess)
     local function AttemptNativeSit()
         Utility.StopPhysicsFly()
         hum.PlatformStand = false
+        hum.Jump = false
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
 
-        root.CFrame = targetSeat.CFrame * CFrame.new(0, 1.2, 0)
-        task.wait(0.05)
-        pcall(function() targetSeat:Sit(hum) end)
+        if targetSeat and targetSeat.Parent then
+            pcall(function() targetSeat.Disabled = false end)
+            
+            for _ = 1, 3 do
+                if hum.SeatPart == targetSeat then break end
+                root.CFrame = targetSeat.CFrame * CFrame.new(0, 0.5, 0)
+                pcall(function()
+                    targetSeat.Disabled = false
+                    targetSeat:Sit(hum)
+                end)
+                if firetouchinterest then
+                    pcall(function()
+                        firetouchinterest(root, targetSeat, 0)
+                        task.wait(0.02)
+                        firetouchinterest(root, targetSeat, 1)
+                    end)
+                end
+                task.wait(0.08)
+            end
+        end
 
         -- Kiểm tra xác thực trạng thái NGỒI THẬT SỰ từ hệ thống Roblox
-        for _ = 1, 15 do
+        for _ = 1, 10 do
             if hum.SeatPart == targetSeat then
                 if onSeatSuccess then onSeatSuccess() end
                 return true
             end
-            task.wait(0.1)
+            task.wait(0.08)
         end
 
         return (hum.SeatPart == targetSeat)
