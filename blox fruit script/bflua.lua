@@ -2,6 +2,8 @@
 --  Blox_Fruit_Script.lua  (Single-File Executor · Luau)
 --  Author  : Hilichurl  |  Version : 7.0.0 (Standardized Architecture)
 -- ============================================================
+-- Link loading script:
+--loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/blox%20fruit%20script/bflua.lua"))()
 
 -- ╔══════════════════════════════════════════════════════════╗
 -- ║                     [GLOBAL CLEANUP]                     ║
@@ -672,6 +674,8 @@ local S = {
     IslandESPEnabled            = false,
     PlayerESPEnabled            = false,
     BoatSeatESPEnabled          = false,
+    RequiredCannonPassengers    = 4,
+    ResetWhenBoatDestroyed      = false,
 }
 
 local WebhookSent                 = false
@@ -1051,6 +1055,49 @@ function Utility.GetAvailableCannonSeat(boat)
     end
 
     return nil
+end
+
+--[[ Đếm số lượng người chơi đang ngồi trên các ghế Cannon của thuyền ]]
+function Utility.GetBoatCannonOccupantsCount(boat)
+    if not boat then return 0 end
+    local count = 0
+    local checkedSeats = {}
+
+    local function CheckSeat(seat)
+        if seat and seat:IsA("Seat") and not seat:IsA("VehicleSeat") and not checkedSeats[seat] then
+            checkedSeats[seat] = true
+            if seat.Occupant and seat.Occupant:IsA("Humanoid") and seat.Occupant.Health > 0 then
+                count = count + 1
+            end
+        end
+    end
+
+    for _, child in ipairs(boat:GetChildren()) do
+        if child.Name == "Cannon" then
+            for _, s in ipairs(child:GetDescendants()) do
+                CheckSeat(s)
+            end
+        end
+    end
+
+    for _, seat in ipairs(boat:GetDescendants()) do
+        CheckSeat(seat)
+    end
+
+    return count
+end
+
+--[[ Thực hiện hồi sinh lại nhân vật của người chơi ]]
+function Utility.RespawnPlayer()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.Health = 0
+        else
+            char:BreakJoints()
+        end
+    end
 end
 
 --[[ Lấy danh sách tên tất cả người chơi trong server ngoại trừ bản thân ]]
@@ -1509,6 +1556,7 @@ function Utility.StartFindLeviathan()
 
     DisconnectConnection("seatWatcher")
     _conns["seatWatcher"] = task.spawn(function()
+        local lastPassengerNotify = 0
         while S.FindLeviathanEnabled do
             if Utility.IsFrozenWatcher() then
                 Utility.HandleLeviathanFound()
@@ -1547,8 +1595,23 @@ function Utility.StartFindLeviathan()
                     end
 
                     if hum.SeatPart == vSeat then
-                        if not _conns["findLev"] or ActiveBoat ~= playerBoat then
-                            Utility.StartBoatFlight(playerBoat)
+                        local cannonCount = Utility.GetBoatCannonOccupantsCount(playerBoat)
+                        local req = S.RequiredCannonPassengers or 4
+
+                        if cannonCount >= req then
+                            if not _conns["findLev"] or ActiveBoat ~= playerBoat then
+                                Utility.StartBoatFlight(playerBoat)
+                            end
+                        else
+                            if _conns["findLev"] then
+                                DisconnectConnection("findLev")
+                                Utility.ForceStopBoat(playerBoat)
+                                ActiveBoat = nil
+                            end
+                            if os.clock() - lastPassengerNotify > 6 then
+                                UILib.Notify("Find Leviathan", string.format("Đang chờ đủ người ngồi Cannon (%d/%d)...", cannonCount, req), 4)
+                                lastPassengerNotify = os.clock()
+                            end
                         end
                     end
                 end
@@ -1575,36 +1638,78 @@ function Utility.StopFindLeviathan()
     S.BoatNoClipEnabled = false
 end
 
---[[ Bay đến và ngồi vào ghế Cannon trên thuyền của Owner đã chọn (Kích hoạt 1 lần) ]]
-function Utility.FlyToOwnerBoatCannon()
+--[[ Quản lý vòng lặp Multiple Find Leviathan (Cannon) ]]
+function Utility.StartMultipleFindLeviathan()
     if not S.SelectedBoatOwner or S.SelectedBoatOwner == "" then
         UILib.Notify("Lỗi", "Vui lòng chọn chủ thuyền trước!", 3)
+        if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
         return
     end
 
-    local ownerBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
-    if not ownerBoat or not ownerBoat.Parent then
-        UILib.Notify("Lỗi", "Không tìm thấy thuyền của " .. S.SelectedBoatOwner .. "!", 3)
+    WebhookSent = false
+    Utility.EnableLeviathanWatcher()
+
+    if Utility.IsFrozenWatcher() then
+        Utility.HandleLeviathanFound()
         return
     end
 
-    local cannonSeat = Utility.GetAvailableCannonSeat(ownerBoat)
-    if not cannonSeat then
-        UILib.Notify("Lỗi", "Không tìm thấy ghế Cannon trống trên thuyền của " .. S.SelectedBoatOwner .. "!", 3)
-        return
-    end
+    DisconnectConnection("multiFindLev")
+    _conns["multiFindLev"] = task.spawn(function()
+        local lastNotifyTime = 0
+        while S.MultipleFindLeviathanEnabled do
+            if Utility.IsFrozenWatcher() then
+                Utility.HandleLeviathanFound()
+                break
+            end
 
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum and hum.SeatPart == cannonSeat then
-        UILib.Notify("Cannon", "Bạn đã đang ngồi trên ghế Cannon này rồi!", 3)
-        return
-    end
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local ownerBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
 
-    UILib.Notify("Cannon", "Đang bay đến ghế Cannon thuyền của " .. S.SelectedBoatOwner .. "...", 3)
-    Utility.FlyToAndSitSeat(cannonSeat, function()
-        UILib.Notify("Thành công", "Đã ngồi lên Cannon thuyền của " .. S.SelectedBoatOwner .. "!", 3)
+            if ownerBoat and ownerBoat.Parent then
+                local cannonSeat = Utility.GetAvailableCannonSeat(ownerBoat)
+
+                if hum then
+                    local isSeatedInBoat = (hum.SeatPart and (hum.SeatPart == cannonSeat or hum.SeatPart:IsDescendantOf(ownerBoat)))
+
+                    if isSeatedInBoat then
+                        if FlyActive then
+                            Utility.StopPhysicsFly()
+                        end
+                    else
+                        if cannonSeat then
+                            Utility.SitCannonSeat(ownerBoat)
+                        else
+                            if os.clock() - lastNotifyTime > 5 then
+                                UILib.Notify("Cannon", "Không tìm thấy ghế Cannon trống trên thuyền của " .. S.SelectedBoatOwner .. "!", 3)
+                                lastNotifyTime = os.clock()
+                            end
+                        end
+                    end
+                end
+            else
+                if FlyActive then
+                    Utility.StopPhysicsFly()
+                end
+                if os.clock() - lastNotifyTime > 5 then
+                    UILib.Notify("Cannon", "Đang chờ xuất hiện thuyền của " .. S.SelectedBoatOwner .. "...", 3)
+                    lastNotifyTime = os.clock()
+                end
+            end
+
+            task.wait(0.5)
+        end
     end)
+end
+
+--[[ Dừng vòng lặp Multiple Find Leviathan ]]
+function Utility.StopMultipleFindLeviathan()
+    DisconnectConnection("multiFindLev")
+    DisconnectConnection("levNpcAdded")
+    DisconnectConnection("levSeaAdded")
+    DisconnectConnection("levMapAdded")
+    Utility.StopPhysicsFly()
 end
 
 --[[ Quản lý vòng lặp tự động mua thuyền ]]
@@ -1699,6 +1804,33 @@ function Utility.StopAutoShootLeviathan()
         Utility.ForceStopBoat(ActiveBoat)
         ActiveBoat = nil
     end
+end
+
+--[[ Quản lý vòng lặp tự động hồi sinh khi thuyền bị phá huỷ ]]
+function Utility.StartResetWhenBoatDestroyed()
+    DisconnectConnection("resetWhenBoatDestroyed")
+    _conns["resetWhenBoatDestroyed"] = task.spawn(function()
+        local boatExisted = false
+        while S.ResetWhenBoatDestroyed do
+            local currentBoat = Utility.GetPlayerBoat() or (S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" and Utility.GetBoatByOwner(S.SelectedBoatOwner))
+            
+            if currentBoat and currentBoat.Parent and currentBoat.Parent == workspace:FindFirstChild("Boats") then
+                boatExisted = true
+            elseif boatExisted then
+                boatExisted = false
+                UILib.Notify("Boat Destroyed", "Thuyền đã bị phá hủy hoặc biến mất! Đang hồi sinh nhân vật...", 4)
+                Utility.RespawnPlayer()
+                task.wait(3)
+            end
+
+            task.wait(1)
+        end
+    end)
+end
+
+--[[ Dừng vòng lặp tự động hồi sinh khi thuyền bị phá huỷ ]]
+function Utility.StopResetWhenBoatDestroyed()
+    DisconnectConnection("resetWhenBoatDestroyed")
 end
 
 --[[ Quản lý vòng lặp Fly Follow Player ]]
@@ -1937,10 +2069,12 @@ function Utility.UnloadAllScript()
     S.IslandESPEnabled = false
     S.PlayerESPEnabled = false
     S.BoatSeatESPEnabled = false
+    S.ResetWhenBoatDestroyed = false
 
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
+    DisconnectConnection("resetWhenBoatDestroyed")
     DisconnectConnection("autoShootLev")
     DisconnectConnection("bspd")
     DisconnectConnection("teleportPlayerLoop")
@@ -2002,6 +2136,27 @@ FindLeviathanToggle = LevTab:AddToggle({
     end,
 })
 
+LevTab:AddSlider({
+    Name    = "Required Cannon Passengers",
+    Desc    = "Số người tối thiểu ngồi Cannon để thuyền bắt đầu bay tìm Leviathan",
+    Min     = 0, Max = 5, Default = 4, Suffix = " ppl",
+    Callback = function(v) S.RequiredCannonPassengers = v end,
+})
+
+LevTab:AddToggle({
+    Name    = "Reset When Boat Destroyed",
+    Desc    = "Tự động hồi sinh nhân vật nếu thuyền đang sử dụng bị phá hủy/biến mất",
+    Default = false,
+    Callback = function(val)
+        S.ResetWhenBoatDestroyed = val
+        if val then
+            Utility.StartResetWhenBoatDestroyed()
+        else
+            Utility.StopResetWhenBoatDestroyed()
+        end
+    end,
+})
+
 LevTab:AddSection("Multiple Find Leviathan (Cannon Passenger)")
 
 local BoatOwnerDD = LevTab:AddDropdown({
@@ -2022,11 +2177,17 @@ LevTab:AddButton({
     end,
 })
 
-LevTab:AddButton({
-    Name = "Sit Cannon (Selected Owner)",
-    Desc = "Bay nhân vật đến và ngồi vào ghế Cannon trên thuyền của Owner đã chọn",
-    Callback = function()
-        Utility.FlyToOwnerBoatCannon()
+MultipleFindLeviathanToggle = LevTab:AddToggle({
+    Name    = "Multiple Find Leviathan",
+    Desc    = "Tự động bay đến và ngồi ghế Cannon trên thuyền của Owner, tự dừng khi đã ngồi",
+    Default = false,
+    Callback = function(val)
+        S.MultipleFindLeviathanEnabled = val
+        if val then
+            Utility.StartMultipleFindLeviathan()
+        else
+            Utility.StopMultipleFindLeviathan()
+        end
     end,
 })
 
