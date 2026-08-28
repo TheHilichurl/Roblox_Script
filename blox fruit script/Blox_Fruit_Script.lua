@@ -467,6 +467,7 @@ function UILib.CreateWindow(cfg)
             sc = sc or {}
             local lbl = sc.Name or "Slider"; local desc = sc.Desc or ""; local mn = sc.Min or 0; local mx = sc.Max or 100
             local def = sc.Default or mn; local sfx = sc.Suffix or ""; local cb = sc.Callback or function() end
+            local decimals = sc.Decimals or ((mx - mn <= 10 and (mn % 1 ~= 0 or mx % 1 ~= 0 or def % 1 ~= 0)) and 2 or 0)
             local rH = desc ~= "" and 56 or 42; local value = math.clamp(def, mn, mx)
             local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Sl_" .. lbl, Parent = page, Radius = 5})
             local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
@@ -490,8 +491,17 @@ function UILib.CreateWindow(cfg)
             local ts = Instance.new("UIStroke"); ts.Color = THEME.ACCENT; ts.Thickness = 1; ts.Parent = thumb
             local dSlider = false
 
+            local function RoundVal(num)
+                if decimals > 0 then
+                    local mult = 10 ^ decimals
+                    return math.floor(num * mult + 0.5) / mult
+                else
+                    return math.floor(num + 0.5)
+                end
+            end
+
             local function UpdateUI(val)
-                value = math.clamp(val, mn, mx)
+                value = math.clamp(RoundVal(val), mn, mx)
                 local p = (value - mn) / (mx - mn)
                 fill.Size = UDim2.new(p, 0, 1, 0); thumb.Position = UDim2.new(p, -5, 0.5, -5)
                 valBox.Text = tostring(value) .. sfx
@@ -501,7 +511,7 @@ function UILib.CreateWindow(cfg)
             local function UpdateSliderFromInput(ax)
                 local rx = math.clamp(ax - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
                 local p = rx / track.AbsoluteSize.X
-                local v = math.floor(mn + p * (mx - mn) + 0.5)
+                local v = RoundVal(mn + p * (mx - mn))
                 UpdateUI(v)
             end
 
@@ -661,10 +671,6 @@ local CharacterParts = {}
 local BoatParts = {}
 local FlyActive = false
 
-local IslandESP_Folder = nil
-local PlayerESP_Folder = nil
-local SeatESP_Folder   = nil
-
 local S = {
     BoatFlySpeed                = 220,
     BoatFlyHeight               = 190,
@@ -675,6 +681,7 @@ local S = {
     FindLeviathanEnabled        = false,
     MultipleFindLeviathanEnabled= false,
     SelectedBoatOwner           = "",
+    AutoShootBoatOwner          = "",
     AutoShootLeviEnabled        = false,
     AutoAttackEnemyEnabled      = false,
     BoatNoClipEnabled           = false,
@@ -689,9 +696,6 @@ local S = {
     CustomWalkSpeed             = 100,
     CustomJumpPower             = 50,
     TeleportFlySpeed            = 180,
-    IslandESPEnabled            = false,
-    PlayerESPEnabled            = false,
-    BoatSeatESPEnabled          = false,
     RequiredCannonPassengers    = 4,
     ResetWhenBoatDestroyed      = false,
     ResetWhenSelectedOwnerDie   = false,
@@ -701,6 +705,39 @@ local S = {
     AutoDriveHydraEnabled       = false,
     AutoFlyTikiEnabled          = false,
     AutoFlyHydraEnabled         = false,
+    SelectedWeaponType          = "Melee",
+    AttackHeight                = 30,
+    AutoFarmUseSkills           = false,
+    AutoAttackLeviEnabled       = false,
+    AutoSkillsLeviEnabled       = false,
+    AutoFarmWithSkillsEnabled   = false,
+    -- Sea Events Tab Configuration
+    SeaEventsBoat               = "Beast Hunter",
+    SeaEventsWeapon             = "Melee",
+    SelectedSeaEvent            = "All",
+    AutoFarmSeaEventsEnabled    = false,
+    AutoFarmSeaEventsSkills     = false,
+    -- Farm Setting & Skills Configuration
+    AutoRaceV3                  = false,
+    AutoAwakeningV4             = false,
+    HoldMeleeSkills             = false,
+    HoldFruitSkills             = false,
+    HoldSwordSkills             = false,
+    HoldGunSkills               = false,
+    SkillHoldDuration           = 0.35,
+    MeleeSkillZ                 = true,
+    MeleeSkillX                 = true,
+    MeleeSkillC                 = true,
+    FruitSkillZ                 = true,
+    FruitSkillX                 = true,
+    FruitSkillC                 = true,
+    FruitSkillV                 = true,
+    FruitSkillF                 = true,
+    SwordSkillZ                 = true,
+    SwordSkillX                 = true,
+    GunSkillZ                   = true,
+    GunSkillX                   = true,
+    LeviathanSelectedWeapon     = "Melee",
 }
 
 local WAYPOINTS_TIKI = {
@@ -767,6 +804,95 @@ function Utility.UpdateBoatCache(boat)
             end
         end
     end
+end
+
+--[[ Bật / tắt Player NoClip tối ưu - Chỉ lắng nghe Stepped khi kích hoạt ]]
+function Utility.SetPlayerNoClip(enabled)
+    S.PlayerNoClipEnabled = enabled
+    DisconnectConnection("playerNoClipStepped")
+    if enabled then
+        Utility.UpdateCharacterCache()
+        _conns["playerNoClipStepped"] = RunService.Stepped:Connect(function()
+            if not S.PlayerNoClipEnabled then
+                DisconnectConnection("playerNoClipStepped")
+                return
+            end
+            for _, part in ipairs(CharacterParts) do
+                if part and part.Parent then part.CanCollide = false end
+            end
+        end)
+    else
+        for _, part in ipairs(CharacterParts) do
+            if part and part.Parent then part.CanCollide = true end
+        end
+    end
+end
+
+--[[ Bật / tắt Boat NoClip tối ưu - Chỉ lắng nghe Stepped khi kích hoạt ]]
+function Utility.SetBoatNoClip(enabled)
+    S.BoatNoClipEnabled = enabled
+    DisconnectConnection("boatNoClipStepped")
+    if enabled then
+        if ActiveBoat then Utility.UpdateBoatCache(ActiveBoat) end
+        _conns["boatNoClipStepped"] = RunService.Stepped:Connect(function()
+            if not S.BoatNoClipEnabled then
+                DisconnectConnection("boatNoClipStepped")
+                return
+            end
+            if ActiveBoat and ActiveBoat.Parent then
+                for _, part in ipairs(BoatParts) do
+                    if part and part.Parent then part.CanCollide = false end
+                end
+            end
+        end)
+    end
+end
+
+--[[ Kiểm tra xem nhân vật đã bật Buso Haki (Aura) hay chưa ]]
+function Utility.IsBusoActive()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    return char:FindFirstChild("HasBuso") ~= nil
+end
+
+--[[ Tự động kích hoạt Buso Haki (Aura) chạy ngầm ]]
+function Utility.EnableBuso()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not char or not hum or hum.Health <= 0 then return end
+
+    if not Utility.IsBusoActive() then
+        pcall(function()
+            local rep = game:GetService("ReplicatedStorage")
+            local remotes = rep:FindFirstChild("Remotes")
+            local commF = remotes and remotes:FindFirstChild("CommF_")
+            if commF and commF:IsA("RemoteFunction") then
+                commF:InvokeServer("Buso")
+            end
+            local commE = remotes and remotes:FindFirstChild("CommE")
+            if commE and commE:IsA("RemoteEvent") then
+                commE:FireServer("Buso")
+            end
+        end)
+    end
+end
+
+--[[ Vòng lặp nền tự động duy trì Buso Haki ]]
+function Utility.StartAutoBusoLoop()
+    DisconnectConnection("autoBusoLoop")
+    _conns["autoBusoLoop"] = task.spawn(function()
+        while true do
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if char and hum and hum.Health > 0 then
+                if not Utility.IsBusoActive() then
+                    Utility.EnableBuso()
+                    task.wait(0.5)
+                end
+            end
+            task.wait(1)
+        end
+    end)
 end
 
 --[[ Get boat that local player is currently driving ]]
@@ -863,8 +989,7 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
 
     if not FlyActive then
         FlyActive = true
-        hum.PlatformStand = true
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+        hum.PlatformStand = false
 
         local bv = root:FindFirstChild("PlayerFlyBV") or Instance.new("BodyVelocity")
         bv.Name = "PlayerFlyBV"
@@ -898,20 +1023,30 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
             local dir = (currentFlyTarget - currentPos)
             local dist = dir.Magnitude
 
-            if dist <= 6 then
+            if currentFlyOnComplete and dist <= 6 then
                 Utility.StopPhysicsFly()
-                if currentFlyOnComplete then currentFlyOnComplete() end
+                currentFlyOnComplete()
                 return
             end
 
             local activeBV = root:FindFirstChild("PlayerFlyBV")
             if activeBV then
-                activeBV.Velocity = dir.Unit * currentFlySpeed
+                if dist <= 1.2 then
+                    activeBV.Velocity = Vector3.zero
+                else
+                    activeBV.Velocity = dir.Unit * math.min(currentFlySpeed, math.max(dist * 12, 15))
+                end
             end
 
             local activeBG = root:FindFirstChild("PlayerFlyBG")
             if activeBG then
-                activeBG.CFrame = CFrame.lookAt(currentPos, currentFlyTarget)
+                local flatDir = Vector3.new(dir.X, 0, dir.Z)
+                if flatDir.Magnitude > 1 then
+                    activeBG.CFrame = CFrame.lookAt(currentPos, currentPos + flatDir.Unit)
+                else
+                    local fwd = root.CFrame.LookVector
+                    activeBG.CFrame = CFrame.lookAt(currentPos, currentPos + Vector3.new(fwd.X, 0, fwd.Z))
+                end
             end
         end)
     end
@@ -1319,19 +1454,13 @@ end
 function Utility.GetFrozenHeart()
     local mapFolder = workspace:FindFirstChild("Map")
     if mapFolder then
-        local fh = mapFolder:FindFirstChild("FrozenHeart") or mapFolder:FindFirstChild("Frozen Heart")
+        local fh = mapFolder:FindFirstChild("FrozenHeart")
         if fh then return fh end
-    end
 
-    local assets = workspace:FindFirstChild("Assets")
-    if assets then
-        local fh = assets:FindFirstChild("FrozenHeart") or assets:FindFirstChild("Frozen Heart")
-        if fh then return fh end
-    end
-
-    for _, child in ipairs(workspace:GetDescendants()) do
-        if child.Name == "FrozenHeart" or child.Name == "Frozen Heart" then
-            return child
+        for _, child in ipairs(mapFolder:GetChildren()) do
+            if child.Name == "FrozenHeart" then
+                return child
+            end
         end
     end
     return nil
@@ -1377,30 +1506,8 @@ function Utility.GetIslandObject(islandName)
         or workspace:FindFirstChild(islandName)
 end
 
---[[ Create ESP BillboardGui label on target Part ]]
-function Utility.CreateESPLabel(parent, text, color)
-    local bg = Instance.new("BillboardGui")
-    bg.Name = "ESP_UI"
-    bg.Adornee = parent
-    bg.Size = UDim2.fromOffset(200, 35)
-    bg.AlwaysOnTop = true
-    bg.StudsOffset = Vector3.new(0, 10, 0)
-
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = color or Color3.fromRGB(163, 230, 53)
-    lbl.TextBold = true
-    lbl.TextSize = 13
-    lbl.Font = Enum.Font.GothamBold
-    lbl.Text = text
-    lbl.Parent = bg
-
-    return bg
-end
-
 --[[ Optimize rendering and lighting for smooth FPS ]]
-function Utility.OptimizeGraphics()
+function Utility.OptimizeGraphics(silent)
     pcall(function()
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
@@ -1425,7 +1532,9 @@ function Utility.OptimizeGraphics()
 
         sethiddenproperty(workspace, "InterpolationThrottling", Enum.InterpolationThrottlingMode.Low)
     end)
-    UILib.Notify("Boost FPS", "Graphics optimized smoothly!", 3)
+    if not silent then
+        UILib.Notify("Boost FPS", "Graphics optimized smoothly!", 3)
+    end
 end
 
 --[[ Send Discord Webhook notification when Leviathan spawns ]]
@@ -1520,7 +1629,6 @@ function Utility.StartBoatFlight(boat)
         end
 
         local pos = seat.Position
-        local el = os.clock() - t0
         local speed = S.BoatFlySpeed or 220
         local flyY = S.BoatFlyHeight or 190
 
@@ -1536,14 +1644,24 @@ function Utility.StartBoatFlight(boat)
             end
         end
 
-        if el <= stage1_Dur then
-            local prog = el / stage1_Dur
-            local ty = startY + (800 - startY) * prog
-            lv.VectorVelocity = Vector3.new(0, (ty - pos.Y) * 15, 0)
-        elseif el <= (stage1_Dur + stage2_Dur) then
-            local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
-            lv.VectorVelocity = Vector3.new(flatDir.X * speed, (800 - pos.Y) * 10, flatDir.Z * speed)
+        local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
+        local distFromOriginZ = math.abs(pos.Z - 480)
+
+        -- Kiểm tra toạ độ Z = 480: trong bán kính 2000 studs luôn đẩy lên Y = 800 trước rồi mới bay tiếp, ra ngoài bán kính 2000 studs thì chuyển về độ cao bình thường
+        if distFromOriginZ <= 2000 then
+            local climbSpeed = 200
+            local deltaY = 800 - pos.Y
+            local vy = math.clamp(deltaY * 10, -climbSpeed, climbSpeed)
+
+            if pos.Y < 790 then
+                -- Đẩy thẳng đứng đạt độ cao 800 trước
+                lv.VectorVelocity = Vector3.new(0, vy, 0)
+            else
+                -- Đã đạt độ cao 800 thì bắt đầu bay tiếp
+                lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
+            end
         else
+            -- Ra khỏi bán kính 2000 studs so với toạ độ Z: trở về độ cao bình thường (Y = 190)
             lv.VectorVelocity = Vector3.new(dir.Unit.X * speed, (flyY - pos.Y) * 5, dir.Unit.Z * speed)
         end
 
@@ -1591,7 +1709,7 @@ function Utility.HandleLeviathanFound()
         end)
     end
 
-    UILib.Notify("❄️ LEVIATHAN SPAWNED!", "Camera and controls released!", 6)
+    UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan / Cổng Frozen Dimension!", 6)
 end
 
 --[[ Enable object watcher for Leviathan spawn in workspace folders ]]
@@ -1838,22 +1956,34 @@ end
 function Utility.StartAutoShootLeviathan()
     DisconnectConnection("autoShootLev")
     _conns["autoShootLev"] = task.spawn(function()
-        local stage = 1
+        local stage = 1        -- 1: Sit driver seat, 2: 2-step flight, 3: Sit Harpoon & Shoot
+        local flyStep = 1      -- 1: Ascend to Y=300, 2: Fly to X=fhPos.X+70 at Y=300, 3: Descend to fhPos.Y
         local lastNotify = 0
+
+        local function GetHeartPos(heart)
+            if not heart then return nil end
+            if heart:IsA("Model") then
+                local p = heart.PrimaryPart or heart:FindFirstChild("Heart") or heart:FindFirstChild("HumanoidRootPart") or heart:FindFirstChildOfClass("BasePart")
+                if p then return p.Position end
+                return heart:GetPivot().Position
+            elseif heart:IsA("BasePart") then
+                return heart.Position
+            end
+            return nil
+        end
 
         while S.AutoShootLeviEnabled do
             local targetBoat = nil
-            if S.AutoShootBoatMode == "Shoot with owner boat" or S.AutoShootBoatMode == "Shoot with other boat" then
-                if S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" then
-                    targetBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
-                end
+            if S.AutoShootBoatOwner and S.AutoShootBoatOwner ~= "" and S.AutoShootBoatOwner ~= "My Boat" then
+                targetBoat = Utility.GetBoatByOwner(S.AutoShootBoatOwner)
             else
                 targetBoat = Utility.GetBoat() or Utility.GetBeastHunterBoat() or Utility.GetPlayerBoat()
             end
 
             if not targetBoat or not targetBoat.Parent then
                 if os.clock() - lastNotify > 5 then
-                    UILib.Notify("Auto Shoot", "Waiting for boat ...", 3)
+                    local boatNameStr = (S.AutoShootBoatOwner and S.AutoShootBoatOwner ~= "" and S.AutoShootBoatOwner ~= "My Boat") and ("boat of " .. S.AutoShootBoatOwner) or "your Beast Hunter boat"
+                    UILib.Notify("Auto Shoot", "Waiting for " .. boatNameStr .. "...", 3)
                     lastNotify = os.clock()
                 end
                 task.wait(0.5)
@@ -1868,79 +1998,127 @@ function Utility.StartAutoShootLeviathan()
 
                     if not frozenHeart then
                         if os.clock() - lastNotify > 5 then
-                            UILib.Notify("Auto Shoot", "Waiting for FrozenHeart...", 4)
+                            UILib.Notify("Auto Shoot", "Waiting for Frozen Heart spawn", 4)
                             lastNotify = os.clock()
                         end
+                        task.wait(0.5)
                     else
-                        local fhPos = frozenHeart:IsA("Model") and frozenHeart:GetPivot().Position or frozenHeart.Position
-                        local targetBoatPos = Vector3.new(fhPos.X + 10, 50, fhPos.Z)
+                        local fhPos = GetHeartPos(frozenHeart)
+                        if not fhPos then
+                            task.wait(0.5)
+                        else
+                            local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+                            att.Name = "FlyAttachment"; att.Parent = vSeat
 
-                        local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
-                        att.Name = "FlyAttachment"; att.Parent = vSeat
+                            local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+                            lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+                            lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
 
-                        local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
-                        lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
-                        lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
+                            local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+                            ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+                            ao.MaxTorque = math.huge; ao.Responsiveness = 200
+                            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
 
-                        local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
-                        ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
-                        ao.MaxTorque = math.huge; ao.Responsiveness = 200
-                        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
-
-                        ActiveBoat = targetBoat
-
-                        if stage == 1 then
-                            if hum.SeatPart == vSeat then
-                                stage = 2
-                                UILib.Notify("Auto Shoot", "Fly boat to FrozenHeart...", 3)
-                            else
-                                Utility.SitVehicleSeat(targetBoat)
-                            end
-                        elseif stage == 2 then
+                            ActiveBoat = targetBoat
                             local seatPos = vSeat.Position
-                            local dir = (targetBoatPos - seatPos)
-                            local dist = dir.Magnitude
 
-                            if dist <= 6 then
-                                lv.VectorVelocity = Vector3.zero
-                                ao.CFrame = CFrame.lookAt(seatPos, fhPos)
-                                stage = 3
-                                UILib.Notify("Auto Shoot", "Shoot harpoon...", 3)
-                            else
-                                lv.VectorVelocity = dir.Unit * (S.BoatFlySpeed or 220)
-                                ao.CFrame = CFrame.lookAt(seatPos, targetBoatPos)
-                            end
-                        elseif stage == 3 then
-                            lv.VectorVelocity = Vector3.zero
-                            ao.CFrame = CFrame.lookAt(vSeat.Position, fhPos)
-
-                            local harpoonModel = targetBoat:FindFirstChild("Harpoon")
-                            local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
-
-                            if harpoonSeat then
-                                if hum.SeatPart == harpoonSeat then
-                                    pcall(function()
-                                        local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
-                                        Event:InvokeServer(
-                                            "FireHarpoon",
-                                            0.78539816339745,
-                                            0,
-                                            harpoonModel,
-                                            1787466497.5315
-                                        )
-                                    end)
-                                    task.wait(1.5)
+                            -- Bước 1: Người chơi tìm đến vị trí thuyền và ngồi vào ghế lái
+                            if stage == 1 then
+                                if hum.SeatPart == vSeat then
+                                    stage = 2
+                                    flyStep = 1
+                                    UILib.Notify("Auto Shoot", "In driver seat! Ascending to Y = 300...", 3)
                                 else
-                                    if hum.SeatPart == vSeat then
-                                        hum.Sit = false
-                                        task.wait(0.1)
-                                    end
-                                    Utility.FlyToAndSitSeat(harpoonSeat)
+                                    Utility.SitVehicleSeat(targetBoat)
                                 end
-                            else
-                                if os.clock() - lastNotify > 5 then
-                                    UILib.Notify("Auto Shoot", "Couldn't find harpoon!", 3)
-                                    lastNotify = os.clock()
+                            -- Bước 2: Bay thuyền theo quy trình
+                            elseif stage == 2 then
+                                -- Luôn hướng mũi thuyền thẳng vào tim Leviathan
+                                ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
+
+                                if flyStep == 1 then
+                                    -- Bay từ từ lên vị trí Y = 300 và cố định ở độ cao đó
+                                    local deltaY = 300 - seatPos.Y
+                                    if math.abs(deltaY) <= 6 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        flyStep = 2
+                                        UILib.Notify("Auto Shoot", "Reached Y = 300. Flying to X = Heart.X + 350...", 3)
+                                    else
+                                        local dirY = Vector3.new(0, deltaY, 0).Unit
+                                        lv.VectorVelocity = dirY * (S.BoatFlySpeed or 220)
+                                    end
+                                elseif flyStep == 2 then
+                                    -- Bay tiếp đến vị trí X = fhPos.X + 350 (cố định ở độ cao Y = 300, khoảng cách 350 studs)
+                                    local targetPos2 = Vector3.new(fhPos.X + 350, 300, fhPos.Z)
+                                    local dir2 = (targetPos2 - seatPos)
+
+                                    if dir2.Magnitude <= 8 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        flyStep = 3
+                                        UILib.Notify("Auto Shoot", "Descending boat to heart height...", 3)
+                                    else
+                                        lv.VectorVelocity = dir2.Unit * (S.BoatFlySpeed or 220)
+                                    end
+                                elseif flyStep == 3 then
+                                    -- Hạ thuyền về độ cao ban đầu của tim leviathan (khoảng cách 350 studs)
+                                    local targetPos3 = Vector3.new(fhPos.X + 350, fhPos.Y, fhPos.Z)
+                                    local dir3 = (targetPos3 - seatPos)
+
+                                    if dir3.Magnitude <= 6 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        stage = 3
+                                        UILib.Notify("Auto Shoot", "Position reached! Sitting on Harpoon...", 3)
+                                    else
+                                        lv.VectorVelocity = dir3.Unit * (S.BoatFlySpeed or 220)
+                                    end
+                                end
+                            -- Bước 3: Tìm, bay đến và ngồi vào Harpoon, tính toán góc bắn rồi thực hiện bắn tim
+                            elseif stage == 3 then
+                                -- Dừng thuyền cố định và giữ hướng mũi thuyền thẳng vào tim leviathan
+                                lv.VectorVelocity = Vector3.zero
+                                ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
+
+                                local harpoonModel = targetBoat:FindFirstChild("Harpoon") or targetBoat:FindFirstChild("Harpoon", true)
+                                local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
+
+                                if harpoonSeat and harpoonModel then
+                                    if hum.SeatPart == harpoonSeat then
+                                        -- Tính toán góc bắn theo tam giác vuông từ người ngồi trên Harpoon đến tim Leviathan
+                                        local shooterPos = (root and root.Position) or harpoonSeat.Position
+                                        local dx = fhPos.X - shooterPos.X
+                                        local dz = fhPos.Z - shooterPos.Z
+                                        local horizontalDist = math.sqrt(dx * dx + dz * dz)
+                                        local deltaY = fhPos.Y - shooterPos.Y
+
+                                        -- tan(theta) = deltaY / horizontalDist  => theta = atan2(deltaY, horizontalDist)
+                                        local pitchAngle = math.atan2(deltaY, math.max(horizontalDist, 0.1))
+                                        -- Giới hạn góc bắn trong khoảng hợp lệ: min = -0.175, max = 0.785
+                                        pitchAngle = math.clamp(pitchAngle, -0.175, 0.785)
+
+                                        pcall(function()
+                                            local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
+                                            local serverTime = workspace:GetServerTimeNow()
+                                            Event:InvokeServer(
+                                                "FireHarpoon",
+                                                pitchAngle,
+                                                0,
+                                                harpoonModel,
+                                                serverTime
+                                            )
+                                        end)
+                                        task.wait(1.5)
+                                    else
+                                        if hum.SeatPart == vSeat then
+                                            hum.Sit = false
+                                            task.wait(0.1)
+                                        end
+                                        Utility.FlyToAndSitSeat(harpoonSeat)
+                                    end
+                                else
+                                    if os.clock() - lastNotify > 5 then
+                                        UILib.Notify("Auto Shoot", "Couldn't find Harpoon on selected boat!", 3)
+                                        lastNotify = os.clock()
+                                    end
                                 end
                             end
                         end
@@ -1948,7 +2126,7 @@ function Utility.StartAutoShootLeviathan()
                 end
             end
 
-            task.wait(0.3)
+            task.wait(0.2)
         end
     end)
 end
@@ -2027,6 +2205,234 @@ end
 function Utility.StopAutoTalkFrozenWatcher()
     DisconnectConnection("autoTalkWatcher")
     Utility.StopPhysicsFly()
+end
+
+--[[ Find active Leviathan Segments or main Leviathan in workspace.SeaBeasts ]]
+function Utility.GetLeviathanTarget()
+    local seaBeasts = workspace:FindFirstChild("SeaBeasts")
+    local enemies = workspace:FindFirstChild("Enemies")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+
+    local aliveSegments = {}
+    local mainLeviathan = nil
+
+    local function ProcessFolder(folder)
+        if not folder then return end
+        for _, model in ipairs(folder:GetChildren()) do
+            if model:IsA("Model") then
+                local hum = model:FindFirstChildOfClass("Humanoid")
+                local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
+                local isAlive = (hum and hum.Health > 0) or (not hum and root ~= nil)
+
+                if isAlive and root then
+                    local name = model.Name:lower()
+                    if name:find("segment") then
+                        table.insert(aliveSegments, {
+                            Model = model,
+                            Root = root,
+                            Distance = (root.Position - myPos).Magnitude
+                        })
+                    elseif name == "leviathan" or (name:find("leviathan") and not name:find("tail")) then
+                        mainLeviathan = model
+                    end
+                end
+            end
+        end
+    end
+
+    ProcessFolder(seaBeasts)
+    ProcessFolder(enemies)
+
+    if #aliveSegments > 0 then
+        table.sort(aliveSegments, function(a, b)
+            return a.Distance < b.Distance
+        end)
+        return aliveSegments[1].Model, true
+    end
+
+    if mainLeviathan then
+        return mainLeviathan, false
+    end
+
+    return nil, false
+end
+
+--[[ Thi triển kỹ năng tấn công Leviathan dựa trên cấu hình từ Tab Farm Setting ]]
+function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local wType = weaponTypeOverride or S.LeviathanSelectedWeapon or S.SelectedWeaponType or "Melee"
+    local tool = Utility.EquipWeaponByType(wType)
+
+    local targetPart = targetEnemy and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))
+    local actualTargetPos = targetPart and targetPart.Position or targetPos
+    if not actualTargetPos then return end
+
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(actualTargetPos.X, myRoot.Position.Y, actualTargetPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
+    local skillRemotes = {}
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local skillKeys = {}
+    if wType == "Melee" then
+        if S.MeleeSkillZ then table.insert(skillKeys, "Z") end
+        if S.MeleeSkillX then table.insert(skillKeys, "X") end
+        if S.MeleeSkillC then table.insert(skillKeys, "C") end
+    elseif wType == "Fruit" then
+        if S.FruitSkillZ then table.insert(skillKeys, "Z") end
+        if S.FruitSkillX then table.insert(skillKeys, "X") end
+        if S.FruitSkillC then table.insert(skillKeys, "C") end
+        if S.FruitSkillV then table.insert(skillKeys, "V") end
+        if S.FruitSkillF then table.insert(skillKeys, "F") end
+    elseif wType == "Sword" then
+        if S.SwordSkillZ then table.insert(skillKeys, "Z") end
+        if S.SwordSkillX then table.insert(skillKeys, "X") end
+    elseif wType == "Gun" then
+        if S.GunSkillZ then table.insert(skillKeys, "Z") end
+        if S.GunSkillX then table.insert(skillKeys, "X") end
+    end
+
+    for _, key in ipairs(skillKeys) do
+        if not char or not char.Parent or not hum or hum.Health <= 0 then break end
+
+        local curPart = (targetEnemy and targetEnemy.Parent and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))) or targetPart
+        local livePos = curPart and curPart.Position or actualTargetPos
+        local myPos = myRoot.Position
+        local aimCF = CFrame.lookAt(myPos, livePos)
+        local hitCF = curPart and curPart.CFrame or CFrame.new(livePos)
+
+        -- 1. Kích hoạt chiêu thức chuẩn Cobalt tương ứng từng loại vũ khí
+        for _, rf in ipairs(skillRemotes) do
+            task.spawn(function()
+                if wType == "Melee" then
+                    pcall(function() rf:InvokeServer(key, aimCF, hitCF, "Aaa") end)
+                elseif wType == "Fruit" then
+                    pcall(function() rf:InvokeServer(key) end)
+                elseif wType == "Sword" then
+                    pcall(function() rf:InvokeServer(key, livePos) end)
+                elseif wType == "Gun" then
+                    pcall(function() rf:InvokeServer(key) end)
+                end
+            end)
+        end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 trong suốt thời gian giữ chiêu (Skills Only cho Leviathan)
+        local holdEnabled = (wType == "Melee" and S.HoldMeleeSkills)
+            or (wType == "Fruit" and S.HoldFruitSkills)
+            or (wType == "Sword" and S.HoldSwordSkills)
+            or (wType == "Gun" and S.HoldGunSkills)
+        local duration = holdEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local curLivePart = (targetEnemy and targetEnemy.Parent and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))) or targetPart
+            local cPos = curLivePart and curLivePart.Position or livePos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(cPos) end)
+            end
+            task.wait(0.035)
+        end
+
+        task.wait(0.12)
+    end
+end
+Utility.CastSkills = Utility.CastSkillsLeviathan
+
+--[[ Start auto attack Leviathan routine ]]
+function Utility.StartAutoAttackLeviathan()
+    DisconnectConnection("autoAttackLevi")
+    _conns["autoAttackLevi"] = task.spawn(function()
+        while S.AutoAttackLeviEnabled do
+            local target, isSegment = Utility.GetLeviathanTarget()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if target and target.Parent and root and hum and hum.Health > 0 then
+                -- Rời khỏi ghế lái trước khi bay tới tấn công
+                if hum.SeatPart or hum.Sit then
+                    hum.Sit = false
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+                    task.wait(0.05)
+                end
+
+                local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
+
+                if eRoot then
+                    local targetPos = eRoot.Position
+                    Utility.PhysicsFlyTo(targetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
+                end
+            else
+                Utility.StopPhysicsFly()
+            end
+            task.wait(0.035)
+        end
+        Utility.StopPhysicsFly()
+    end)
+end
+
+--[[ Stop auto attack Leviathan routine ]]
+function Utility.StopAutoAttackLeviathan()
+    DisconnectConnection("autoAttackLevi")
+    Utility.StopPhysicsFly()
+end
+
+--[[ Start auto use skills to attack Leviathan routine ]]
+function Utility.StartAutoSkillsLeviathan()
+    DisconnectConnection("autoSkillsLevi")
+    _conns["autoSkillsLevi"] = task.spawn(function()
+        local weaponRotation = { "Melee", "Sword", "Fruit", "Gun" }
+        local wIndex = 1
+
+        while S.AutoSkillsLeviEnabled do
+            local target, _ = Utility.GetLeviathanTarget()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if target and target.Parent and root and hum and hum.Health > 0 then
+                -- Rời khỏi ghế lái trước khi tung chiêu
+                if hum.SeatPart or hum.Sit then
+                    hum.Sit = false
+                    pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+                    task.wait(0.05)
+                end
+
+                local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
+                if eRoot then
+                    local chosenWeapon = S.LeviathanSelectedWeapon or "Melee"
+                    if chosenWeapon == "Rotate All" then
+                        chosenWeapon = weaponRotation[wIndex]
+                        wIndex = (wIndex % #weaponRotation) + 1
+                    end
+
+                    Utility.CastSkillsLeviathan(eRoot.Position, target, chosenWeapon)
+                    task.wait(1.5)
+                else
+                    task.wait(0.5)
+                end
+            else
+                task.wait(0.5)
+            end
+        end
+    end)
+end
+
+--[[ Stop auto use skills to attack Leviathan routine ]]
+function Utility.StopAutoSkillsLeviathan()
+    DisconnectConnection("autoSkillsLevi")
 end
 
 --[[ Start auto respawn loop when boat is destroyed ]]
@@ -2130,6 +2536,7 @@ function Utility.StartBoatWaypointNavigation(waypoints, isFlyMode, locationName,
     local currentIdx = 1
     local totalPoints = #waypoints
     local modeName = isFlyMode and "Fly" or "Drive"
+    local flyAscended = not isFlyMode -- Nếu bay thì bắt đầu là false để nâng độ cao lên 300 studs trước
 
     UILib.Notify("Navigation", string.format("Starting %s to %s...", modeName, locationName), 3)
 
@@ -2147,29 +2554,6 @@ function Utility.StartBoatWaypointNavigation(waypoints, isFlyMode, locationName,
         end
 
         local seatPos = vSeat.Position
-        local targetWP = waypoints[currentIdx]
-        if not targetWP then
-            Utility.StopBoatWaypointNavigation()
-            UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
-            if completionCallback then completionCallback() end
-            return
-        end
-
-        local flyY = isFlyMode and (S.BoatFlyHeight or 190) or targetWP.Y
-        local targetPos = Vector3.new(targetWP.X, flyY, targetWP.Z)
-        local flatDist = (Vector3.new(targetWP.X, 0, targetWP.Z) - Vector3.new(seatPos.X, 0, seatPos.Z)).Magnitude
-
-        if flatDist <= 40 then
-            currentIdx = currentIdx + 1
-            if currentIdx > totalPoints then
-                Utility.StopBoatWaypointNavigation()
-                UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
-                if completionCallback then completionCallback() end
-                return
-            else
-                UILib.Notify("Navigation", string.format("Approaching waypoint %d/%d...", currentIdx, totalPoints), 2)
-            end
-        end
 
         local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
         att.Name = "FlyAttachment"; att.Parent = vSeat
@@ -2183,9 +2567,76 @@ function Utility.StartBoatWaypointNavigation(waypoints, isFlyMode, locationName,
         ao.MaxTorque = math.huge; ao.Responsiveness = 200
         ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
 
-        local dir = (targetPos - seatPos)
         local speed = isFlyMode and (S.BoatFlySpeed or 220) or (S.CustomBoatSpeed or 250)
-        lv.VectorVelocity = dir.Unit * speed
+
+        -- Bước 1 (Fly Mode): Nâng độ cao thuyền lên 300 studs tại vị trí hiện tại
+        if isFlyMode and not flyAscended then
+            local deltaY = 300 - seatPos.Y
+            if math.abs(deltaY) <= 8 then
+                flyAscended = true
+                lv.VectorVelocity = Vector3.zero
+                UILib.Notify("Navigation", "Reached Y = 300. Navigating through waypoints...", 3)
+            else
+                local dirY = Vector3.new(0, deltaY > 0 and 1 or -1, 0)
+                lv.VectorVelocity = dirY * speed
+                return
+            end
+        end
+
+        -- Bước 2: Giữ ở độ cao 300 studs bay đến điểm 1, 2, 3 và hạ xuống 100 studs ở điểm 4
+        local targetWP = waypoints[currentIdx]
+        if not targetWP then
+            Utility.StopBoatWaypointNavigation()
+            UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
+            if completionCallback then completionCallback() end
+            return
+        end
+
+        local flyY = targetWP.Y
+        if isFlyMode then
+            if currentIdx < totalPoints then
+                flyY = 300 -- Điểm 1, 2, 3 giữ cố định ở 300 studs
+            else
+                flyY = 100 -- Điểm 4 hạ xuống 100 studs
+            end
+        end
+
+        local targetPos = Vector3.new(targetWP.X, flyY, targetWP.Z)
+        local flatDist = (Vector3.new(targetWP.X, 0, targetWP.Z) - Vector3.new(seatPos.X, 0, seatPos.Z)).Magnitude
+
+        local reached = false
+        if isFlyMode and currentIdx == totalPoints then
+            if flatDist <= 40 and math.abs(seatPos.Y - 100) <= 20 then
+                reached = true
+            end
+        else
+            if flatDist <= 45 then
+                reached = true
+            end
+        end
+
+        if reached then
+            currentIdx = currentIdx + 1
+            if currentIdx > totalPoints then
+                Utility.StopBoatWaypointNavigation()
+                UILib.Notify("Navigation", "Arrived at " .. locationName .. "!", 4)
+                if completionCallback then completionCallback() end
+                return
+            else
+                if isFlyMode and currentIdx == totalPoints then
+                    UILib.Notify("Navigation", string.format("Approaching final waypoint %d/%d (descending to 100 studs)...", currentIdx, totalPoints), 3)
+                else
+                    UILib.Notify("Navigation", string.format("Approaching waypoint %d/%d (altitude 300 studs)...", currentIdx, totalPoints), 2)
+                end
+            end
+        end
+
+        local dir = (targetPos - seatPos)
+        if dir.Magnitude > 0 then
+            lv.VectorVelocity = dir.Unit * speed
+        else
+            lv.VectorVelocity = Vector3.zero
+        end
 
         local lookTarget = Vector3.new(targetPos.X, seatPos.Y, targetPos.Z)
         if (lookTarget - seatPos).Magnitude > 1 then
@@ -2234,6 +2685,1283 @@ function Utility.StartAutoFlyToHydra()
     end)
 end
 
+-- ═══════════════════════════════════════════════════════════
+--  SEA EVENTS MODULAR CONTROLLERS & DODGE ENGINE
+-- ═══════════════════════════════════════════════════════════
+
+local terrorsharkDodgeActive = false
+local terrorsharkDodgeEndTime = 0
+
+--[[ Phân loại đối tượng Sea Event dựa trên tên Model ]]
+local function GetSeaEventType(model)
+    if not model then return "Default" end
+    local lowerName = model.Name:lower()
+
+    if lowerName:find("terrorshark") then
+        return "Terrorshark"
+    elseif lowerName:find("piranha") then
+        return "Piranha"
+    elseif lowerName:find("shark") then
+        return "Shark"
+    elseif lowerName:find("fish crew") or lowerName:find("crew member") then
+        return "Fish Crew Member"
+    elseif lowerName:find("boat") or lowerName:find("ship") or lowerName:find("bridge") or lowerName:find("brigade") then
+        return "Boat"
+    elseif model.Parent == workspace:FindFirstChild("SeaBeasts") or lowerName:find("seabeast") or lowerName:find("sea beast") or lowerName:find("waterwater") then
+        return "Sea Beast"
+    end
+    return "Default"
+end
+
+--[[ Lắng nghe sự kiện BodyMover từ server để né đòn Terrorshark lên Y = 600 ]]
+function Utility.EnsureBodyMoverListener()
+    if _conns["terrorsharkBodyMover"] then return end
+    local rep = game:GetService("ReplicatedStorage")
+    local remotes = rep:FindFirstChild("Remotes")
+    local bodyMover = remotes and remotes:FindFirstChild("BodyMover")
+    if bodyMover and bodyMover:IsA("RemoteEvent") then
+        _conns["terrorsharkBodyMover"] = bodyMover.OnClientEvent:Connect(function(data1, op, moverType, data2)
+            if not S.AutoFarmSeaEventsEnabled then return end
+            local isForMe = false
+            local myName = LocalPlayer.Name
+            if typeof(data1) == "table" then
+                if data1.Character and (data1.Character == myName or (typeof(data1.Character) == "table" and table.find(data1.Character, myName))) then
+                    isForMe = true
+                end
+            end
+            if typeof(data2) == "table" then
+                if data2.Character and (data2.Character == myName or (typeof(data2.Character) == "table" and table.find(data2.Character, myName))) then
+                    isForMe = true
+                end
+            end
+            if isForMe or tostring(op) == "Create" or tostring(moverType) == "BodyVelocity" then
+                terrorsharkDodgeActive = true
+                terrorsharkDodgeEndTime = os.clock() + 2.0
+            end
+        end)
+    end
+end
+
+--[[ Lấy danh sách các đối tượng Sea Event đang còn sống và khớp với bộ lọc ]]
+function Utility.GetActiveSeaEventTargets()
+    local targets = {}
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    local seaBeasts = workspace:FindFirstChild("SeaBeasts")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+
+    local function ProcessModel(model)
+        if not model or not model:IsA("Model") then return end
+        local hum = model:FindFirstChildOfClass("Humanoid")
+        local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
+        local isAlive = (hum and hum.Health > 0) or (not hum and root ~= nil)
+        if not isAlive or not root then return end
+
+        local lowerName = model.Name:lower()
+        if lowerName:find("leviathan") then return end
+
+        local isSeaEvent = false
+        if lowerName:find("piratebridge") or lowerName:find("pirategrandbridge") or lowerName:find("piratebrigade") or lowerName:find("pirategrandbrigade")
+            or lowerName:find("shark") or lowerName:find("fish crew") or lowerName:find("fishboat") or lowerName:find("piranha") or lowerName:find("terrorshark") then
+            isSeaEvent = true
+        elseif model.Parent == seaBeasts or lowerName:find("seabeast") or lowerName:find("sea beast") then
+            isSeaEvent = true
+        end
+
+        if isSeaEvent then
+            local eventType = GetSeaEventType(model)
+            local matchFilter = true
+            if S.SelectedSeaEvent and S.SelectedSeaEvent ~= "All" then
+                if S.SelectedSeaEvent == "Shark" and eventType ~= "Shark" then matchFilter = false
+                elseif S.SelectedSeaEvent == "Piranha" and eventType ~= "Piranha" then matchFilter = false
+                elseif S.SelectedSeaEvent == "Fish Crew" and eventType ~= "Fish Crew Member" then matchFilter = false
+                elseif S.SelectedSeaEvent == "Pirate Ships" and eventType ~= "Boat" then matchFilter = false
+                elseif S.SelectedSeaEvent == "Sea Beast" and eventType ~= "Sea Beast" then matchFilter = false
+                elseif S.SelectedSeaEvent == "Terrorshark" and eventType ~= "Terrorshark" then matchFilter = false
+                end
+            end
+
+            if matchFilter then
+                table.insert(targets, {
+                    Model = model,
+                    Root = root,
+                    Humanoid = hum,
+                    Type = eventType,
+                    Distance = (root.Position - myPos).Magnitude
+                })
+            end
+        end
+    end
+
+    if enemiesFolder then
+        for _, child in ipairs(enemiesFolder:GetChildren()) do ProcessModel(child) end
+    end
+    if seaBeasts then
+        for _, child in ipairs(seaBeasts:GetChildren()) do ProcessModel(child) end
+    end
+
+    table.sort(targets, function(a, b) return a.Distance < b.Distance end)
+    return targets
+end
+
+--[[ Bắt đầu luồng bay thuyền cho Sea Events với 3 giai đoạn nâng độ cao chuẩn Find Leviathan ]]
+function Utility.StartSeaEventsBoatFlight(boat)
+    ActiveBoat = boat
+    Utility.UpdateBoatCache(boat)
+
+    local seat = boat:FindFirstChildOfClass("VehicleSeat") or boat.PrimaryPart
+    if not seat then return end
+
+    for _, part in ipairs(boat:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.AssemblyLinearVelocity  = Vector3.zero
+            part.AssemblyAngularVelocity = Vector3.zero
+        end
+    end
+
+    local att = seat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+    att.Name = "FlyAttachment"; att.Parent = seat
+
+    local lv = seat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+    lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+    lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = seat
+
+    local ao = seat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+    ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+    ao.MaxTorque = math.huge; ao.Responsiveness = 200
+    ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
+    ao.Parent = seat
+
+    local startY = seat.Position.Y
+    local stage1_Dur = 7
+    local stage2_Dur = 10
+    local t0 = os.clock()
+
+    local targetPointA = Vector3.new(-16130, 199, 58000)
+    local targetPointB = Vector3.new(-16130, 199, 38000)
+    local currentTarget = targetPointA
+
+    DisconnectConnection("seaEventsBoatFly")
+    _conns["seaEventsBoatFly"] = RunService.Heartbeat:Connect(function()
+        if not S.AutoFarmSeaEventsEnabled or not boat or not boat.Parent then
+            DisconnectConnection("seaEventsBoatFly")
+            Utility.ForceStopBoat(boat)
+            return
+        end
+
+        local seaTargets = Utility.GetActiveSeaEventTargets()
+        if #seaTargets > 0 then
+            DisconnectConnection("seaEventsBoatFly")
+            return
+        end
+
+        local pos = seat.Position
+        local speed = S.BoatFlySpeed or 220
+        local flyY = S.BoatFlyHeight or 190
+
+        local targetWithY = Vector3.new(currentTarget.X, flyY, currentTarget.Z)
+        local dir = (targetWithY - pos)
+        local dist = dir.Magnitude
+
+        if dist <= 35 then
+            if currentTarget == targetPointA then
+                currentTarget = targetPointB
+            else
+                currentTarget = targetPointA
+            end
+        end
+
+        local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
+        local distFromOriginZ = math.abs(pos.Z - 480)
+
+        -- Kiểm tra toạ độ Z = 480: trong bán kính 2000 studs luôn đẩy lên Y = 800 trước rồi mới bay tiếp, ra ngoài bán kính 2000 studs thì chuyển về độ cao bình thường
+        if distFromOriginZ <= 2000 then
+            local climbSpeed = 200
+            local deltaY = 800 - pos.Y
+            local vy = math.clamp(deltaY * 10, -climbSpeed, climbSpeed)
+
+            if pos.Y < 790 then
+                -- Đẩy thẳng đứng đạt độ cao 800 trước
+                lv.VectorVelocity = Vector3.new(0, vy, 0)
+            else
+                -- Đã đạt độ cao 800 thì bắt đầu bay tiếp
+                lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
+            end
+        else
+            -- Ra khỏi bán kính 2000 studs so với toạ độ Z: trở về độ cao bình thường (Y = 190)
+            lv.VectorVelocity = Vector3.new(dir.Unit.X * speed, (flyY - pos.Y) * 5, dir.Unit.Z * speed)
+        end
+
+        ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
+    end)
+end
+
+--[[ Vòng lặp Auto Farm Sea Events ]]
+function Utility.StartAutoFarmSeaEvents()
+    DisconnectConnection("autoFarmSeaEvents")
+    DisconnectConnection("seaEventsBoatFly")
+    Utility.EnsureBodyMoverListener()
+
+    _conns["autoFarmSeaEvents"] = task.spawn(function()
+        local lastCharacter = LocalPlayer.Character
+        local needBuyNewBoat = true
+        local playerBoat = nil
+
+        while S.AutoFarmSeaEventsEnabled do
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+            if not hum or hum.Health <= 0 or not myRoot then
+                task.wait(0.5)
+            else
+                -- 1. Xử lý khi nhân vật hồi sinh hoặc thay đổi
+                if char ~= lastCharacter then
+                    lastCharacter = char
+                    needBuyNewBoat = true
+                    DisconnectConnection("seaEventsBoatFly")
+                    if ActiveBoat then
+                        Utility.ForceStopBoat(ActiveBoat)
+                        ActiveBoat = nil
+                    end
+                end
+
+                -- 2. Tự động mua thuyền nếu chưa có (chuẩn theo Find Leviathan)
+                local selBoatName = S.SeaEventsBoat or "Beast Hunter"
+                if needBuyNewBoat then
+                    UILib.Notify("Sea Events", "Buying boat " .. selBoatName .. "...", 3)
+                    Utility.BuyBoat(selBoatName)
+
+                    local tBuy = os.clock()
+                    while S.AutoFarmSeaEventsEnabled and (os.clock() - tBuy < 6) do
+                        playerBoat = Utility.GetPlayerBoat(selBoatName)
+                        if playerBoat and playerBoat.Parent then
+                            needBuyNewBoat = false
+                            break
+                        end
+                        task.wait(0.5)
+                    end
+                else
+                    playerBoat = Utility.GetPlayerBoat(selBoatName)
+                    if not playerBoat or not playerBoat.Parent then
+                        needBuyNewBoat = true
+                    end
+                end
+
+                local seaTargets = Utility.GetActiveSeaEventTargets()
+
+                -- Kiểm tra thuyền có bị nổ/vỡ không (Chỉ reset khi KHÔNG CÒN quái Sea Event)
+                local boatIsBroken = false
+                if playerBoat and playerBoat.Parent then
+                    local boatHp = playerBoat:FindFirstChild("Humanoid")
+                    if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
+                        boatIsBroken = true
+                    end
+                else
+                    if not needBuyNewBoat then
+                        boatIsBroken = true
+                    end
+                end
+
+                if boatIsBroken and #seaTargets == 0 then
+                    playerBoat = nil
+                    ActiveBoat = nil
+                    needBuyNewBoat = true
+                    DisconnectConnection("seaEventsBoatFly")
+                    Utility.StopPhysicsFly()
+                    UILib.Notify("Sea Events", "Boat destroyed & all enemies defeated! Respawning...", 3)
+                    Utility.RespawnPlayer()
+                    task.wait(3)
+                    continue
+                end
+
+                if (playerBoat and playerBoat.Parent and char and hum and hum.Health > 0) or (#seaTargets > 0 and char and hum and hum.Health > 0) then
+                    ActiveBoat = playerBoat
+                    local vSeat = playerBoat and (playerBoat:FindFirstChildOfClass("VehicleSeat") or playerBoat:FindFirstChild("VehicleSeat", true))
+
+                    -- 3. NẾU CÓ MỤC TIÊU SEA EVENT: Rời khỏi ghế lái, dừng thuyền tại chỗ và bay đi tấn công
+                    if #seaTargets > 0 then
+                        DisconnectConnection("seaEventsBoatFly")
+
+                        -- Rời khỏi ghế lái trước khi bay tới tấn công
+                        if hum.SeatPart or hum.Sit then
+                            hum.Sit = false
+                            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+                            task.wait(0.05)
+                        end
+
+                        if vSeat then
+                            local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+                            att.Name = "FlyAttachment"; att.Parent = vSeat
+
+                            local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+                            lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+                            lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
+
+                            local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+                            ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+                            ao.MaxTorque = math.huge; ao.Responsiveness = 200
+                            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
+
+                            -- Dừng thuyền cố định tại chỗ khi quái xuất hiện
+                            lv.VectorVelocity = Vector3.zero
+                        end
+
+                        -- Người chơi bay đi tấn công mục tiêu
+                        local bestTarget = seaTargets[1]
+                        local tModel = bestTarget.Model
+                        local tRoot = bestTarget.Root
+                        local tType = bestTarget.Type
+
+                        if tModel and tModel.Parent and tRoot then
+                            local basePos = tRoot.Position
+                            local wType = S.SeaEventsWeapon or "Melee"
+
+                            if tType == "Terrorshark" and terrorsharkDodgeActive and os.clock() < terrorsharkDodgeEndTime then
+                                -- Né chiêu Terrorshark: bay lên Y = 500 với tốc độ 200
+                                local dodgePos = Vector3.new(basePos.X, 500, basePos.Z)
+                                Utility.PhysicsFlyTo(dodgePos, 200)
+                            elseif tType == "Sea Beast" then
+                                -- Tấn công Sea Beast: bay đến độ cao 150 studs so với humanoid và luôn đảm bảo cao hơn Y = 30
+                                terrorsharkDodgeActive = false
+                                local sbAttackY = math.max(30, basePos.Y + 150)
+                                local attackPos = Vector3.new(basePos.X, sbAttackY, basePos.Z)
+                                Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
+                            else
+                                -- Tấn công các quái Sea Event khác: mặc định 40 studs (Gun 100 studs), luôn đảm bảo không thấp hơn Y = 30
+                                terrorsharkDodgeActive = false
+                                local baseAttackHeight = (wType == "Gun") and 100 or 40
+                                local attackY = math.max(30, basePos.Y + baseAttackHeight)
+                                local attackPos = Vector3.new(basePos.X, attackY, basePos.Z)
+                                Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
+                            end
+
+                            if wType == "Melee" then
+                                Utility.AttackMelee(tModel, tRoot)
+                            elseif wType == "Sword" then
+                                Utility.AttackSword(tModel, tRoot)
+                            elseif wType == "Fruit" then
+                                Utility.AttackFruitM1(tModel, tRoot)
+                            elseif wType == "Gun" then
+                                Utility.AttackGun(tModel, tRoot)
+                            end
+
+                            if S.AutoFarmSeaEventsSkills then
+                                if wType == "Melee" then
+                                    Utility.CastSkillsMelee(basePos, tModel)
+                                elseif wType == "Sword" then
+                                    Utility.CastSkillsSword(basePos, tModel)
+                                elseif wType == "Fruit" then
+                                    Utility.CastSkillsFruit(basePos, tModel)
+                                elseif wType == "Gun" then
+                                    Utility.CastSkillsGun(basePos, tModel)
+                                end
+                            end
+                        end
+
+                    -- 4. KHI KHÔNG CÓ MỤC TIÊU:
+                    else
+                        if boatIsBroken then
+                            playerBoat = nil
+                            ActiveBoat = nil
+                            needBuyNewBoat = true
+                            DisconnectConnection("seaEventsBoatFly")
+                            Utility.StopPhysicsFly()
+                            UILib.Notify("Sea Events", "Boat destroyed & all enemies defeated! Respawning...", 3)
+                            Utility.RespawnPlayer()
+                            task.wait(3)
+                            continue
+                        end
+
+                        if playerBoat and playerBoat.Parent and vSeat then
+                            if hum.SeatPart ~= vSeat then
+                                DisconnectConnection("seaEventsBoatFly")
+                                Utility.SitVehicleSeat(playerBoat)
+                            end
+
+                            if hum.SeatPart == vSeat then
+                                if FlyActive then Utility.StopPhysicsFly() end
+
+                                -- Kích hoạt luồng bay với các bước nâng độ cao của Find Leviathan
+                                if not _conns["seaEventsBoatFly"] or ActiveBoat ~= playerBoat then
+                                    Utility.StartSeaEventsBoatFlight(playerBoat)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            task.wait(0.5)
+        end
+
+        DisconnectConnection("seaEventsBoatFly")
+        Utility.StopPhysicsFly()
+        if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
+    end)
+end
+
+--[[ Dừng vòng lặp Auto Farm Sea Events ]]
+function Utility.StopAutoFarmSeaEvents()
+    DisconnectConnection("autoFarmSeaEvents")
+    DisconnectConnection("seaEventsBoatFly")
+    DisconnectConnection("terrorsharkBodyMover")
+    Utility.StopPhysicsFly()
+    if ActiveBoat then
+        Utility.ForceStopBoat(ActiveBoat)
+    end
+end
+
+-- ═══════════════════════════════════════════════════════════
+--  AUTO FARM MODULAR FUNCTIONS (1 -> 12)
+-- ═══════════════════════════════════════════════════════════
+
+--[[ 1. Duyệt tìm kẻ địch còn sống trong thư mục enemy (workspace.Enemies, SeaBeasts, Raids) ]]
+function Utility.GetNearestEnemyFromFolder()
+    local enemiesFolder = workspace:FindFirstChild("Enemies")
+    local seaBeasts = workspace:FindFirstChild("SeaBeasts")
+    local raidsFolder = workspace:FindFirstChild("Raids")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local nearest = nil
+    local minDist = math.huge
+
+    local function CheckEnemy(enemy)
+        if not enemy or not enemy:IsA("Model") then return end
+        if enemy == myChar then return end
+        if Players:GetPlayerFromCharacter(enemy) then return end
+        if Players:FindFirstChild(enemy.Name) then return end
+        if enemy:FindFirstChild("PlayerGui") then return end
+
+        local hum = enemy:FindFirstChildOfClass("Humanoid")
+        local root = enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart or enemy:FindFirstChild("Head") or enemy:FindFirstChildOfClass("BasePart")
+        if hum and root and hum.Health > 0 then
+            local dist = (root.Position - myRoot.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                nearest = enemy
+            end
+        end
+    end
+
+    if enemiesFolder then
+        for _, enemy in ipairs(enemiesFolder:GetChildren()) do CheckEnemy(enemy) end
+    end
+    if seaBeasts then
+        for _, enemy in ipairs(seaBeasts:GetChildren()) do CheckEnemy(enemy) end
+    end
+    if raidsFolder then
+        for _, enemy in ipairs(raidsFolder:GetChildren()) do CheckEnemy(enemy) end
+    end
+
+    return nearest
+end
+Utility.GetNearestEnemy = Utility.GetNearestEnemyFromFolder
+
+--[[ 2. Lấy vị trí CFrame của HumanoidRootPart ]]
+function Utility.GetEnemyRootCFrame(enemy)
+    if not enemy then return nil, nil, nil end
+    local root = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")
+    if not root then return nil, nil, nil end
+    return root.CFrame, root.Position, root
+end
+
+--[[ 3. Bay đến vị trí cao hơn CFrame mục tiêu (Mặc định 30 đơn vị) ]]
+function Utility.FlyAboveTarget(enemyCFrame, heightOffset, flySpeed)
+    local basePos = typeof(enemyCFrame) == "CFrame" and enemyCFrame.Position or (typeof(enemyCFrame) == "Vector3" and enemyCFrame or (enemyCFrame and enemyCFrame.Position or Vector3.zero))
+    local height = heightOffset or S.AttackHeight or 30
+    local targetPos = basePos + Vector3.new(0, height, 0)
+    Utility.PhysicsFlyTo(targetPos, flySpeed or S.TeleportFlySpeed or 180)
+end
+
+--[[ Equip weapon tool by selected category from Backpack or Character ]]
+function Utility.EquipWeaponByType(category)
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack") or LocalPlayer:FindFirstChild("Backpack")
+    local targetType = category or S.SelectedWeaponType or "Melee"
+
+    local function MatchesType(tool)
+        if not tool or not tool:IsA("Tool") then return false end
+        local tip = tostring(tool.ToolTip or ""):lower()
+        local name = tool.Name:lower()
+
+        if targetType == "Melee" then
+            return tip:find("melee") or tool:FindFirstChild("Combat") or name:find("combat") or name:find("talon") or name:find("karate") or name:find("superhuman") or name:find("godhuman") or name:find("electric") or name:find("death step") or name:find("dark step") or name:find("dragon breath") or name:find("sanguine") or name:find("water kung fu") or name:find("sharkman")
+        elseif targetType == "Sword" then
+            return tip:find("sword") or name:find("blade") or name:find("katana") or name:find("saber") or name:find("pole") or name:find("scythe") or name:find("cutlass") or name:find("dagger") or name:find("sword") or name:find("triple") or name:find("yoru") or name:find("cursed") or name:find("hallow") or name:find("tushita") or name:find("yama") or name:find("anchor")
+        elseif targetType == "Fruit" then
+            return tip:find("fruit") or tip:find("blox fruit") or tool:FindFirstChild("LeftClickRemote") or name:find("-") or tool:FindFirstChild("Fruit")
+        elseif targetType == "Gun" then
+            return tip:find("gun") or name:find("gun") or name:find("rifle") or name:find("guitar") or name:find("bow") or name:find("cannon") or name:find("slingshot") or name:find("blaster") or name:find("pistol") or name:find("musket") or name:find("kabucha") or name:find("bizarre") or name:find("serpent") or name:find("acidum")
+        end
+        return false
+    end
+
+    -- Check currently equipped in Character
+    for _, item in ipairs(char:GetChildren()) do
+        if MatchesType(item) then
+            return item
+        end
+    end
+
+    -- Check Backpack and equip
+    if bp and hum then
+        for _, item in ipairs(bp:GetChildren()) do
+            if MatchesType(item) then
+                hum:EquipTool(item)
+                return item
+            end
+        end
+    end
+
+    -- Fallback: Return currently equipped tool or first tool in Backpack
+    local equipped = char:FindFirstChildOfClass("Tool")
+    if equipped then return equipped end
+    if bp and hum then
+        local firstTool = bp:FindFirstChildOfClass("Tool")
+        if firstTool then
+            hum:EquipTool(firstTool)
+            return firstTool
+        end
+    end
+    return nil
+end
+
+--[[ 4. Thực hiện tấn công bằng Melee (tầm xa mở rộng 350 studs) ]]
+function Utility.AttackMelee(enemy, enemyRoot)
+    local tool = Utility.EquipWeaponByType("Melee")
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
+    local eHead = enemy and enemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
+
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+
+    pcall(function()
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local cfModule = ps and ps:FindFirstChild("CombatFramework")
+        if cfModule then
+            local cf = require(cfModule)
+            if cf and cf.activeController then
+                local ctrl = cf.activeController
+                ctrl.timeToNextAttack = 0
+                ctrl.hitboxMagnitude = 350
+                ctrl:attack()
+            end
+        end
+    end)
+
+    if tool then pcall(function() tool:Activate() end) end
+
+    if regAttack and regAttack:IsA("RemoteEvent") then
+        pcall(function() regAttack:FireServer(0) end)
+        pcall(function() regAttack:FireServer(0.1) end)
+    end
+    if regHit and regHit:IsA("RemoteEvent") then
+        local hitArray1 = { [1] = { [1] = eRoot, [2] = eRoot } }
+        local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
+        pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+        pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+        pcall(function() regHit:FireServer(eRoot, { eRoot, eHead or eRoot }) end)
+    end
+    if commF and commF:IsA("RemoteFunction") then
+        pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+    end
+end
+
+--[[ 5. Thực hiện tấn công bằng Sword (tầm xa mở rộng 350 studs) ]]
+function Utility.AttackSword(enemy, enemyRoot)
+    local tool = Utility.EquipWeaponByType("Sword")
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
+    local eHead = enemy and enemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
+
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+
+    pcall(function()
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local cfModule = ps and ps:FindFirstChild("CombatFramework")
+        if cfModule then
+            local cf = require(cfModule)
+            if cf and cf.activeController then
+                local ctrl = cf.activeController
+                ctrl.timeToNextAttack = 0
+                ctrl.hitboxMagnitude = 350
+                ctrl:attack()
+            end
+        end
+    end)
+
+    if tool then
+        pcall(function() tool:Activate() end)
+        local lcr = tool:FindFirstChild("LeftClickRemote")
+        if lcr and lcr:IsA("RemoteEvent") and myRoot then
+            pcall(function() lcr:FireServer((eRoot.Position - myRoot.Position).Unit, 1, true, eRoot.Position) end)
+        end
+    end
+
+    if regAttack and regAttack:IsA("RemoteEvent") then
+        pcall(function() regAttack:FireServer(0) end)
+        pcall(function() regAttack:FireServer(0.1) end)
+    end
+    if regHit and regHit:IsA("RemoteEvent") then
+        local hitArray1 = { [1] = { [1] = eRoot, [2] = eRoot } }
+        local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
+        pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+        pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+        pcall(function() regHit:FireServer(eRoot, { eRoot, eHead or eRoot }) end)
+    end
+    if commF and commF:IsA("RemoteFunction") then
+        pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+    end
+end
+
+local fruitM1ComboIndex = 1
+
+--[[ Giải phóng trạng thái giữ chiêu (Release hold) & Reset công cụ khi dừng farm để tránh kẹt vũ khí ]]
+function Utility.ReleaseAllHeldSkills()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local VIM = game:GetService("VirtualInputManager")
+    for _, k in ipairs({ Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V, Enum.KeyCode.F }) do
+        pcall(function() VIM:SendKeyEvent(false, k, false, game) end)
+    end
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Tool") then
+            local tr = item:FindFirstChild("RemoteEvent") or item:FindFirstChildOfClass("RemoteEvent")
+            if tr then
+                pcall(function() tr:FireServer(false) end)
+                pcall(function() tr:FireServer(false, Vector3.zero) end)
+            end
+        end
+    end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, child in ipairs(hum:GetChildren()) do
+            if child:IsA("RemoteFunction") then
+                for _, key in ipairs({ "Z", "X", "C", "V", "F" }) do
+                    pcall(function() child:InvokeServer(key, "KeyUp") end)
+                    pcall(function() child:InvokeServer(key, false) end)
+                end
+            end
+        end
+        local curTool = char:FindFirstChildOfClass("Tool")
+        if curTool then
+            hum:UnequipTools()
+            task.wait(0.05)
+            hum:EquipTool(curTool)
+        end
+    end
+end
+
+--[[ 6. Thực hiện tấn công bằng M1 của Fruit (tầm xa mở rộng 350 studs) ]]
+function Utility.AttackFruitM1(enemy, enemyRoot)
+    local tool = Utility.EquipWeaponByType("Fruit")
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")))
+    local eHead = enemy and enemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return end
+    local myPos = myRoot.Position
+    local targetPos = eRoot.Position
+
+    -- 1. Mở rộng vùng nhận sát thương của quái trên Client lên 60 studs
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
+
+    -- Xoay nhân vật hướng thẳng về phía mục tiêu
+    local flatTarget = Vector3.new(targetPos.X, myPos.Y, targetPos.Z)
+    if (flatTarget - myPos).Magnitude > 0.1 then
+        myRoot.CFrame = CFrame.lookAt(myPos, flatTarget)
+    end
+
+    local diff = (targetPos - myPos)
+    local aim3D = (diff.Magnitude > 0) and diff.Unit or Vector3.new(0, -1, 0)
+    local aimFlat = Vector3.new(diff.X, 0, diff.Z)
+    local aimHorizontal = (aimFlat.Magnitude > 0) and aimFlat.Unit or aim3D
+
+    local combo = fruitM1ComboIndex
+    fruitM1ComboIndex = (fruitM1ComboIndex % 4) + 1
+
+    -- 2. Bắn trực tiếp LeftClickRemote với combo 1..4 và vector hướng chuẩn
+    if tool then
+        pcall(function() tool:Activate() end)
+        local lcr = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("LeftClickRemote", true)
+        if lcr and lcr:IsA("RemoteEvent") then
+            pcall(function() lcr:FireServer(aimHorizontal, combo, true, targetPos) end)
+            pcall(function() lcr:FireServer(aim3D, combo, true, targetPos) end)
+        end
+    end
+
+    -- 3. Kích hoạt CombatFramework với tầm với mở rộng 350 studs
+    pcall(function()
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local cfModule = ps and ps:FindFirstChild("CombatFramework")
+        if cfModule then
+            local cf = require(cfModule)
+            if cf and cf.activeController then
+                local ctrl = cf.activeController
+                ctrl.timeToNextAttack = 0
+                ctrl.hitboxMagnitude = 350
+                ctrl:attack()
+            end
+        end
+    end)
+
+    -- 4. Gửi RegisterAttack và RegisterHit lên server gây sát thương
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+
+    if regAttack and regAttack:IsA("RemoteEvent") then
+        pcall(function() regAttack:FireServer(0) end)
+        pcall(function() regAttack:FireServer(0.1) end)
+    end
+    if regHit and regHit:IsA("RemoteEvent") then
+        local hitArray1 = { [1] = { [1] = eRoot, [2] = eRoot } }
+        local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
+        pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+        pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+        pcall(function() regHit:FireServer(eRoot, { eRoot, eHead or eRoot }) end)
+    end
+    if commF and commF:IsA("RemoteFunction") then
+        pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+    end
+end
+
+local lastGunClickTime = 0
+
+--[[ 7. Thực hiện tấn công bằng Gun (VIM click ngoài màn hình mỗi 1s, xả 6 hit sát thương) ]]
+function Utility.AttackGun(enemy, enemyRoot)
+    local tool = Utility.EquipWeaponByType("Gun")
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
+    local eHead = enemy and enemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+    local targetPos = eRoot.Position
+
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local shootGunEvent = net and net:FindFirstChild("RE/ShootGunEvent")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+
+    -- 1. Kích hoạt VirtualInputManager tại vị trí (0, 0) trên màn hình mỗi 1s
+    if tick() - lastGunClickTime >= 1 then
+        lastGunClickTime = tick()
+        if tool then
+            pcall(function() tool:Activate() end)
+        end
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            task.delay(0.001, function()
+                pcall(function()
+                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                end)
+            end)
+        end)
+    end
+
+    -- 2. Gây 6 đợt sát thương trực tiếp siêu tốc
+    local hitArray1 = { [1] = { [1] = eRoot, [2] = eRoot } }
+    local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
+
+    for i = 1, 6 do
+        if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
+            pcall(function() shootGunEvent:FireServer(targetPos, { eRoot }) end)
+            pcall(function() shootGunEvent:FireServer(targetPos, {}) end)
+            pcall(function() shootGunEvent:FireServer(targetPos, { eHead or eRoot }) end)
+        end
+
+        if regAttack and regAttack:IsA("RemoteEvent") then
+            pcall(function() regAttack:FireServer(0) end)
+            pcall(function() regAttack:FireServer(0.1) end)
+        end
+
+        if regHit and regHit:IsA("RemoteEvent") then
+            pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+            pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+            pcall(function() regHit:FireServer(eRoot, { eRoot, eHead or eRoot }) end)
+        end
+    end
+
+    if commF and commF:IsA("RemoteFunction") then
+        pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+    end
+end
+
+--[[ 8. Định hướng chiêu thức đến mục tiêu ]]
+function Utility.AimTarget(targetPosition)
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position or Vector3.zero
+
+    local downTargetPos = Vector3.new(myPos.X, -100, myPos.Z)
+    local downAimCF = CFrame.lookAt(myPos, downTargetPos)
+    local downHitCF = CFrame.new(downTargetPos)
+    local downDir = Vector3.new(0, -1, 0)
+
+    if myRoot and targetPosition then
+        local flatTarget = Vector3.new(targetPosition.X, myPos.Y, targetPosition.Z)
+        if (flatTarget - myPos).Magnitude > 0.5 then
+            myRoot.CFrame = CFrame.lookAt(myPos, flatTarget)
+        end
+    end
+
+    return downTargetPos, downAimCF, downHitCF, downDir
+end
+
+--[[ 9. Thi triển kỹ năng cho Melee (Z, X, C) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
+function Utility.CastSkillsMelee(targetPosition, enemy)
+    local tool = Utility.EquipWeaponByType("Melee")
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
+    local skillRemotes = {}
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local skillKeys = {}
+    if S.MeleeSkillZ then table.insert(skillKeys, "Z") end
+    if S.MeleeSkillX then table.insert(skillKeys, "X") end
+    if S.MeleeSkillC then table.insert(skillKeys, "C") end
+
+    for _, key in ipairs(skillKeys) do
+        if not char.Parent or not hum or hum.Health <= 0 then break end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+        local myPos = myRoot.Position
+        local aimCF = CFrame.lookAt(myPos, currentTargetPos)
+        local hitCF = curPart and curPart.CFrame or CFrame.new(currentTargetPos)
+
+        -- 1. Kích hoạt chiêu thức Melee
+        for _, rf in ipairs(skillRemotes) do
+            task.spawn(function()
+                pcall(function() rf:InvokeServer(key, aimCF, hitCF, "Aaa") end)
+            end)
+        end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời đánh thường gây sát thương
+        local duration = S.HoldMeleeSkills and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
+            end
+            Utility.AttackMelee(enemy, livePart)
+            task.wait(0.035)
+        end
+
+        task.wait(0.12)
+    end
+end
+
+--[[ 10. Thi triển kỹ năng cho Fruit (Z, X, C, V, F) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
+function Utility.CastSkillsFruit(targetPosition, enemy)
+    local tool = Utility.EquipWeaponByType("Fruit")
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
+    local skillRemotes = {}
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local skillKeys = {}
+    if S.FruitSkillZ then table.insert(skillKeys, "Z") end
+    if S.FruitSkillX then table.insert(skillKeys, "X") end
+    if S.FruitSkillC then table.insert(skillKeys, "C") end
+    if S.FruitSkillV then table.insert(skillKeys, "V") end
+    if S.FruitSkillF then table.insert(skillKeys, "F") end
+
+    for _, key in ipairs(skillKeys) do
+        if not char.Parent or not hum or hum.Health <= 0 then break end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Fruit
+        for _, rf in ipairs(skillRemotes) do
+            task.spawn(function()
+                pcall(function() rf:InvokeServer(key) end)
+            end)
+        end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời đánh thường M1 Fruit
+        local duration = S.HoldFruitSkills and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
+            end
+            Utility.AttackFruitM1(enemy, livePart)
+            task.wait(0.035)
+        end
+
+        task.wait(0.12)
+    end
+end
+
+--[[ 11. Thi triển kỹ năng cho Sword (Z, X) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
+function Utility.CastSkillsSword(targetPosition, enemy)
+    local tool = Utility.EquipWeaponByType("Sword")
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
+    local skillRemotes = {}
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local skillKeys = {}
+    if S.SwordSkillZ then table.insert(skillKeys, "Z") end
+    if S.SwordSkillX then table.insert(skillKeys, "X") end
+
+    for _, key in ipairs(skillKeys) do
+        if not char.Parent or not hum or hum.Health <= 0 then break end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Sword
+        for _, rf in ipairs(skillRemotes) do
+            task.spawn(function()
+                pcall(function() rf:InvokeServer(key, currentTargetPos) end)
+            end)
+        end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời chém thường Sword
+        local duration = S.HoldSwordSkills and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
+            end
+            Utility.AttackSword(enemy, livePart)
+            task.wait(0.035)
+        end
+
+        task.wait(0.12)
+    end
+end
+
+--[[ 12. Thi triển kỹ năng cho Gun (Z, X) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
+function Utility.CastSkillsGun(targetPosition, enemy)
+    local tool = Utility.EquipWeaponByType("Gun")
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
+    local skillRemotes = {}
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
+        end
+    end
+
+    local skillKeys = {}
+    if S.GunSkillZ then table.insert(skillKeys, "Z") end
+    if S.GunSkillX then table.insert(skillKeys, "X") end
+
+    for _, key in ipairs(skillKeys) do
+        if not char.Parent or not hum or hum.Health <= 0 then break end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Gun
+        for _, rf in ipairs(skillRemotes) do
+            task.spawn(function()
+                pcall(function() rf:InvokeServer(key) end)
+            end)
+        end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời xả đạn thường Gun
+        local duration = S.HoldGunSkills and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
+            end
+            Utility.AttackGun(enemy, livePart)
+            task.wait(0.035)
+        end
+
+        task.wait(0.12)
+    end
+end
+
+--[[ Start auto attack nearest enemy routine ]]
+function Utility.StartAutoAttackNearestEnemy()
+    DisconnectConnection("autoAttackEnemyLoop")
+    _conns["autoAttackEnemyLoop"] = task.spawn(function()
+        while S.AutoAttackEnemyEnabled do
+            local enemy = Utility.GetNearestEnemyFromFolder()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if enemy and root and hum and hum.Health > 0 then
+                local eHum = enemy:FindFirstChildOfClass("Humanoid")
+                local eCF, ePos, eRoot = Utility.GetEnemyRootCFrame(enemy)
+
+                if eRoot and eHum and eHum.Health > 0 then
+                    -- 3. Bay đến độ cao mục tiêu (mặc định 30 studs)
+                    Utility.FlyAboveTarget(eCF, S.AttackHeight or 30, S.TeleportFlySpeed or 180)
+
+                    local wType = S.SelectedWeaponType or "Melee"
+                    if wType == "Melee" then
+                        Utility.AttackMelee(enemy, eRoot)
+                    elseif wType == "Sword" then
+                        Utility.AttackSword(enemy, eRoot)
+                    elseif wType == "Fruit" then
+                        Utility.AttackFruitM1(enemy, eRoot)
+                    elseif wType == "Gun" then
+                        Utility.AttackGun(enemy, eRoot)
+                    end
+
+                    if S.AutoFarmUseSkills then
+                        if wType == "Melee" then
+                            Utility.CastSkillsMelee(ePos, enemy)
+                        elseif wType == "Fruit" then
+                            Utility.CastSkillsFruit(ePos, enemy)
+                        elseif wType == "Sword" then
+                            Utility.CastSkillsSword(ePos, enemy)
+                        elseif wType == "Gun" then
+                            Utility.CastSkillsGun(ePos, enemy)
+                        end
+                    end
+                end
+            else
+                Utility.StopPhysicsFly()
+            end
+            task.wait(0.035)
+        end
+        Utility.StopPhysicsFly()
+    end)
+end
+
+--[[ Stop auto attack nearest enemy routine ]]
+function Utility.StopAutoAttackNearestEnemy()
+    DisconnectConnection("autoAttackEnemyLoop")
+    Utility.ReleaseAllHeldSkills()
+    Utility.StopPhysicsFly()
+end
+
+--[[ Start auto farm nearest enemy with skills routine ]]
+function Utility.StartAutoFarmWithSkills()
+    DisconnectConnection("autoFarmSkills")
+    _conns["autoFarmSkills"] = task.spawn(function()
+        while S.AutoFarmWithSkillsEnabled do
+            local enemy = Utility.GetNearestEnemyFromFolder()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+
+            if enemy and root and hum and hum.Health > 0 then
+                local eHum = enemy:FindFirstChildOfClass("Humanoid")
+                local eCF, ePos, eRoot = Utility.GetEnemyRootCFrame(enemy)
+
+                if eRoot and eHum and eHum.Health > 0 then
+                    Utility.FlyAboveTarget(eCF, S.AttackHeight or 30, S.TeleportFlySpeed or 180)
+                    local wType = S.SelectedWeaponType or "Melee"
+                    if wType == "Melee" then
+                        Utility.AttackMelee(enemy, eRoot)
+                        Utility.CastSkillsMelee(ePos, enemy)
+                    elseif wType == "Fruit" then
+                        Utility.AttackFruitM1(enemy, eRoot)
+                        Utility.CastSkillsFruit(ePos, enemy)
+                    elseif wType == "Sword" then
+                        Utility.AttackSword(enemy, eRoot)
+                        Utility.CastSkillsSword(ePos, enemy)
+                    elseif wType == "Gun" then
+                        Utility.AttackGun(enemy, eRoot)
+                        Utility.CastSkillsGun(ePos, enemy)
+                    end
+                end
+            else
+                Utility.StopPhysicsFly()
+            end
+            task.wait(0.035)
+        end
+        Utility.StopPhysicsFly()
+    end)
+end
+
+--[[ Stop auto farm nearest enemy with skills routine ]]
+function Utility.StopAutoFarmWithSkills()
+    DisconnectConnection("autoFarmSkills")
+    Utility.ReleaseAllHeldSkills()
+    Utility.StopPhysicsFly()
+end
+
+local lastRaceV3Time = 0
+local lastAwakeningV4Time = 0
+
+--[[ Kích hoạt tộc V3 với debounce chống spam lag ]]
+function Utility.TriggerAutoRaceV3()
+    if os.clock() - lastRaceV3Time < 4 then return end
+    lastRaceV3Time = os.clock()
+
+    pcall(function()
+        local rep = game:GetService("ReplicatedStorage")
+        local events = rep:FindFirstChild("Events")
+        local raceEvent = events and events:FindFirstChild("UsedRaceSkill")
+        if raceEvent then
+            if firesignal then
+                firesignal(raceEvent.OnClientEvent)
+            end
+        end
+    end)
+end
+
+--[[ Kích hoạt thức tỉnh tộc V4 không gây block thread ]]
+function Utility.TriggerAutoAwakeningV4()
+    if os.clock() - lastAwakeningV4Time < 5 then return end
+    lastAwakeningV4Time = os.clock()
+
+    task.spawn(function()
+        pcall(function()
+            local char = LocalPlayer.Character
+            local bp = LocalPlayer:FindFirstChild("Backpack")
+            local awakening = (bp and bp:FindFirstChild("Awakening")) or (char and char:FindFirstChild("Awakening"))
+            if awakening then
+                local remote = awakening:FindFirstChild("RemoteFunction") or awakening:FindFirstChildOfClass("RemoteFunction")
+                if remote then
+                    remote:InvokeServer(true)
+                end
+            end
+        end)
+    end)
+end
+
+--[[ Vòng lặp tự động kích hoạt V3 và V4 tối ưu hiệu năng ]]
+function Utility.StartAutoAwakeningLoop()
+    DisconnectConnection("autoAwakeningLoop")
+    _conns["autoAwakeningLoop"] = task.spawn(function()
+        while S.AutoRaceV3 or S.AutoAwakeningV4 do
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                if S.AutoRaceV3 then
+                    Utility.TriggerAutoRaceV3()
+                end
+                if S.AutoAwakeningV4 then
+                    Utility.TriggerAutoAwakeningV4()
+                end
+            end
+            task.wait(2.5)
+        end
+    end)
+end
+
 --[[ Start Fly Follow Player loop ]]
 function Utility.StartFlyFollowPlayer()
     if not S.SelectedPlayer then
@@ -2265,181 +3993,6 @@ end
 function Utility.StopFlyFollowPlayer()
     DisconnectConnection("teleportPlayerLoop")
     Utility.ResetCameraAndCharacter()
-end
-
---[[ Start Island ESP loop ]]
-function Utility.StartIslandESP()
-    if not IslandESP_Folder then
-        IslandESP_Folder = Instance.new("Folder")
-        IslandESP_Folder.Name = "IslandESP_Container"
-        IslandESP_Folder.Parent = CoreGui
-    end
-
-    DisconnectConnection("islandEspLoop")
-    _conns["islandEspLoop"] = RunService.Heartbeat:Connect(function()
-        if not S.IslandESPEnabled then
-            DisconnectConnection("islandEspLoop")
-            if IslandESP_Folder then IslandESP_Folder:ClearAllChildren() end
-            return
-        end
-
-        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return end
-
-        local currentIslands = Utility.GetIslandList()
-        for _, islName in ipairs(currentIslands) do
-            local islObj = Utility.GetIslandObject(islName)
-            if islObj then
-                local primaryPart = islObj.PrimaryPart or islObj:FindFirstChildOfClass("BasePart")
-                if primaryPart then
-                    local espUI = IslandESP_Folder:FindFirstChild("ESP_" .. islName)
-                    local dist = math.floor((primaryPart.Position - myRoot.Position).Magnitude)
-                    local textStr = string.format("🏝️ %s\n[%d studs]", islName, dist)
-
-                    if not espUI then
-                        espUI = Utility.CreateESPLabel(primaryPart, textStr, Color3.fromRGB(0, 255, 170))
-                        espUI.Name = "ESP_" .. islName
-                        espUI.Parent = IslandESP_Folder
-                    else
-                        local lbl = espUI:FindFirstChildOfClass("TextLabel")
-                        if lbl then lbl.Text = textStr end
-                    end
-                end
-            end
-        end
-    end)
-end
-
---[[ Stop Island ESP loop ]]
-function Utility.StopIslandESP()
-    DisconnectConnection("islandEspLoop")
-    if IslandESP_Folder then IslandESP_Folder:ClearAllChildren() end
-end
-
---[[ Start Player ESP loop ]]
-function Utility.StartPlayerESP()
-    if not PlayerESP_Folder then
-        PlayerESP_Folder = Instance.new("Folder")
-        PlayerESP_Folder.Name = "PlayerESP_Container"
-        PlayerESP_Folder.Parent = CoreGui
-    end
-
-    DisconnectConnection("playerEspLoop")
-    _conns["playerEspLoop"] = RunService.Heartbeat:Connect(function()
-        if not S.PlayerESPEnabled then
-            DisconnectConnection("playerEspLoop")
-            if PlayerESP_Folder then PlayerESP_Folder:ClearAllChildren() end
-            return
-        end
-
-        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not myRoot then return end
-
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local targetRoot = p.Character.HumanoidRootPart
-                local espUI = PlayerESP_Folder:FindFirstChild("ESP_" .. p.Name)
-                local dist = math.floor((targetRoot.Position - myRoot.Position).Magnitude)
-                local isSelf = (p == LocalPlayer)
-                local displayName = isSelf and (p.Name .. " (You)") or p.Name
-                local textStr = string.format("👤 %s\n[%d studs]", displayName, dist)
-                local labelColor = isSelf and Color3.fromRGB(163, 230, 53) or Color3.fromRGB(255, 220, 0)
-
-                if not espUI then
-                    espUI = Utility.CreateESPLabel(targetRoot, textStr, labelColor)
-                    espUI.Name = "ESP_" .. p.Name
-                    espUI.Parent = PlayerESP_Folder
-                else
-                    local lbl = espUI:FindFirstChildOfClass("TextLabel")
-                    if lbl then lbl.Text = textStr end
-                end
-            end
-        end
-    end)
-end
-
---[[ Stop Player ESP loop ]]
-function Utility.StopPlayerESP()
-    DisconnectConnection("playerEspLoop")
-    if PlayerESP_Folder then PlayerESP_Folder:ClearAllChildren() end
-end
-
---[[ Start Boat Seat Live ESP loop ]]
-function Utility.StartBoatSeatESP(targetOwnerName)
-    if not SeatESP_Folder then
-        SeatESP_Folder = Instance.new("Folder")
-        SeatESP_Folder.Name = "SeatESP_Folder"
-        SeatESP_Folder.Parent = CoreGui
-    end
-
-    DisconnectConnection("boatSeatEspLoop")
-    _conns["boatSeatEspLoop"] = RunService.RenderStepped:Connect(function()
-        if not S.BoatSeatESPEnabled then
-            DisconnectConnection("boatSeatEspLoop")
-            if SeatESP_Folder then SeatESP_Folder:ClearAllChildren() end
-            return
-        end
-
-        local ownerName = (targetOwnerName ~= "") and targetOwnerName or S.SelectedBoatOwner
-        local boat = (ownerName ~= "" and Utility.GetBoatByOwner(ownerName)) or Utility.GetBoat()
-        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local myPos = myRoot and myRoot.Position or Vector3.zero
-
-        if boat and boat.Parent then
-            local vSeat = boat:FindFirstChildOfClass("VehicleSeat") or boat:FindFirstChild("VehicleSeat", true)
-            if vSeat then
-                local esp = SeatESP_Folder:FindFirstChild("ESP_VehicleSeat")
-                local pos = vSeat.Position
-                local d = math.floor((pos - myPos).Magnitude)
-                local occ = vSeat.Occupant and vSeat.Occupant.Parent and vSeat.Occupant.Parent.Name or "Empty"
-                local textStr = string.format("🚗 Driver Seat [%s]\n(%.1f, %.1f, %.1f)\n[%d studs]", occ, pos.X, pos.Y, pos.Z, d)
-                if not esp then
-                    esp = Utility.CreateESPLabel(vSeat, textStr, Color3.fromRGB(0, 255, 170))
-                    esp.Name = "ESP_VehicleSeat"
-                    esp.Parent = SeatESP_Folder
-                else
-                    local lbl = esp:FindFirstChildOfClass("TextLabel")
-                    if lbl then lbl.Text = textStr end
-                end
-            end
-
-            local cIndex = 0
-            for _, child in ipairs(boat:GetChildren()) do
-                if child.Name == "Cannon" then
-                    cIndex = cIndex + 1
-                    local seat = child:FindFirstChildOfClass("Seat") or child:FindFirstChild("Seat")
-                    if seat then
-                        local espName = "ESP_Cannon_" .. cIndex
-                        local esp = SeatESP_Folder:FindFirstChild(espName)
-                        local pos = seat.Position
-                        local d = math.floor((pos - myPos).Magnitude)
-                        local occ = seat.Occupant and seat.Occupant.Parent and seat.Occupant.Parent.Name or "Empty"
-                        local textStr = string.format("💣 Cannon %d [%s]\n(%.1f, %.1f, %.1f)\n[%d studs]", cIndex, occ, pos.X, pos.Y, pos.Z, d)
-                        local color = (occ == "Empty") and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 80, 80)
-                        if not esp then
-                            esp = Utility.CreateESPLabel(seat, textStr, color)
-                            esp.Name = espName
-                            esp.Parent = SeatESP_Folder
-                        else
-                            local lbl = esp:FindFirstChildOfClass("TextLabel")
-                            if lbl then 
-                                lbl.Text = textStr
-                                lbl.TextColor3 = color
-                            end
-                        end
-                    end
-                end
-            end
-        else
-            if SeatESP_Folder then SeatESP_Folder:ClearAllChildren() end
-        end
-    end)
-end
-
---[[ Stop Boat Seat Live ESP loop ]]
-function Utility.StopBoatSeatESP()
-    DisconnectConnection("boatSeatEspLoop")
-    if SeatESP_Folder then SeatESP_Folder:ClearAllChildren() end
 end
 
 --[[ Start Player Panel live update loop ]]
@@ -2523,14 +4076,18 @@ function Utility.UnloadAllScript()
     S.MultipleFindLeviathanEnabled = false
     S.AutoShootLeviEnabled = false
     S.AutoAttackEnemyEnabled = false
+    S.AutoAttackLeviEnabled = false
+    S.AutoSkillsLeviEnabled = false
+    S.AutoFarmWithSkillsEnabled = false
+    S.AutoFarmSeaEventsEnabled = false
+    S.AutoFarmSeaEventsSkills = false
+    S.AutoRaceV3 = false
+    S.AutoAwakeningV4 = false
     S.BoatNoClipEnabled = false
     S.PlayerNoClipEnabled = false
     S.WalkOnWaterEnabled = false
     S.EnableBoatSpeed = false
     S.TeleportPlayerEnabled = false
-    S.IslandESPEnabled = false
-    S.PlayerESPEnabled = false
-    S.BoatSeatESPEnabled = false
     S.ResetWhenBoatDestroyed = false
     S.ResetWhenSelectedOwnerDie = false
     S.AutoTalkFrozenWatcherEnabled = false
@@ -2542,6 +4099,15 @@ function Utility.UnloadAllScript()
     DisconnectConnection("autoBuyBoat")
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
+    DisconnectConnection("autoAttackLevi")
+    DisconnectConnection("autoSkillsLevi")
+    DisconnectConnection("autoFarmSkills")
+    DisconnectConnection("autoFarmSeaEvents")
+    DisconnectConnection("seaEventsBoatFly")
+    DisconnectConnection("terrorsharkBodyMover")
+    DisconnectConnection("autoAwakeningLoop")
+    DisconnectConnection("autoBusoLoop")
+    DisconnectConnection("autoAttackEnemyLoop")
     DisconnectConnection("boatNavLoop")
     DisconnectConnection("resetWhenBoatDestroyed")
     DisconnectConnection("resetWhenOwnerDie")
@@ -2549,9 +4115,6 @@ function Utility.UnloadAllScript()
     DisconnectConnection("autoShootLev")
     DisconnectConnection("bspd")
     DisconnectConnection("teleportPlayerLoop")
-    DisconnectConnection("islandEspLoop")
-    DisconnectConnection("playerEspLoop")
-    DisconnectConnection("boatSeatEspLoop")
     DisconnectConnection("playerPanelLoop")
     DisconnectConnection("renderLoop")
     DisconnectConnection("antiAfk")
@@ -2561,9 +4124,6 @@ function Utility.UnloadAllScript()
     if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
     Utility.StopPhysicsFly()
 
-    if IslandESP_Folder then IslandESP_Folder:Destroy() end
-    if PlayerESP_Folder then PlayerESP_Folder:Destroy() end
-    if SeatESP_Folder then SeatESP_Folder:Destroy() end
     if WaterPart and WaterPart.Parent then WaterPart:Destroy() end
 
     Window:Destroy()
@@ -2578,18 +4138,37 @@ local LevTab = Window:AddTab({ Name = "Leviathan", Icon = "" })
 
 LevTab:AddSection("Auto Shoot Leviathan Heart (Beast Hunter)")
 
-LevTab:AddDropdown({
-    Name    = "Select Boat",
-    Desc    = "Choose boat for Auto Shoot Heart",
-    Options = { "Shoot with your boat", "Shoot with owner boat" },
+local function GetShootBoatDropdownOptions()
+    local opts = { "My Boat" }
+    for _, name in ipairs(Utility.GetPlayerList()) do
+        table.insert(opts, name)
+    end
+    return opts
+end
+
+local ShootBoatDropdown = LevTab:AddDropdown({
+    Name    = "Select Boat for Shoot Heart",
+    Desc    = "Default: My Boat (or select another player's boat)",
+    Options = GetShootBoatDropdownOptions(),
     Callback = function(opt)
-        S.AutoShootBoatMode = opt
+        if opt == "My Boat" or opt == "None" or opt == "" then
+            S.AutoShootBoatOwner = ""
+        else
+            S.AutoShootBoatOwner = opt
+        end
     end,
 })
 
+_conns["shootBoatPlrAdded"] = Players.PlayerAdded:Connect(function()
+    if ShootBoatDropdown then ShootBoatDropdown:Refresh(GetShootBoatDropdownOptions()) end
+end)
+_conns["shootBoatPlrRemoved"] = Players.PlayerRemoving:Connect(function()
+    if ShootBoatDropdown then ShootBoatDropdown:Refresh(GetShootBoatDropdownOptions()) end
+end)
+
 LevTab:AddToggle({
     Name    = "Auto Shoot Leviathan Heart",
-    Desc    = "Auto fly to boat and use harpoon",
+    Desc    = "Auto fly boat, sit Harpoon and shoot heart",
     Default = false,
     Callback = function(val)
         S.AutoShootLeviEnabled = val
@@ -2597,6 +4176,46 @@ LevTab:AddToggle({
             Utility.StartAutoShootLeviathan()
         else
             Utility.StopAutoShootLeviathan()
+        end
+    end,
+})
+
+LevTab:AddSection("Auto Attack Leviathan")
+
+LevTab:AddDropdown({
+    Name    = "Select Weapon for Leviathan",
+    Desc    = "Choose weapon or rotate all (reads skills from Farm Setting)",
+    Options = { "Melee", "Sword", "Fruit", "Gun", "Rotate All" },
+    Default = S.LeviathanSelectedWeapon or "Melee",
+    Callback = function(opt)
+        S.LeviathanSelectedWeapon = opt
+    end,
+})
+
+AutoAttackLeviToggle = LevTab:AddToggle({
+    Name    = "Auto Attack Leviathan",
+    Desc    = "Fly to Leviathan Segments then Leviathan",
+    Default = false,
+    Callback = function(val)
+        S.AutoAttackLeviEnabled = val
+        if val then
+            Utility.StartAutoAttackLeviathan()
+        else
+            Utility.StopAutoAttackLeviathan()
+        end
+    end,
+})
+
+AutoSkillsLeviToggle = LevTab:AddToggle({
+    Name    = "Auto Use Skills to Attack Leviathan",
+    Desc    = "Auto cast configured weapon skills and aim at Leviathan",
+    Default = false,
+    Callback = function(val)
+        S.AutoSkillsLeviEnabled = val
+        if val then
+            Utility.StartAutoSkillsLeviathan()
+        else
+            Utility.StopAutoSkillsLeviathan()
         end
     end,
 })
@@ -2633,7 +4252,7 @@ FindLeviathanToggle = LevTab:AddToggle({
     Default = false,
     Callback = function(val)
         S.FindLeviathanEnabled = val
-        S.BoatNoClipEnabled    = val
+        Utility.SetBoatNoClip(val)
         if val then
             Utility.StartFindLeviathan()
         else
@@ -2884,7 +4503,323 @@ AutoFlyHydraToggle = LevTab:AddToggle({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 2 : TELEPORT
+--  TAB 2 : SEA EVENTS
+-- ═══════════════════════════════════════════════════════════
+local SeaEventsTab = Window:AddTab({ Name = "Sea Events", Icon = "" })
+
+SeaEventsTab:AddSection("Sea Events Configuration")
+
+SeaEventsTab:AddDropdown({
+    Name    = "Select Boat",
+    Desc    = "Choose boat to auto farm Sea Events",
+    Options = {
+        "Beast Hunter",
+        "Grand Brigade",
+        "Guardian",
+        "Miracle",
+        "PirateBrigade",
+        "Swan Ship",
+        "Flower Ship",
+        "Enel's Ship",
+        "Speed Boat",
+        "Galleon",
+        "Sloop",
+        "Dinghy"
+    },
+    Default = S.SeaEventsBoat or "Beast Hunter",
+    Callback = function(opt)
+        S.SeaEventsBoat = opt
+    end,
+})
+
+SeaEventsTab:AddDropdown({
+    Name    = "Select Weapon",
+    Desc    = "Choose weapon to attack Sea Events",
+    Options = { "Melee", "Sword", "Fruit", "Gun" },
+    Default = S.SeaEventsWeapon or "Melee",
+    Callback = function(opt)
+        S.SeaEventsWeapon = opt
+        Utility.EquipWeaponByType(opt)
+    end,
+})
+
+SeaEventsTab:AddDropdown({
+    Name    = "Select Sea Event",
+    Desc    = "Filter target Sea Events (or All)",
+    Options = { "All", "Shark", "Piranha", "Fish Crew", "Pirate Ships", "Sea Beast", "Terrorshark" },
+    Default = S.SelectedSeaEvent or "All",
+    Callback = function(opt)
+        S.SelectedSeaEvent = opt
+    end,
+})
+
+SeaEventsTab:AddSection("Auto Farm Actions")
+
+AutoFarmSeaEventsToggle = SeaEventsTab:AddToggle({
+    Name    = "Auto Farm Sea Events",
+    Desc    = "Continuous boat flight, anchor boat at Y=-200 during events & attack",
+    Default = false,
+    Callback = function(val)
+        S.AutoFarmSeaEventsEnabled = val
+        if val then
+            Utility.StartAutoFarmSeaEvents()
+        else
+            Utility.StopAutoFarmSeaEvents()
+        end
+    end,
+})
+
+SeaEventsTab:AddToggle({
+    Name    = "Auto Farm Sea Events With Skills",
+    Desc    = "Cast weapon skills & auto-aim during sea event combat",
+    Default = false,
+    Callback = function(val)
+        S.AutoFarmSeaEventsSkills = val
+    end,
+})
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 3 : AUTO FARM
+-- ═══════════════════════════════════════════════════════════
+local FarmTab = Window:AddTab({ Name = "Auto Farm", Icon = "" })
+
+FarmTab:AddSection("Weapon & Combat Configuration")
+
+FarmTab:AddDropdown({
+    Name    = "Select Weapon Type",
+    Desc    = "Choose weapon category (Melee, Sword, Fruit, Gun)",
+    Options = { "Melee", "Sword", "Fruit", "Gun" },
+    Default = S.SelectedWeaponType or "Melee",
+    Callback = function(opt)
+        S.SelectedWeaponType = opt
+        Utility.EquipWeaponByType(opt)
+    end,
+})
+
+FarmTab:AddSlider({
+    Name    = "Attack Height",
+    Desc    = "Hover height above enemy CFrame (studs)",
+    Min     = 5, Max = 60, Default = S.AttackHeight or 30, Suffix = " studs",
+    Callback = function(v)
+        S.AttackHeight = v
+    end,
+})
+
+FarmTab:AddSlider({
+    Name    = "Farm Fly Speed",
+    Desc    = "Flight speed when moving between targets",
+    Min     = 50, Max = 350, Default = S.TeleportFlySpeed or 180, Suffix = " sp",
+    Callback = function(v)
+        S.TeleportFlySpeed = v
+    end,
+})
+
+FarmTab:AddSection("Auto Farm Actions")
+
+FarmTab:AddToggle({
+    Name    = "Auto Farm Nearest Enemy",
+    Desc    = "Automatically fly to and attack nearest enemy",
+    Default = false,
+    Callback = function(val)
+        S.AutoAttackEnemyEnabled = val
+        if val then
+            Utility.StartAutoAttackNearestEnemy()
+        else
+            Utility.StopAutoAttackNearestEnemy()
+        end
+    end,
+})
+
+FarmTab:AddToggle({
+    Name    = "Use Skills While Farming",
+    Desc    = "Automatically cast weapon skills (Z, X, C, V) while farming",
+    Default = false,
+    Callback = function(val)
+        S.AutoFarmUseSkills = val
+    end,
+})
+
+FarmTab:AddToggle({
+    Name    = "Farm with Skills Only",
+    Desc    = "Auto cast skills only on nearest enemy (Skill testing mode)",
+    Default = false,
+    Callback = function(val)
+        S.AutoFarmWithSkillsEnabled = val
+        if val then
+            Utility.StartAutoFarmWithSkills()
+        else
+            Utility.StopAutoFarmWithSkills()
+        end
+    end,
+})
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 4 : FARM SETTING
+-- ═══════════════════════════════════════════════════════════
+local FarmSettingTab = Window:AddTab({ Name = "Farm Setting", Icon = "" })
+
+FarmSettingTab:AddSection("Race Skills & Awakening (V3 & V4)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Auto Race V3",
+    Desc    = "Automatically activate Race V3 skill",
+    Default = false,
+    Callback = function(val)
+        S.AutoRaceV3 = val
+        if val then
+            Utility.StartAutoAwakeningLoop()
+        end
+    end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Auto Awakening V4",
+    Desc    = "Automatically activate Race V4 Awakening",
+    Default = false,
+    Callback = function(val)
+        S.AutoAwakeningV4 = val
+        if val then
+            Utility.StartAutoAwakeningLoop()
+        end
+    end,
+})
+
+FarmSettingTab:AddSection("Skill Hold Duration Settings")
+
+FarmSettingTab:AddToggle({
+    Name    = "Hold Melee Skills",
+    Desc    = "Hold Melee skills and aim continuously at target",
+    Default = false,
+    Callback = function(val) S.HoldMeleeSkills = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Hold Fruit Skills",
+    Desc    = "Hold Fruit skills and aim continuously at target",
+    Default = false,
+    Callback = function(val) S.HoldFruitSkills = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Hold Sword Skills",
+    Desc    = "Hold Sword skills and aim continuously at target",
+    Default = false,
+    Callback = function(val) S.HoldSwordSkills = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Hold Gun Skills",
+    Desc    = "Hold Gun skills and aim continuously at target",
+    Default = false,
+    Callback = function(val) S.HoldGunSkills = val end,
+})
+
+FarmSettingTab:AddSlider({
+    Name    = "Skill Hold Duration",
+    Desc    = "Duration to hold and aim skill at target (seconds)",
+    Min     = 0.1, Max = 3.0, Default = 0.35, Suffix = "s",
+    Callback = function(v)
+        S.SkillHoldDuration = v
+    end,
+})
+
+FarmSettingTab:AddSection("Melee Skills (Z, X, C)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill Z",
+    Desc    = "Enable or disable Melee Z skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill X",
+    Desc    = "Enable or disable Melee X skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillX = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill C",
+    Desc    = "Enable or disable Melee C skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillC = val end,
+})
+
+FarmSettingTab:AddSection("Fruit Skills (Z, X, C, V, F)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill Z",
+    Desc    = "Enable or disable Fruit Z skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill X",
+    Desc    = "Enable or disable Fruit X skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillX = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill C",
+    Desc    = "Enable or disable Fruit C skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillC = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill V",
+    Desc    = "Enable or disable Fruit V skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillV = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill F",
+    Desc    = "Enable or disable Fruit F skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillF = val end,
+})
+
+FarmSettingTab:AddSection("Sword Skills (Z, X)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Sword Skill Z",
+    Desc    = "Enable or disable Sword Z skill",
+    Default = true,
+    Callback = function(val) S.SwordSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Sword Skill X",
+    Desc    = "Enable or disable Sword X skill",
+    Default = true,
+    Callback = function(val) S.SwordSkillX = val end,
+})
+
+FarmSettingTab:AddSection("Gun Skills (Z, X)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Gun Skill Z",
+    Desc    = "Enable or disable Gun Z skill",
+    Default = true,
+    Callback = function(val) S.GunSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Gun Skill X",
+    Desc    = "Enable or disable Gun X skill",
+    Default = true,
+    Callback = function(val) S.GunSkillX = val end,
+})
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 5 : TELEPORT
 -- ═══════════════════════════════════════════════════════════
 local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
@@ -2967,54 +4902,9 @@ TelTab:AddToggle({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 3 : ESP
--- ═══════════════════════════════════════════════════════════
-local EspTab = Window:AddTab({ Name = "ESP", Icon = "" })
-
-EspTab:AddSection("Visual ESP")
-
-EspTab:AddToggle({
-    Name    = "Island ESP",
-    Desc    = "Show island name and distance on UI",
-    Default = false,
-    Callback = function(val)
-        S.IslandESPEnabled = val
-        if val then
-            Utility.StartIslandESP()
-        else
-            Utility.StopIslandESP()
-        end
-    end,
-})
-
-EspTab:AddToggle({
-    Name    = "Boat Seat ESP",
-    Desc    = "Show boat driver and cannon seats on UI",
-    Default = false,
-    Callback = function(val)
-        S.BoatSeatESPEnabled = val
-        if val then
-            Utility.StartBoatSeatESP()
-        else
-            Utility.StopBoatSeatESP()
-        end
-    end,
-})
-
--- ═══════════════════════════════════════════════════════════
---  TAB 4 : MISC
+--  TAB 6 : MISC
 -- ═══════════════════════════════════════════════════════════
 local MiscTab = Window:AddTab({ Name = "Misc", Icon = "" })
-
-MiscTab:AddSection("Fix & Unstuck Controls")
-
-MiscTab:AddButton({
-    Name = "Fix Camera & Unstuck Character",
-    Desc = "Fix camera and unstuck character",
-    Callback = function()
-        Utility.ResetCameraAndCharacter()
-    end,
-})
 
 MiscTab:AddSection("Movement")
 
@@ -3035,14 +4925,7 @@ MiscTab:AddSection("NoClip")
 MiscTab:AddToggle({
     Name = "Player Noclip", Desc = "Player noclip", Default = false,
     Callback = function(val) 
-        S.PlayerNoClipEnabled = val
-        if val then
-            Utility.UpdateCharacterCache()
-        else
-            for _, part in ipairs(CharacterParts) do
-                if part and part.Parent then part.CanCollide = true end
-            end
-        end
+        Utility.SetPlayerNoClip(val)
     end,
 })
 
@@ -3068,7 +4951,7 @@ MiscTab:AddButton({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 5 : WEBHOOK CONFIG
+--  TAB 7 : WEBHOOK CONFIG
 -- ═══════════════════════════════════════════════════════════
 local WhTab = Window:AddTab({ Name = "Webhook", Icon = "" })
 
@@ -3109,7 +4992,7 @@ WhTab:AddButton({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 6 : PLAYER PANEL
+--  TAB 8 : PLAYER PANEL
 -- ═══════════════════════════════════════════════════════════
 local PlayerTab = Window:AddTab({ Name = "Player Panel", Icon = "" })
 
@@ -3163,8 +5046,21 @@ Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
     Utility.UpdateCharacterCache()
+    task.spawn(function()
+        task.wait(0.8)
+        if not Utility.IsBusoActive() then
+            Utility.EnableBuso()
+        end
+    end)
 end)
-if LocalPlayer.Character then Utility.UpdateCharacterCache() end
+if LocalPlayer.Character then 
+    Utility.UpdateCharacterCache()
+    if not Utility.IsBusoActive() then
+        Utility.EnableBuso()
+    end
+end
+Utility.StartAutoBusoLoop()
+Utility.OptimizeGraphics(true)
 
 local WaterPart = Instance.new("Part")
 WaterPart.Name = "WalkOnWaterPlatform"
@@ -3208,21 +5104,5 @@ _conns["antiAfk"] = LocalPlayer.Idled:Connect(function()
     if S.AntiAFKEnabled then
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new(0, 0))
-    end
-end)
-
-_conns["boatNoClipStepped"] = RunService.Stepped:Connect(function()
-    if S.BoatNoClipEnabled and ActiveBoat and ActiveBoat.Parent then
-        for _, part in ipairs(BoatParts) do
-            if part and part.Parent then part.CanCollide = false end
-        end
-    end
-end)
-
-_conns["playerNoClipStepped"] = RunService.Stepped:Connect(function()
-    if S.PlayerNoClipEnabled and LocalPlayer.Character then
-        for _, part in ipairs(CharacterParts) do
-            if part and part.Parent then part.CanCollide = false end
-        end
     end
 end)
