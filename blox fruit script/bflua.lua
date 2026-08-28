@@ -467,6 +467,7 @@ function UILib.CreateWindow(cfg)
             sc = sc or {}
             local lbl = sc.Name or "Slider"; local desc = sc.Desc or ""; local mn = sc.Min or 0; local mx = sc.Max or 100
             local def = sc.Default or mn; local sfx = sc.Suffix or ""; local cb = sc.Callback or function() end
+            local decimals = sc.Decimals or ((mx - mn <= 10 and (mn % 1 ~= 0 or mx % 1 ~= 0 or def % 1 ~= 0)) and 2 or 0)
             local rH = desc ~= "" and 56 or 42; local value = math.clamp(def, mn, mx)
             local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "Sl_" .. lbl, Parent = page, Radius = 5})
             local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
@@ -490,8 +491,17 @@ function UILib.CreateWindow(cfg)
             local ts = Instance.new("UIStroke"); ts.Color = THEME.ACCENT; ts.Thickness = 1; ts.Parent = thumb
             local dSlider = false
 
+            local function RoundVal(num)
+                if decimals > 0 then
+                    local mult = 10 ^ decimals
+                    return math.floor(num * mult + 0.5) / mult
+                else
+                    return math.floor(num + 0.5)
+                end
+            end
+
             local function UpdateUI(val)
-                value = math.clamp(val, mn, mx)
+                value = math.clamp(RoundVal(val), mn, mx)
                 local p = (value - mn) / (mx - mn)
                 fill.Size = UDim2.new(p, 0, 1, 0); thumb.Position = UDim2.new(p, -5, 0.5, -5)
                 valBox.Text = tostring(value) .. sfx
@@ -501,7 +511,7 @@ function UILib.CreateWindow(cfg)
             local function UpdateSliderFromInput(ax)
                 local rx = math.clamp(ax - track.AbsolutePosition.X, 0, track.AbsoluteSize.X)
                 local p = rx / track.AbsoluteSize.X
-                local v = math.floor(mn + p * (mx - mn) + 0.5)
+                local v = RoundVal(mn + p * (mx - mn))
                 UpdateUI(v)
             end
 
@@ -675,6 +685,7 @@ local S = {
     FindLeviathanEnabled        = false,
     MultipleFindLeviathanEnabled= false,
     SelectedBoatOwner           = "",
+    AutoShootBoatOwner          = "",
     AutoShootLeviEnabled        = false,
     AutoAttackEnemyEnabled      = false,
     BoatNoClipEnabled           = false,
@@ -705,9 +716,24 @@ local S = {
     AttackHeight                = 30,
     AutoFarmUseSkills           = false,
     AutoAttackLeviEnabled       = false,
-    AutoM1LeviEnabled           = false,
     AutoSkillsLeviEnabled       = false,
     AutoFarmWithSkillsEnabled   = false,
+    -- Farm Setting & Skills Configuration
+    SkillHoldEnabled            = true,
+    SkillHoldDuration           = 0.35,
+    MeleeSkillZ                 = true,
+    MeleeSkillX                 = true,
+    MeleeSkillC                 = true,
+    FruitSkillZ                 = true,
+    FruitSkillX                 = true,
+    FruitSkillC                 = true,
+    FruitSkillV                 = true,
+    FruitSkillF                 = true,
+    SwordSkillZ                 = true,
+    SwordSkillX                 = true,
+    GunSkillZ                   = true,
+    GunSkillX                   = true,
+    LeviathanSelectedWeapon     = "Melee",
 }
 
 local WAYPOINTS_TIKI = {
@@ -1335,19 +1361,13 @@ end
 function Utility.GetFrozenHeart()
     local mapFolder = workspace:FindFirstChild("Map")
     if mapFolder then
-        local fh = mapFolder:FindFirstChild("FrozenHeart") or mapFolder:FindFirstChild("Frozen Heart")
+        local fh = mapFolder:FindFirstChild("FrozenHeart")
         if fh then return fh end
-    end
 
-    local assets = workspace:FindFirstChild("Assets")
-    if assets then
-        local fh = assets:FindFirstChild("FrozenHeart") or assets:FindFirstChild("Frozen Heart")
-        if fh then return fh end
-    end
-
-    for _, child in ipairs(workspace:GetDescendants()) do
-        if child.Name == "FrozenHeart" or child.Name == "Frozen Heart" then
-            return child
+        for _, child in ipairs(mapFolder:GetChildren()) do
+            if child.Name == "FrozenHeart" then
+                return child
+            end
         end
     end
     return nil
@@ -1854,22 +1874,34 @@ end
 function Utility.StartAutoShootLeviathan()
     DisconnectConnection("autoShootLev")
     _conns["autoShootLev"] = task.spawn(function()
-        local stage = 1
+        local stage = 1        -- 1: Sit driver seat, 2: 2-step flight, 3: Sit Harpoon & Shoot
+        local flyStep = 1      -- 1: Ascend to Y=300, 2: Fly to X=fhPos.X+70 at Y=300, 3: Descend to fhPos.Y
         local lastNotify = 0
+
+        local function GetHeartPos(heart)
+            if not heart then return nil end
+            if heart:IsA("Model") then
+                local p = heart.PrimaryPart or heart:FindFirstChild("Heart") or heart:FindFirstChild("HumanoidRootPart") or heart:FindFirstChildOfClass("BasePart")
+                if p then return p.Position end
+                return heart:GetPivot().Position
+            elseif heart:IsA("BasePart") then
+                return heart.Position
+            end
+            return nil
+        end
 
         while S.AutoShootLeviEnabled do
             local targetBoat = nil
-            if S.AutoShootBoatMode == "Shoot with owner boat" or S.AutoShootBoatMode == "Shoot with other boat" then
-                if S.SelectedBoatOwner and S.SelectedBoatOwner ~= "" then
-                    targetBoat = Utility.GetBoatByOwner(S.SelectedBoatOwner)
-                end
+            if S.AutoShootBoatOwner and S.AutoShootBoatOwner ~= "" and S.AutoShootBoatOwner ~= "My Boat" then
+                targetBoat = Utility.GetBoatByOwner(S.AutoShootBoatOwner)
             else
                 targetBoat = Utility.GetBoat() or Utility.GetBeastHunterBoat() or Utility.GetPlayerBoat()
             end
 
             if not targetBoat or not targetBoat.Parent then
                 if os.clock() - lastNotify > 5 then
-                    UILib.Notify("Auto Shoot", "Waiting for boat ...", 3)
+                    local boatNameStr = (S.AutoShootBoatOwner and S.AutoShootBoatOwner ~= "" and S.AutoShootBoatOwner ~= "My Boat") and ("boat of " .. S.AutoShootBoatOwner) or "your Beast Hunter boat"
+                    UILib.Notify("Auto Shoot", "Waiting for " .. boatNameStr .. "...", 3)
                     lastNotify = os.clock()
                 end
                 task.wait(0.5)
@@ -1884,79 +1916,127 @@ function Utility.StartAutoShootLeviathan()
 
                     if not frozenHeart then
                         if os.clock() - lastNotify > 5 then
-                            UILib.Notify("Auto Shoot", "Waiting for FrozenHeart...", 4)
+                            UILib.Notify("Auto Shoot", "Waiting for FrozenHeart in workspace.Map...", 4)
                             lastNotify = os.clock()
                         end
+                        task.wait(0.5)
                     else
-                        local fhPos = frozenHeart:IsA("Model") and frozenHeart:GetPivot().Position or frozenHeart.Position
-                        local targetBoatPos = Vector3.new(fhPos.X + 10, 50, fhPos.Z)
+                        local fhPos = GetHeartPos(frozenHeart)
+                        if not fhPos then
+                            task.wait(0.5)
+                        else
+                            local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+                            att.Name = "FlyAttachment"; att.Parent = vSeat
 
-                        local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
-                        att.Name = "FlyAttachment"; att.Parent = vSeat
+                            local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+                            lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+                            lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
 
-                        local lv = vSeat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
-                        lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
-                        lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = vSeat
+                            local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+                            ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+                            ao.MaxTorque = math.huge; ao.Responsiveness = 200
+                            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
 
-                        local ao = vSeat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
-                        ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
-                        ao.MaxTorque = math.huge; ao.Responsiveness = 200
-                        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
-
-                        ActiveBoat = targetBoat
-
-                        if stage == 1 then
-                            if hum.SeatPart == vSeat then
-                                stage = 2
-                                UILib.Notify("Auto Shoot", "Fly boat to FrozenHeart...", 3)
-                            else
-                                Utility.SitVehicleSeat(targetBoat)
-                            end
-                        elseif stage == 2 then
+                            ActiveBoat = targetBoat
                             local seatPos = vSeat.Position
-                            local dir = (targetBoatPos - seatPos)
-                            local dist = dir.Magnitude
 
-                            if dist <= 6 then
-                                lv.VectorVelocity = Vector3.zero
-                                ao.CFrame = CFrame.lookAt(seatPos, fhPos)
-                                stage = 3
-                                UILib.Notify("Auto Shoot", "Shoot harpoon...", 3)
-                            else
-                                lv.VectorVelocity = dir.Unit * (S.BoatFlySpeed or 220)
-                                ao.CFrame = CFrame.lookAt(seatPos, targetBoatPos)
-                            end
-                        elseif stage == 3 then
-                            lv.VectorVelocity = Vector3.zero
-                            ao.CFrame = CFrame.lookAt(vSeat.Position, fhPos)
-
-                            local harpoonModel = targetBoat:FindFirstChild("Harpoon")
-                            local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
-
-                            if harpoonSeat then
-                                if hum.SeatPart == harpoonSeat then
-                                    pcall(function()
-                                        local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
-                                        Event:InvokeServer(
-                                            "FireHarpoon",
-                                            0.78539816339745,
-                                            0,
-                                            harpoonModel,
-                                            1787466497.5315
-                                        )
-                                    end)
-                                    task.wait(1.5)
+                            -- Bước 1: Người chơi tìm đến vị trí thuyền và ngồi vào ghế lái
+                            if stage == 1 then
+                                if hum.SeatPart == vSeat then
+                                    stage = 2
+                                    flyStep = 1
+                                    UILib.Notify("Auto Shoot", "In driver seat! Ascending to Y = 300...", 3)
                                 else
-                                    if hum.SeatPart == vSeat then
-                                        hum.Sit = false
-                                        task.wait(0.1)
-                                    end
-                                    Utility.FlyToAndSitSeat(harpoonSeat)
+                                    Utility.SitVehicleSeat(targetBoat)
                                 end
-                            else
-                                if os.clock() - lastNotify > 5 then
-                                    UILib.Notify("Auto Shoot", "Couldn't find harpoon!", 3)
-                                    lastNotify = os.clock()
+                            -- Bước 2: Bay thuyền theo quy trình
+                            elseif stage == 2 then
+                                -- Luôn hướng mũi thuyền thẳng vào tim Leviathan
+                                ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
+
+                                if flyStep == 1 then
+                                    -- Bay từ từ lên vị trí Y = 300 và cố định ở độ cao đó
+                                    local deltaY = 300 - seatPos.Y
+                                    if math.abs(deltaY) <= 6 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        flyStep = 2
+                                        UILib.Notify("Auto Shoot", "Reached Y = 300. Flying to X = Heart.X + 150...", 3)
+                                    else
+                                        local dirY = Vector3.new(0, deltaY, 0).Unit
+                                        lv.VectorVelocity = dirY * (S.BoatFlySpeed or 220)
+                                    end
+                                elseif flyStep == 2 then
+                                    -- Bay tiếp đến vị trí X = fhPos.X + 150 (cố định ở độ cao Y = 300)
+                                    local targetPos2 = Vector3.new(fhPos.X + 150, 300, fhPos.Z)
+                                    local dir2 = (targetPos2 - seatPos)
+
+                                    if dir2.Magnitude <= 8 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        flyStep = 3
+                                        UILib.Notify("Auto Shoot", "Descending boat to heart height...", 3)
+                                    else
+                                        lv.VectorVelocity = dir2.Unit * (S.BoatFlySpeed or 220)
+                                    end
+                                elseif flyStep == 3 then
+                                    -- Hạ thuyền về độ cao ban đầu của tim leviathan
+                                    local targetPos3 = Vector3.new(fhPos.X + 150, fhPos.Y, fhPos.Z)
+                                    local dir3 = (targetPos3 - seatPos)
+
+                                    if dir3.Magnitude <= 6 then
+                                        lv.VectorVelocity = Vector3.zero
+                                        stage = 3
+                                        UILib.Notify("Auto Shoot", "Position reached! Sitting on Harpoon...", 3)
+                                    else
+                                        lv.VectorVelocity = dir3.Unit * (S.BoatFlySpeed or 220)
+                                    end
+                                end
+                            -- Bước 3: Tìm, bay đến và ngồi vào Harpoon, tính toán góc bắn rồi thực hiện bắn tim
+                            elseif stage == 3 then
+                                -- Dừng thuyền cố định và giữ hướng mũi thuyền thẳng vào tim leviathan
+                                lv.VectorVelocity = Vector3.zero
+                                ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
+
+                                local harpoonModel = targetBoat:FindFirstChild("Harpoon") or targetBoat:FindFirstChild("Harpoon", true)
+                                local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
+
+                                if harpoonSeat and harpoonModel then
+                                    if hum.SeatPart == harpoonSeat then
+                                        -- Tính toán góc bắn theo tam giác vuông từ người ngồi trên Harpoon đến tim Leviathan
+                                        local shooterPos = (root and root.Position) or harpoonSeat.Position
+                                        local dx = fhPos.X - shooterPos.X
+                                        local dz = fhPos.Z - shooterPos.Z
+                                        local horizontalDist = math.sqrt(dx * dx + dz * dz)
+                                        local deltaY = fhPos.Y - shooterPos.Y
+
+                                        -- tan(theta) = deltaY / horizontalDist  => theta = atan2(deltaY, horizontalDist)
+                                        local pitchAngle = math.atan2(deltaY, math.max(horizontalDist, 0.1))
+                                        -- Giới hạn góc bắn trong khoảng hợp lệ: min = -0.175, max = 0.785
+                                        pitchAngle = math.clamp(pitchAngle, -0.175, 0.785)
+
+                                        pcall(function()
+                                            local Event = game:GetService("ReplicatedStorage").Remotes.CommF_
+                                            local serverTime = workspace:GetServerTimeNow()
+                                            Event:InvokeServer(
+                                                "FireHarpoon",
+                                                pitchAngle,
+                                                0,
+                                                harpoonModel,
+                                                serverTime
+                                            )
+                                        end)
+                                        task.wait(1.5)
+                                    else
+                                        if hum.SeatPart == vSeat then
+                                            hum.Sit = false
+                                            task.wait(0.1)
+                                        end
+                                        Utility.FlyToAndSitSeat(harpoonSeat)
+                                    end
+                                else
+                                    if os.clock() - lastNotify > 5 then
+                                        UILib.Notify("Auto Shoot", "Couldn't find Harpoon on selected boat!", 3)
+                                        lastNotify = os.clock()
+                                    end
                                 end
                             end
                         end
@@ -1964,7 +2044,7 @@ function Utility.StartAutoShootLeviathan()
                 end
             end
 
-            task.wait(0.3)
+            task.wait(0.2)
         end
     end)
 end
@@ -2097,115 +2177,92 @@ function Utility.GetLeviathanTarget()
     return nil, false
 end
 
---[[ Perform M1 fruit attack on target position ]]
-function Utility.PerformPainAttack(targetPos)
-    local char = LocalPlayer.Character
-    if not char then return end
-    local myRoot = char:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return end
-
-    local tool = Utility.EquipWeaponByType("Fruit")
-    if not tool then
-        local bp = LocalPlayer:FindFirstChild("Backpack")
-        if bp then
-            local pTool = bp:FindFirstChild("Pain-Pain") or bp:FindFirstChildOfClass("Tool")
-            if pTool and char:FindFirstChildOfClass("Humanoid") then
-                char.Humanoid:EquipTool(pTool)
-                tool = pTool
-            end
-        end
-    end
-
-    local dir = (targetPos - myRoot.Position).Unit
-    myRoot.CFrame = CFrame.lookAt(myRoot.Position, targetPos)
-
-    if tool then
-        pcall(function() tool:Activate() end)
-        local lcr = tool:FindFirstChild("LeftClickRemote")
-        if lcr and lcr:IsA("RemoteEvent") then
-            pcall(function()
-                lcr:FireServer(dir, 1, true, targetPos)
-                lcr:FireServer(dir, 2, true, targetPos)
-                lcr:FireServer(dir, 3, true, targetPos)
-                lcr:FireServer(dir, 1, true)
-            end)
-        end
-    end
-end
-
---[[ Cast skill keys on Humanoid skill remote functions and weapon remotes targeting straight down at Y = -100 ]]
-function Utility.CastSkills(targetPos, targetEnemy)
+--[[ Thi triển kỹ năng tấn công Leviathan dựa trên cấu hình từ Tab Farm Setting ]]
+function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local myRoot = char:FindFirstChild("HumanoidRootPart")
-    local myPos = myRoot and myRoot.Position or Vector3.zero
+    if not hum or hum.Health <= 0 or not myRoot then return end
+
+    local wType = weaponTypeOverride or S.LeviathanSelectedWeapon or S.SelectedWeaponType or "Melee"
+    local tool = Utility.EquipWeaponByType(wType)
 
     local targetPart = targetEnemy and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))
     local actualTargetPos = targetPart and targetPart.Position or targetPos
+    if not actualTargetPos then return end
 
-    local downTargetPos = Vector3.new(myPos.X, -100, myPos.Z)
-    local downAimCF = CFrame.lookAt(myPos, downTargetPos)
-    local downHitCF = CFrame.new(downTargetPos)
-    local downDir = Vector3.new(0, -1, 0)
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(actualTargetPos.X, myRoot.Position.Y, actualTargetPos.Z))
 
-    local currentTool = char:FindFirstChildOfClass("Tool")
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
     local skillRemotes = {}
-    if hum then
-        for _, child in ipairs(hum:GetChildren()) do
-            if child:IsA("RemoteFunction") then
-                table.insert(skillRemotes, child)
-            end
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
         end
     end
 
-    local keys = { "Z", "X", "C", "V" }
-    for _, key in ipairs(keys) do
+    local skillKeys = {}
+    if wType == "Melee" then
+        if S.MeleeSkillZ then table.insert(skillKeys, "Z") end
+        if S.MeleeSkillX then table.insert(skillKeys, "X") end
+        if S.MeleeSkillC then table.insert(skillKeys, "C") end
+    elseif wType == "Fruit" then
+        if S.FruitSkillZ then table.insert(skillKeys, "Z") end
+        if S.FruitSkillX then table.insert(skillKeys, "X") end
+        if S.FruitSkillC then table.insert(skillKeys, "C") end
+        if S.FruitSkillV then table.insert(skillKeys, "V") end
+        if S.FruitSkillF then table.insert(skillKeys, "F") end
+    elseif wType == "Sword" then
+        if S.SwordSkillZ then table.insert(skillKeys, "Z") end
+        if S.SwordSkillX then table.insert(skillKeys, "X") end
+    elseif wType == "Gun" then
+        if S.GunSkillZ then table.insert(skillKeys, "Z") end
+        if S.GunSkillX then table.insert(skillKeys, "X") end
+    end
+
+    for _, key in ipairs(skillKeys) do
         if not char or not char.Parent or not hum or hum.Health <= 0 then break end
 
-        downTargetPos = Vector3.new(myRoot.Position.X, -100, myRoot.Position.Z)
-        downAimCF = CFrame.lookAt(myRoot.Position, downTargetPos)
-        downHitCF = CFrame.new(downTargetPos)
+        local curPart = (targetEnemy and targetEnemy.Parent and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))) or targetPart
+        local livePos = curPart and curPart.Position or actualTargetPos
+        local myPos = myRoot.Position
+        local aimCF = CFrame.lookAt(myPos, livePos)
+        local hitCF = curPart and curPart.CFrame or CFrame.new(livePos)
 
-        if currentTool then
-            for _, obj in ipairs(currentTool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(true, downTargetPos) end)
-                    pcall(function() obj:FireServer(true, downHitCF) end)
-                    pcall(function() obj:FireServer(true, downDir) end)
-                    pcall(function() obj:FireServer(true) end)
-                end
-            end
-        end
-
+        -- 1. Kích hoạt chiêu thức chuẩn Cobalt tương ứng từng loại vũ khí
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF, "Aaa") end)
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos, targetPart) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos) end)
-                pcall(function() rf:InvokeServer(key, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downDir) end)
-                pcall(function() rf:InvokeServer(key) end)
+                if wType == "Melee" then
+                    pcall(function() rf:InvokeServer(key, aimCF, hitCF, "Aaa") end)
+                elseif wType == "Fruit" then
+                    pcall(function() rf:InvokeServer(key) end)
+                elseif wType == "Sword" then
+                    pcall(function() rf:InvokeServer(key, livePos) end)
+                elseif wType == "Gun" then
+                    pcall(function() rf:InvokeServer(key) end)
+                end
             end)
         end
 
-        task.wait(0.2)
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 trong suốt thời gian giữ chiêu (Skills Only cho Leviathan)
+        local duration = S.SkillHoldEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local curLivePart = (targetEnemy and targetEnemy.Parent and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))) or targetPart
+            local cPos = curLivePart and curLivePart.Position or livePos
 
-        if currentTool then
-            for _, obj in ipairs(currentTool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(false, downTargetPos) end)
-                    pcall(function() obj:FireServer(false, downHitCF) end)
-                    pcall(function() obj:FireServer(false, downDir) end)
-                    pcall(function() obj:FireServer(false) end)
-                end
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(cPos) end)
             end
+            task.wait(0.035)
         end
 
-        task.wait(0.3)
+        task.wait(0.12)
     end
 end
+Utility.CastSkills = Utility.CastSkillsLeviathan
 
 --[[ Start auto attack Leviathan routine ]]
 function Utility.StartAutoAttackLeviathan()
@@ -2221,12 +2278,8 @@ function Utility.StartAutoAttackLeviathan()
                 local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
 
                 if eRoot then
-                    local targetPos = eRoot.Position - Vector3.new(0, 10, 0)
+                    local targetPos = eRoot.Position
                     Utility.PhysicsFlyTo(targetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
-
-                    if S.AutoM1LeviEnabled then
-                        Utility.PerformPainAttack(eRoot.Position)
-                    end
                 end
             else
                 Utility.StopPhysicsFly()
@@ -2247,7 +2300,7 @@ end
 function Utility.StartAutoSkillsLeviathan()
     DisconnectConnection("autoSkillsLevi")
     _conns["autoSkillsLevi"] = task.spawn(function()
-        local weaponTypes = { "Melee", "Sword", "Fruit", "Gun" }
+        local weaponRotation = { "Melee", "Sword", "Fruit", "Gun" }
         local wIndex = 1
 
         while S.AutoSkillsLeviEnabled do
@@ -2259,12 +2312,14 @@ function Utility.StartAutoSkillsLeviathan()
             if target and target.Parent and root and hum and hum.Health > 0 then
                 local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
                 if eRoot then
-                    local currentCategory = weaponTypes[wIndex]
-                    Utility.EquipWeaponByType(currentCategory)
-                    task.wait(0.15)
-                    Utility.CastSkills(eRoot.Position, target)
-                    wIndex = (wIndex % #weaponTypes) + 1
-                    task.wait(2)
+                    local chosenWeapon = S.LeviathanSelectedWeapon or "Melee"
+                    if chosenWeapon == "Rotate All" then
+                        chosenWeapon = weaponRotation[wIndex]
+                        wIndex = (wIndex % #weaponRotation) + 1
+                    end
+
+                    Utility.CastSkillsLeviathan(eRoot.Position, target, chosenWeapon)
+                    task.wait(1.5)
                 else
                     task.wait(0.5)
                 end
@@ -2604,12 +2659,18 @@ function Utility.EquipWeaponByType(category)
     return nil
 end
 
---[[ 4. Thực hiện tấn công bằng Melee ]]
+--[[ 4. Thực hiện tấn công bằng Melee (tầm xa mở rộng 350 studs) ]]
 function Utility.AttackMelee(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Melee")
     local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
     local eHead = enemy and enemy:FindFirstChild("Head")
     if not eRoot then return end
+
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
 
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
@@ -2625,7 +2686,7 @@ function Utility.AttackMelee(enemy, enemyRoot)
             if cf and cf.activeController then
                 local ctrl = cf.activeController
                 ctrl.timeToNextAttack = 0
-                ctrl.hitboxMagnitude = 250
+                ctrl.hitboxMagnitude = 350
                 ctrl:attack()
             end
         end
@@ -2649,7 +2710,7 @@ function Utility.AttackMelee(enemy, enemyRoot)
     end
 end
 
---[[ 5. Thực hiện tấn công bằng Sword ]]
+--[[ 5. Thực hiện tấn công bằng Sword (tầm xa mở rộng 350 studs) ]]
 function Utility.AttackSword(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Sword")
     local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
@@ -2658,6 +2719,12 @@ function Utility.AttackSword(enemy, enemyRoot)
 
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
 
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
@@ -2673,7 +2740,7 @@ function Utility.AttackSword(enemy, enemyRoot)
             if cf and cf.activeController then
                 local ctrl = cf.activeController
                 ctrl.timeToNextAttack = 0
-                ctrl.hitboxMagnitude = 250
+                ctrl.hitboxMagnitude = 350
                 ctrl:attack()
             end
         end
@@ -2703,35 +2770,104 @@ function Utility.AttackSword(enemy, enemyRoot)
     end
 end
 
---[[ 6. Thực hiện tấn công bằng M1 của Fruit ]]
+local fruitM1ComboIndex = 1
+
+--[[ Giải phóng trạng thái giữ chiêu (Release hold) & Reset công cụ khi dừng farm để tránh kẹt vũ khí ]]
+function Utility.ReleaseAllHeldSkills()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local VIM = game:GetService("VirtualInputManager")
+    for _, k in ipairs({ Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V, Enum.KeyCode.F }) do
+        pcall(function() VIM:SendKeyEvent(false, k, false, game) end)
+    end
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Tool") then
+            local tr = item:FindFirstChild("RemoteEvent") or item:FindFirstChildOfClass("RemoteEvent")
+            if tr then
+                pcall(function() tr:FireServer(false) end)
+                pcall(function() tr:FireServer(false, Vector3.zero) end)
+            end
+        end
+    end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, child in ipairs(hum:GetChildren()) do
+            if child:IsA("RemoteFunction") then
+                for _, key in ipairs({ "Z", "X", "C", "V", "F" }) do
+                    pcall(function() child:InvokeServer(key, "KeyUp") end)
+                    pcall(function() child:InvokeServer(key, false) end)
+                end
+            end
+        end
+        local curTool = char:FindFirstChildOfClass("Tool")
+        if curTool then
+            hum:UnequipTools()
+            task.wait(0.05)
+            hum:EquipTool(curTool)
+        end
+    end
+end
+
+--[[ 6. Thực hiện tấn công bằng M1 của Fruit (tầm xa mở rộng 350 studs) ]]
 function Utility.AttackFruitM1(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Fruit")
-    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")))
     local eHead = enemy and enemy:FindFirstChild("Head")
     if not eRoot then return end
 
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    local myPos = myRoot and myRoot.Position or Vector3.zero
+    if not myRoot then return end
+    local myPos = myRoot.Position
     local targetPos = eRoot.Position
-    local targetDir = (targetPos - myPos).Unit
 
+    -- 1. Mở rộng vùng nhận sát thương của quái trên Client lên 60 studs
+    pcall(function()
+        eRoot.Size = Vector3.new(60, 60, 60)
+        eRoot.CanCollide = false
+        eRoot.Transparency = 1
+    end)
+
+    -- Xoay nhân vật hướng thẳng về phía mục tiêu
+    local flatTarget = Vector3.new(targetPos.X, myPos.Y, targetPos.Z)
+    if (flatTarget - myPos).Magnitude > 0.1 then
+        myRoot.CFrame = CFrame.lookAt(myPos, flatTarget)
+    end
+
+    local diff = (targetPos - myPos)
+    local aim3D = (diff.Magnitude > 0) and diff.Unit or Vector3.new(0, -1, 0)
+    local aimFlat = Vector3.new(diff.X, 0, diff.Z)
+    local aimHorizontal = (aimFlat.Magnitude > 0) and aimFlat.Unit or aim3D
+
+    local combo = fruitM1ComboIndex
+    fruitM1ComboIndex = (fruitM1ComboIndex % 4) + 1
+
+    -- 2. Bắn trực tiếp LeftClickRemote với combo 1..4 và vector hướng chuẩn
     if tool then
-        local lcr = tool:FindFirstChild("LeftClickRemote")
+        pcall(function() tool:Activate() end)
+        local lcr = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("LeftClickRemote", true)
         if lcr and lcr:IsA("RemoteEvent") then
-            pcall(function()
-                lcr:FireServer(targetDir, 1, true, targetPos)
-                lcr:FireServer(targetDir, 1, true)
-            end)
-        end
-        for _, obj in ipairs(tool:GetChildren()) do
-            if obj:IsA("RemoteEvent") and obj.Name ~= "LeftClickRemote" then
-                pcall(function() obj:FireServer("Attack", targetPos) end)
-                pcall(function() obj:FireServer(targetDir, 1) end)
-            end
+            pcall(function() lcr:FireServer(aimHorizontal, combo, true, targetPos) end)
+            pcall(function() lcr:FireServer(aim3D, combo, true, targetPos) end)
         end
     end
 
+    -- 3. Kích hoạt CombatFramework với tầm với mở rộng 350 studs
+    pcall(function()
+        local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+        local cfModule = ps and ps:FindFirstChild("CombatFramework")
+        if cfModule then
+            local cf = require(cfModule)
+            if cf and cf.activeController then
+                local ctrl = cf.activeController
+                ctrl.timeToNextAttack = 0
+                ctrl.hitboxMagnitude = 350
+                ctrl:attack()
+            end
+        end
+    end)
+
+    -- 4. Gửi RegisterAttack và RegisterHit lên server gây sát thương
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
     local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
@@ -2841,211 +2977,250 @@ function Utility.AimTarget(targetPosition)
     return downTargetPos, downAimCF, downHitCF, downDir
 end
 
---[[ 9. Thi triển kỹ năng cho Melee ]]
+--[[ 9. Thi triển kỹ năng cho Melee (Z, X, C) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
 function Utility.CastSkillsMelee(targetPosition, enemy)
     local tool = Utility.EquipWeaponByType("Melee")
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    local downTargetPos, downAimCF, downHitCF, downDir = Utility.AimTarget(targetPosition)
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
 
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
     local skillRemotes = {}
-    if hum then
-        for _, child in ipairs(hum:GetChildren()) do
-            if child:IsA("RemoteFunction") then table.insert(skillRemotes, child) end
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
         end
     end
 
-    for _, key in ipairs({ "Z", "X", "C", "V" }) do
+    local skillKeys = {}
+    if S.MeleeSkillZ then table.insert(skillKeys, "Z") end
+    if S.MeleeSkillX then table.insert(skillKeys, "X") end
+    if S.MeleeSkillC then table.insert(skillKeys, "C") end
+
+    for _, key in ipairs(skillKeys) do
         if not char.Parent or not hum or hum.Health <= 0 then break end
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(true, downTargetPos) end)
-                    pcall(function() obj:FireServer(true, downHitCF) end)
-                    pcall(function() obj:FireServer(true, downDir) end)
-                    pcall(function() obj:FireServer(true) end)
-                end
-            end
-        end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+        local myPos = myRoot.Position
+        local aimCF = CFrame.lookAt(myPos, currentTargetPos)
+        local hitCF = curPart and curPart.CFrame or CFrame.new(currentTargetPos)
+
+        -- 1. Kích hoạt chiêu thức Melee
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF, "Aaa") end)
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos) end)
-                pcall(function() rf:InvokeServer(key, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downDir) end)
-                pcall(function() rf:InvokeServer(key) end)
+                pcall(function() rf:InvokeServer(key, aimCF, hitCF, "Aaa") end)
             end)
         end
-        task.wait(0.2)
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(false, downTargetPos) end)
-                    pcall(function() obj:FireServer(false, downHitCF) end)
-                    pcall(function() obj:FireServer(false, downDir) end)
-                    pcall(function() obj:FireServer(false) end)
-                end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời đánh thường gây sát thương
+        local duration = S.SkillHoldEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
             end
+            Utility.AttackMelee(enemy, livePart)
+            task.wait(0.035)
         end
-        task.wait(0.25)
+
+        task.wait(0.12)
     end
 end
 
---[[ 10. Thi triển kỹ năng cho Fruit ]]
+--[[ 10. Thi triển kỹ năng cho Fruit (Z, X, C, V, F) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
 function Utility.CastSkillsFruit(targetPosition, enemy)
     local tool = Utility.EquipWeaponByType("Fruit")
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    local downTargetPos, downAimCF, downHitCF, downDir = Utility.AimTarget(targetPosition)
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
 
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
     local skillRemotes = {}
-    if hum then
-        for _, child in ipairs(hum:GetChildren()) do
-            if child:IsA("RemoteFunction") then table.insert(skillRemotes, child) end
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
         end
     end
 
-    for _, key in ipairs({ "Z", "X", "C", "V" }) do
+    local skillKeys = {}
+    if S.FruitSkillZ then table.insert(skillKeys, "Z") end
+    if S.FruitSkillX then table.insert(skillKeys, "X") end
+    if S.FruitSkillC then table.insert(skillKeys, "C") end
+    if S.FruitSkillV then table.insert(skillKeys, "V") end
+    if S.FruitSkillF then table.insert(skillKeys, "F") end
+
+    for _, key in ipairs(skillKeys) do
         if not char.Parent or not hum or hum.Health <= 0 then break end
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(true, downTargetPos) end)
-                    pcall(function() obj:FireServer(true, downHitCF) end)
-                    pcall(function() obj:FireServer(true, downDir) end)
-                    pcall(function() obj:FireServer(true) end)
-                end
-            end
-        end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Fruit
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF, "Aaa") end)
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos) end)
-                pcall(function() rf:InvokeServer(key, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downDir) end)
                 pcall(function() rf:InvokeServer(key) end)
             end)
         end
-        task.wait(0.2)
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(false, downTargetPos) end)
-                    pcall(function() obj:FireServer(false, downHitCF) end)
-                    pcall(function() obj:FireServer(false, downDir) end)
-                    pcall(function() obj:FireServer(false) end)
-                end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời đánh thường M1 Fruit
+        local duration = S.SkillHoldEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
             end
+            Utility.AttackFruitM1(enemy, livePart)
+            task.wait(0.035)
         end
-        task.wait(0.25)
+
+        task.wait(0.12)
     end
 end
 
---[[ 11. Thi triển kỹ năng cho Sword ]]
+--[[ 11. Thi triển kỹ năng cho Sword (Z, X) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
 function Utility.CastSkillsSword(targetPosition, enemy)
     local tool = Utility.EquipWeaponByType("Sword")
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    local downTargetPos, downAimCF, downHitCF, downDir = Utility.AimTarget(targetPosition)
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
 
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
     local skillRemotes = {}
-    if hum then
-        for _, child in ipairs(hum:GetChildren()) do
-            if child:IsA("RemoteFunction") then table.insert(skillRemotes, child) end
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
         end
     end
 
-    for _, key in ipairs({ "Z", "X", "C", "V" }) do
+    local skillKeys = {}
+    if S.SwordSkillZ then table.insert(skillKeys, "Z") end
+    if S.SwordSkillX then table.insert(skillKeys, "X") end
+
+    for _, key in ipairs(skillKeys) do
         if not char.Parent or not hum or hum.Health <= 0 then break end
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(true, downTargetPos) end)
-                    pcall(function() obj:FireServer(true, downHitCF) end)
-                    pcall(function() obj:FireServer(true, downDir) end)
-                    pcall(function() obj:FireServer(true) end)
-                end
-            end
-        end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Sword
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF, "Aaa") end)
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos) end)
-                pcall(function() rf:InvokeServer(key, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downDir) end)
-                pcall(function() rf:InvokeServer(key) end)
+                pcall(function() rf:InvokeServer(key, currentTargetPos) end)
             end)
         end
-        task.wait(0.2)
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(false, downTargetPos) end)
-                    pcall(function() obj:FireServer(false, downHitCF) end)
-                    pcall(function() obj:FireServer(false, downDir) end)
-                    pcall(function() obj:FireServer(false) end)
-                end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời chém thường Sword
+        local duration = S.SkillHoldEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
             end
+            Utility.AttackSword(enemy, livePart)
+            task.wait(0.035)
         end
-        task.wait(0.25)
+
+        task.wait(0.12)
     end
 end
 
---[[ 12. Thi triển kỹ năng cho Gun ]]
+--[[ 12. Thi triển kỹ năng cho Gun (Z, X) tự động Aim liên tục vào mục tiêu & kết hợp đánh thường ]]
 function Utility.CastSkillsGun(targetPosition, enemy)
     local tool = Utility.EquipWeaponByType("Gun")
     local char = LocalPlayer.Character
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
-    local downTargetPos, downAimCF, downHitCF, downDir = Utility.AimTarget(targetPosition)
+    local myRoot = char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health <= 0 or not myRoot then return end
 
+    local enemyPart = enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))
+    local aimPos = enemyPart and enemyPart.Position or targetPosition
+    if not aimPos then return end
+
+    -- Xoay nhân vật hướng về phía mục tiêu
+    myRoot.CFrame = CFrame.lookAt(myRoot.Position, Vector3.new(aimPos.X, myRoot.Position.Y, aimPos.Z))
+
+    local toolRemote = tool and (tool:FindFirstChild("RemoteEvent") or tool:FindFirstChildOfClass("RemoteEvent"))
     local skillRemotes = {}
-    if hum then
-        for _, child in ipairs(hum:GetChildren()) do
-            if child:IsA("RemoteFunction") then table.insert(skillRemotes, child) end
+    for _, child in ipairs(hum:GetChildren()) do
+        if child:IsA("RemoteFunction") then
+            table.insert(skillRemotes, child)
         end
     end
 
-    for _, key in ipairs({ "Z", "X" }) do
+    local skillKeys = {}
+    if S.GunSkillZ then table.insert(skillKeys, "Z") end
+    if S.GunSkillX then table.insert(skillKeys, "X") end
+
+    for _, key in ipairs(skillKeys) do
         if not char.Parent or not hum or hum.Health <= 0 then break end
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(true, downTargetPos) end)
-                    pcall(function() obj:FireServer(true, downHitCF) end)
-                    pcall(function() obj:FireServer(true, downDir) end)
-                    pcall(function() obj:FireServer(true) end)
-                end
-            end
-        end
+
+        local curPart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+        local currentTargetPos = (curPart and curPart.Position) or targetPosition
+
+        -- 1. Kích hoạt chiêu thức Gun
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF, "Aaa") end)
-                pcall(function() rf:InvokeServer(key, downAimCF, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downTargetPos) end)
-                pcall(function() rf:InvokeServer(key, downHitCF) end)
-                pcall(function() rf:InvokeServer(key, downDir) end)
                 pcall(function() rf:InvokeServer(key) end)
             end)
         end
-        task.wait(0.2)
-        if tool then
-            for _, obj in ipairs(tool:GetChildren()) do
-                if obj:IsA("RemoteEvent") then
-                    pcall(function() obj:FireServer(false, downTargetPos) end)
-                    pcall(function() obj:FireServer(false, downHitCF) end)
-                    pcall(function() obj:FireServer(false, downDir) end)
-                    pcall(function() obj:FireServer(false) end)
-                end
+
+        -- 2. Liên tục cập nhật tọa độ Aim Vector3 và đồng thời xả đạn thường Gun
+        local duration = S.SkillHoldEnabled and (S.SkillHoldDuration or 0.35) or 0.05
+        local t0 = os.clock()
+        while os.clock() - t0 < duration do
+            if not char.Parent or not hum or hum.Health <= 0 then break end
+            local livePart = (enemy and enemy.Parent and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart"))) or enemyPart
+            local livePos = livePart and livePart.Position or currentTargetPos
+
+            if toolRemote then
+                pcall(function() toolRemote:FireServer(livePos) end)
             end
+            Utility.AttackGun(enemy, livePart)
+            task.wait(0.035)
         end
-        task.wait(0.25)
+
+        task.wait(0.12)
     end
 end
 
@@ -3102,6 +3277,7 @@ end
 --[[ Stop auto attack nearest enemy routine ]]
 function Utility.StopAutoAttackNearestEnemy()
     DisconnectConnection("autoAttackEnemyLoop")
+    Utility.ReleaseAllHeldSkills()
     Utility.StopPhysicsFly()
 end
 
@@ -3123,19 +3299,23 @@ function Utility.StartAutoFarmWithSkills()
                     Utility.FlyAboveTarget(eCF, S.AttackHeight or 30, S.TeleportFlySpeed or 180)
                     local wType = S.SelectedWeaponType or "Melee"
                     if wType == "Melee" then
+                        Utility.AttackMelee(enemy, eRoot)
                         Utility.CastSkillsMelee(ePos, enemy)
                     elseif wType == "Fruit" then
+                        Utility.AttackFruitM1(enemy, eRoot)
                         Utility.CastSkillsFruit(ePos, enemy)
                     elseif wType == "Sword" then
+                        Utility.AttackSword(enemy, eRoot)
                         Utility.CastSkillsSword(ePos, enemy)
                     elseif wType == "Gun" then
+                        Utility.AttackGun(enemy, eRoot)
                         Utility.CastSkillsGun(ePos, enemy)
                     end
                 end
             else
                 Utility.StopPhysicsFly()
             end
-            task.wait(0.2)
+            task.wait(0.035)
         end
         Utility.StopPhysicsFly()
     end)
@@ -3144,6 +3324,7 @@ end
 --[[ Stop auto farm nearest enemy with skills routine ]]
 function Utility.StopAutoFarmWithSkills()
     DisconnectConnection("autoFarmSkills")
+    Utility.ReleaseAllHeldSkills()
     Utility.StopPhysicsFly()
 end
 
@@ -3437,7 +3618,6 @@ function Utility.UnloadAllScript()
     S.AutoShootLeviEnabled = false
     S.AutoAttackEnemyEnabled = false
     S.AutoAttackLeviEnabled = false
-    S.AutoM1LeviEnabled = false
     S.AutoSkillsLeviEnabled = false
     S.AutoFarmWithSkillsEnabled = false
     S.BoatNoClipEnabled = false
@@ -3499,18 +3679,37 @@ local LevTab = Window:AddTab({ Name = "Leviathan", Icon = "" })
 
 LevTab:AddSection("Auto Shoot Leviathan Heart (Beast Hunter)")
 
-LevTab:AddDropdown({
-    Name    = "Select Boat",
-    Desc    = "Choose boat for Auto Shoot Heart",
-    Options = { "Shoot with your boat", "Shoot with owner boat" },
+local function GetShootBoatDropdownOptions()
+    local opts = { "My Boat" }
+    for _, name in ipairs(Utility.GetPlayerList()) do
+        table.insert(opts, name)
+    end
+    return opts
+end
+
+local ShootBoatDropdown = LevTab:AddDropdown({
+    Name    = "Select Boat for Shoot Heart",
+    Desc    = "Default: My Boat (or select another player's boat)",
+    Options = GetShootBoatDropdownOptions(),
     Callback = function(opt)
-        S.AutoShootBoatMode = opt
+        if opt == "My Boat" or opt == "None" or opt == "" then
+            S.AutoShootBoatOwner = ""
+        else
+            S.AutoShootBoatOwner = opt
+        end
     end,
 })
 
+_conns["shootBoatPlrAdded"] = Players.PlayerAdded:Connect(function()
+    if ShootBoatDropdown then ShootBoatDropdown:Refresh(GetShootBoatDropdownOptions()) end
+end)
+_conns["shootBoatPlrRemoved"] = Players.PlayerRemoving:Connect(function()
+    if ShootBoatDropdown then ShootBoatDropdown:Refresh(GetShootBoatDropdownOptions()) end
+end)
+
 LevTab:AddToggle({
     Name    = "Auto Shoot Leviathan Heart",
-    Desc    = "Auto fly to boat and use harpoon",
+    Desc    = "Auto fly boat, sit Harpoon and shoot heart",
     Default = false,
     Callback = function(val)
         S.AutoShootLeviEnabled = val
@@ -3524,9 +3723,19 @@ LevTab:AddToggle({
 
 LevTab:AddSection("Auto Attack Leviathan")
 
+LevTab:AddDropdown({
+    Name    = "Select Weapon for Leviathan",
+    Desc    = "Choose weapon or rotate all (reads skills from Farm Setting)",
+    Options = { "Melee", "Sword", "Fruit", "Gun", "Rotate All" },
+    Default = S.LeviathanSelectedWeapon or "Melee",
+    Callback = function(opt)
+        S.LeviathanSelectedWeapon = opt
+    end,
+})
+
 AutoAttackLeviToggle = LevTab:AddToggle({
     Name    = "Auto Attack Leviathan",
-    Desc    = "Fly to Leviathan Segments (Y - 10) then Leviathan",
+    Desc    = "Fly to Leviathan Segments then Leviathan",
     Default = false,
     Callback = function(val)
         S.AutoAttackLeviEnabled = val
@@ -3538,18 +3747,9 @@ AutoAttackLeviToggle = LevTab:AddToggle({
     end,
 })
 
-AutoM1LeviToggle = LevTab:AddToggle({
-    Name    = "Auto M1 Attack Leviathan",
-    Desc    = "Equip Fruit (Pain) and perform M1 attack",
-    Default = false,
-    Callback = function(val)
-        S.AutoM1LeviEnabled = val
-    end,
-})
-
 AutoSkillsLeviToggle = LevTab:AddToggle({
     Name    = "Auto Use Skills to Attack Leviathan",
-    Desc    = "Rotate Melee, Sword, Fruit, Gun skills every 2 seconds",
+    Desc    = "Auto cast configured weapon skills and aim at Leviathan",
     Default = false,
     Callback = function(val)
         S.AutoSkillsLeviEnabled = val
@@ -3920,7 +4120,125 @@ FarmTab:AddToggle({
 
 
 -- ═══════════════════════════════════════════════════════════
---  TAB 3 : TELEPORT
+--  TAB 3 : FARM SETTING
+-- ═══════════════════════════════════════════════════════════
+local FarmSettingTab = Window:AddTab({ Name = "Farm Setting", Icon = "" })
+
+FarmSettingTab:AddSection("Skill Hold Duration Settings")
+
+FarmSettingTab:AddToggle({
+    Name    = "Enable Skill Hold",
+    Desc    = "Hold skills and aim continuously at target before release",
+    Default = true,
+    Callback = function(val)
+        S.SkillHoldEnabled = val
+    end,
+})
+
+FarmSettingTab:AddSlider({
+    Name    = "Skill Hold Duration",
+    Desc    = "Duration to hold and aim skill at target (seconds)",
+    Min     = 0.1, Max = 3.0, Default = 0.35, Suffix = "s",
+    Callback = function(v)
+        S.SkillHoldDuration = v
+    end,
+})
+
+FarmSettingTab:AddSection("Melee Skills (Z, X, C)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill Z",
+    Desc    = "Enable or disable Melee Z skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill X",
+    Desc    = "Enable or disable Melee X skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillX = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Melee Skill C",
+    Desc    = "Enable or disable Melee C skill",
+    Default = true,
+    Callback = function(val) S.MeleeSkillC = val end,
+})
+
+FarmSettingTab:AddSection("Fruit Skills (Z, X, C, V, F)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill Z",
+    Desc    = "Enable or disable Fruit Z skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill X",
+    Desc    = "Enable or disable Fruit X skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillX = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill C",
+    Desc    = "Enable or disable Fruit C skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillC = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill V",
+    Desc    = "Enable or disable Fruit V skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillV = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Fruit Skill F",
+    Desc    = "Enable or disable Fruit F skill",
+    Default = true,
+    Callback = function(val) S.FruitSkillF = val end,
+})
+
+FarmSettingTab:AddSection("Sword Skills (Z, X)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Sword Skill Z",
+    Desc    = "Enable or disable Sword Z skill",
+    Default = true,
+    Callback = function(val) S.SwordSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Sword Skill X",
+    Desc    = "Enable or disable Sword X skill",
+    Default = true,
+    Callback = function(val) S.SwordSkillX = val end,
+})
+
+FarmSettingTab:AddSection("Gun Skills (Z, X)")
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Gun Skill Z",
+    Desc    = "Enable or disable Gun Z skill",
+    Default = true,
+    Callback = function(val) S.GunSkillZ = val end,
+})
+
+FarmSettingTab:AddToggle({
+    Name    = "Use Gun Skill X",
+    Desc    = "Enable or disable Gun X skill",
+    Default = true,
+    Callback = function(val) S.GunSkillX = val end,
+})
+
+
+-- ═══════════════════════════════════════════════════════════
+--  TAB 4 : TELEPORT
 -- ═══════════════════════════════════════════════════════════
 local TelTab = Window:AddTab({ Name = "Teleport", Icon = "" })
 
