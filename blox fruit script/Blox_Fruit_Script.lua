@@ -726,7 +726,7 @@ local S = {
     AutoShootLeviEnabled        = false,
     AutoAttackEnemyEnabled      = false,
     BoatNoClipEnabled           = false,
-    PlayerNoClipEnabled         = false,
+    PlayerNoClipEnabled         = true,
     WalkOnWaterEnabled          = true,
     AntiAFKEnabled              = true,
     TeleportPlayerEnabled       = false,
@@ -5029,7 +5029,7 @@ MiscTab:AddSlider({
 MiscTab:AddSection("NoClip")
 
 MiscTab:AddToggle({
-    Name = "Player Noclip", Desc = "Player noclip", Default = false,
+    Name = "Player Noclip", Desc = "Player noclip", Default = true,
     Callback = function(val) 
         Utility.SetPlayerNoClip(val)
     end,
@@ -5162,9 +5162,12 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 if LocalPlayer.Character then 
     Utility.UpdateCharacterCache()
+    Utility.UpdatePlayerNoClipState()
     if not Utility.IsBusoActive() then
         Utility.EnableBuso()
     end
+else
+    Utility.UpdatePlayerNoClipState()
 end
 Utility.StartAutoBusoLoop()
 Utility.OptimizeGraphics(true)
