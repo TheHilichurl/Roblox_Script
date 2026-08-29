@@ -26,6 +26,7 @@ local Lighting           = game:GetService("Lighting")
 local CoreGui            = game:GetService("CoreGui")
 local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 local LocalPlayer        = Players.LocalPlayer
+local fSetClipboard      = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set) or function() end
 
 local THEME = {
     BG            = Color3.fromRGB(12,  12,  14),
@@ -861,6 +862,84 @@ local S = {
     GunSkillX                   = true,
     LeviathanSelectedWeapon     = "Melee",
 }
+
+local CONFIG_FILE = "hilichurl_config.json"
+
+--[[ Save current settings directly to local executor storage ]]
+function Utility.SaveLocalConfig()
+    local ok, res = pcall(function()
+        local saveTable = {}
+        for k, v in pairs(S) do
+            if typeof(v) == "boolean" or typeof(v) == "number" or typeof(v) == "string" or typeof(v) == "table" then
+                saveTable[k] = v
+            end
+        end
+        local json = HttpService:JSONEncode(saveTable)
+        if writefile then
+            writefile(CONFIG_FILE, json)
+            return true
+        end
+        return false
+    end)
+    if ok and res then
+        UILib.Notify("Config", "Settings saved successfully to local storage!", 3)
+    else
+        UILib.Notify("Config", "Saved to session (executor has no writefile)!", 3)
+    end
+    return ok and res
+end
+
+--[[ Load settings from getgenv().HilichurlConfig, _G.HilichurlConfig, or local file ]]
+function Utility.LoadLocalConfig()
+    pcall(function()
+        local passedConfig = (getgenv and getgenv().HilichurlConfig) or _G.HilichurlConfig
+        if passedConfig and typeof(passedConfig) == "table" then
+            for k, v in pairs(passedConfig) do
+                if S[k] ~= nil then S[k] = v end
+            end
+        elseif isfile and readfile and isfile(CONFIG_FILE) then
+            local data = readfile(CONFIG_FILE)
+            if data and #data > 0 then
+                local decoded = HttpService:JSONDecode(data)
+                if typeof(decoded) == "table" then
+                    for k, v in pairs(decoded) do
+                        if S[k] ~= nil then S[k] = v end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+--[[ Generate standalone executable script code with current config ]]
+function Utility.GenerateConfigCode()
+    local lines = {}
+    table.insert(lines, "-- [[ Hilichurl Hub Config ]]")
+    table.insert(lines, "getgenv().HilichurlConfig = {")
+    for k, v in pairs(S) do
+        if typeof(v) == "boolean" then
+            table.insert(lines, string.format("    [%q] = %s,", k, tostring(v)))
+        elseif typeof(v) == "number" then
+            table.insert(lines, string.format("    [%q] = %s,", k, tostring(v)))
+        elseif typeof(v) == "string" then
+            table.insert(lines, string.format("    [%q] = %q,", k, v))
+        elseif typeof(v) == "table" then
+            local items = {}
+            for _, item in ipairs(v) do
+                table.insert(items, string.format("%q", tostring(item)))
+            end
+            table.insert(lines, string.format("    [%q] = { %s },", k, table.concat(items, ", ")))
+        end
+    end
+    table.insert(lines, "}")
+    table.insert(lines, "")
+    table.insert(lines, "-- Execute Hilichurl Hub (Protected Loader)")
+    table.insert(lines, 'loadstring(game:HttpGet("https://raw.githubusercontent.com/TheHilichurl/Roblox_Script/refs/heads/main/loader.lua"))()')
+    return table.concat(lines, "\n")
+end
+
+-- Auto load saved config upon initialization
+Utility.LoadLocalConfig()
 
 local WAYPOINTS_TIKI = {
     Vector3.new(7048, 28, -5518),
@@ -2173,12 +2252,40 @@ function Utility.StopAutoBuyBoat()
     DisconnectConnection("autoBuyBoat")
 end
 
+--[[ Helper to find Harpoon Model & Seat on boat ]]
+function Utility.GetHarpoon(boat)
+    if not boat then return nil, nil end
+    local harpoonModel = boat:FindFirstChild("Harpoon") or boat:FindFirstChild("Harpoon", true)
+    if not harpoonModel then
+        for _, d in ipairs(boat:GetDescendants()) do
+            if d.Name:lower():find("harpoon") and (d:IsA("Model") or d:IsA("BasePart")) then
+                harpoonModel = d
+                break
+            end
+        end
+    end
+    local harpoonSeat = nil
+    if harpoonModel then
+        harpoonSeat = harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true)
+    end
+    if not harpoonSeat then
+        for _, d in ipairs(boat:GetDescendants()) do
+            if d:IsA("Seat") and not d:IsA("VehicleSeat") and (d.Name:lower():find("harpoon") or (d.Parent and d.Parent.Name:lower():find("harpoon"))) then
+                harpoonSeat = d
+                if not harpoonModel then harpoonModel = d.Parent end
+                break
+            end
+        end
+    end
+    return harpoonModel, harpoonSeat
+end
+
 --[[ Start Auto Shoot Leviathan Heart loop (Beast Hunter Harpoon) ]]
 function Utility.StartAutoShootLeviathan()
     DisconnectConnection("autoShootLev")
     _conns["autoShootLev"] = task.spawn(function()
-        local stage = 1        -- 1: Sit driver seat, 2: 2-step flight, 3: Sit Harpoon & Shoot
-        local flyStep = 1      -- 1: Ascend to Y=300, 2: Fly to X=fhPos.X+70 at Y=300, 3: Descend to fhPos.Y
+        local stage = 1        -- 1: Sit driver seat, 2: Approach & descend in front of Heart, 3: Sit Harpoon & Shoot
+        local flyStep = 1      -- 1: Ascend, 2: Horizontal approach, 3: Descend
         local lastNotify = 0
 
         local function GetHeartPos(heart)
@@ -2243,77 +2350,88 @@ function Utility.StartAutoShootLeviathan()
                             ActiveBoat = targetBoat
                             local seatPos = vSeat.Position
 
+                            -- Tính toán vị trí đậu thuyền trước tim Leviathan (khoảng cách 180 studs theo phương ngang, cao hơn tim 20 studs)
+                            local heartToBoat = Vector3.new(seatPos.X - fhPos.X, 0, seatPos.Z - fhPos.Z)
+                            local approachDir = (heartToBoat.Magnitude > 5) and heartToBoat.Unit or Vector3.new(1, 0, 0)
+                            local standOffDist = 180
+                            local hoverTargetPos = fhPos + approachDir * standOffDist
+                            local targetShootHeight = math.max(fhPos.Y + 20, 45)
+
                             -- Bước 1: Người chơi tìm đến vị trí thuyền và ngồi vào ghế lái
                             if stage == 1 then
                                 if hum.SeatPart == vSeat then
                                     stage = 2
                                     flyStep = 1
-                                    UILib.Notify("Auto Shoot", "In driver seat! Ascending to Y = 300...", 3)
+                                    UILib.Notify("Auto Shoot", "In driver seat! Ascending boat...", 3)
                                 else
                                     Utility.SitVehicleSeat(targetBoat)
                                 end
-                            -- Bước 2: Bay thuyền theo quy trình
+                            -- Bước 2: Bay thuyền đến vị trí phía trước tim Leviathan và hạ độ cao mượt mà
                             elseif stage == 2 then
                                 -- Luôn hướng mũi thuyền thẳng vào tim Leviathan
                                 ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
 
                                 if flyStep == 1 then
-                                    -- Bay từ từ lên vị trí Y = 300 và cố định ở độ cao đó
-                                    local deltaY = 300 - seatPos.Y
-                                    if math.abs(deltaY) <= 6 then
+                                    -- Nâng độ cao lên Y = 280 để tránh va chạm địa hình
+                                    local deltaY = 280 - seatPos.Y
+                                    if deltaY <= 15 or seatPos.Y >= 265 then
                                         lv.VectorVelocity = Vector3.zero
                                         flyStep = 2
-                                        UILib.Notify("Auto Shoot", "Reached Y = 300. Flying to X = Heart.X + 350...", 3)
+                                        UILib.Notify("Auto Shoot", "Flying to position in front of Heart...", 3)
                                     else
-                                        local dirY = Vector3.new(0, deltaY, 0).Unit
-                                        lv.VectorVelocity = dirY * (S.BoatFlySpeed or 220)
+                                        local speedY = math.clamp(deltaY * 6, 40, S.BoatFlySpeed or 220)
+                                        lv.VectorVelocity = Vector3.new(0, speedY, 0)
                                     end
                                 elseif flyStep == 2 then
-                                    -- Bay tiếp đến vị trí X = fhPos.X + 350 (cố định ở độ cao Y = 300, khoảng cách 350 studs)
-                                    local targetPos2 = Vector3.new(fhPos.X + 350, 300, fhPos.Z)
-                                    local dir2 = (targetPos2 - seatPos)
+                                    -- Bay tiếp đến tọa độ ngang của điểm ngắm (ở độ cao 280)
+                                    local highTarget = Vector3.new(hoverTargetPos.X, 280, hoverTargetPos.Z)
+                                    local flatDiff = (Vector3.new(highTarget.X, 0, highTarget.Z) - Vector3.new(seatPos.X, 0, seatPos.Z))
+                                    local flatDist = flatDiff.Magnitude
 
-                                    if dir2.Magnitude <= 8 then
+                                    if flatDist <= 20 then
                                         lv.VectorVelocity = Vector3.zero
                                         flyStep = 3
-                                        UILib.Notify("Auto Shoot", "Descending boat to heart height...", 3)
+                                        UILib.Notify("Auto Shoot", "Descending boat to shooting altitude...", 3)
                                     else
-                                        lv.VectorVelocity = dir2.Unit * (S.BoatFlySpeed or 220)
+                                        local moveDir = flatDiff.Unit
+                                        local speed = math.clamp(flatDist * 5, 40, S.BoatFlySpeed or 220)
+                                        lv.VectorVelocity = Vector3.new(moveDir.X * speed, 0, moveDir.Z * speed)
                                     end
                                 elseif flyStep == 3 then
-                                    -- Hạ thuyền về độ cao ban đầu của tim leviathan (khoảng cách 350 studs)
-                                    local targetPos3 = Vector3.new(fhPos.X + 350, fhPos.Y, fhPos.Z)
-                                    local dir3 = (targetPos3 - seatPos)
+                                    -- Hạ độ cao xuống vị trí bắn chuẩn (targetShootHeight) với tốc độ giảm tốc mượt
+                                    local finalTarget = Vector3.new(hoverTargetPos.X, targetShootHeight, hoverTargetPos.Z)
+                                    local dist3D = (finalTarget - seatPos).Magnitude
+                                    local deltaY = targetShootHeight - seatPos.Y
 
-                                    if dir3.Magnitude <= 6 then
+                                    if dist3D <= 25 or (math.abs(deltaY) <= 12 and (Vector3.new(hoverTargetPos.X, 0, hoverTargetPos.Z) - Vector3.new(seatPos.X, 0, seatPos.Z)).Magnitude <= 30) then
                                         lv.VectorVelocity = Vector3.zero
                                         stage = 3
                                         UILib.Notify("Auto Shoot", "Position reached! Sitting on Harpoon...", 3)
                                     else
-                                        lv.VectorVelocity = dir3.Unit * (S.BoatFlySpeed or 220)
+                                        local dir = (finalTarget - seatPos).Unit
+                                        local speed = math.clamp(dist3D * 4, 30, S.BoatFlySpeed or 220)
+                                        lv.VectorVelocity = dir * speed
                                     end
                                 end
-                            -- Bước 3: Tìm, bay đến và ngồi vào Harpoon, tính toán góc bắn rồi thực hiện bắn tim
+                            -- Bước 3: Đậu thuyền cố định, ngồi lên Harpoon và ngắm bắn tim
                             elseif stage == 3 then
-                                -- Dừng thuyền cố định và giữ hướng mũi thuyền thẳng vào tim leviathan
+                                -- Dừng thuyền cố định hoàn toàn và khóa góc nhìn vào tim
                                 lv.VectorVelocity = Vector3.zero
                                 ao.CFrame = CFrame.lookAt(vSeat.Position, Vector3.new(fhPos.X, vSeat.Position.Y, fhPos.Z))
 
-                                local harpoonModel = targetBoat:FindFirstChild("Harpoon") or targetBoat:FindFirstChild("Harpoon", true)
-                                local harpoonSeat = harpoonModel and (harpoonModel:FindFirstChildOfClass("Seat") or harpoonModel:FindFirstChild("Seat", true))
+                                local harpoonModel, harpoonSeat = Utility.GetHarpoon(targetBoat)
 
                                 if harpoonSeat and harpoonModel then
                                     if hum.SeatPart == harpoonSeat then
-                                        -- Tính toán góc bắn theo tam giác vuông từ người ngồi trên Harpoon đến tim Leviathan
+                                        -- Tính toán góc bắn chính xác từ vị trí người bắn đến tim Leviathan
                                         local shooterPos = (root and root.Position) or harpoonSeat.Position
                                         local dx = fhPos.X - shooterPos.X
                                         local dz = fhPos.Z - shooterPos.Z
                                         local horizontalDist = math.sqrt(dx * dx + dz * dz)
                                         local deltaY = fhPos.Y - shooterPos.Y
 
-                                        -- tan(theta) = deltaY / horizontalDist  => theta = atan2(deltaY, horizontalDist)
-                                        local pitchAngle = math.atan2(deltaY, math.max(horizontalDist, 0.1))
-                                        -- Giới hạn góc bắn trong khoảng hợp lệ: min = -0.175, max = 0.785
+                                        -- tan(theta) = deltaY / horizontalDist => theta = atan2(deltaY, horizontalDist) + 0.15 bù góc
+                                        local pitchAngle = math.atan2(deltaY, math.max(horizontalDist, 0.1)) + 0.15
                                         pitchAngle = math.clamp(pitchAngle, -0.175, 0.785)
 
                                         pcall(function()
@@ -2327,13 +2445,27 @@ function Utility.StartAutoShootLeviathan()
                                                 serverTime
                                             )
                                         end)
-                                        task.wait(1.5)
+                                        task.wait(1.2)
                                     else
-                                        if hum.SeatPart == vSeat then
+                                        -- Nếu còn ngồi ghế lái thì rời ghế ngay lập tức
+                                        if hum.SeatPart == vSeat or hum.SeatPart ~= harpoonSeat then
                                             hum.Sit = false
-                                            task.wait(0.1)
+                                            hum.Jump = true
+                                            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
                                         end
-                                        Utility.FlyToAndSitSeat(harpoonSeat)
+
+                                        -- Trực tiếp đưa nhân vật đến ghế Harpoon và ngồi lên
+                                        harpoonSeat.Disabled = false
+                                        root.CFrame = harpoonSeat.CFrame * CFrame.new(0, 1, 0)
+                                        task.wait(0.05)
+                                        pcall(function() harpoonSeat:Sit(hum) end)
+                                        if firetouchinterest then
+                                            pcall(function()
+                                                firetouchinterest(root, harpoonSeat, 0)
+                                                task.wait(0.02)
+                                                firetouchinterest(root, harpoonSeat, 1)
+                                            end)
+                                        end
                                     end
                                 else
                                     if os.clock() - lastNotify > 5 then
@@ -2347,7 +2479,7 @@ function Utility.StartAutoShootLeviathan()
                 end
             end
 
-            task.wait(0.2)
+            task.wait(0.15)
         end
     end)
 end
@@ -2519,7 +2651,7 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
     elseif wType == "Sword" then
         if S.SwordSkillZ then table.insert(skillKeys, "Z") end
         if S.SwordSkillX then table.insert(skillKeys, "X") end
-    elseif wType == "Gun" then
+    elseif wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm" then
         if S.GunSkillZ then table.insert(skillKeys, "Z") end
         if S.GunSkillX then table.insert(skillKeys, "X") end
     end
@@ -2542,7 +2674,7 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
                     pcall(function() rf:InvokeServer(key) end)
                 elseif wType == "Sword" then
                     pcall(function() rf:InvokeServer(key, livePos) end)
-                elseif wType == "Gun" then
+                elseif wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm" then
                     pcall(function() rf:InvokeServer(key) end)
                 end
             end)
@@ -2552,7 +2684,7 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
         local holdEnabled = (wType == "Melee" and S.HoldMeleeSkills)
             or (wType == "Fruit" and S.HoldFruitSkills)
             or (wType == "Sword" and S.HoldSwordSkills)
-            or (wType == "Gun" and S.HoldGunSkills)
+            or ((wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm") and S.HoldGunSkills)
         local duration = holdEnabled and (S.SkillHoldDuration or 0.35) or 0.05
         local t0 = os.clock()
         while os.clock() - t0 < duration do
@@ -2598,8 +2730,24 @@ function Utility.StartAutoAttackLeviathan()
                 local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
 
                 if eRoot then
+                    local chosenWeapon = S.LeviathanSelectedWeapon or "Dragonstorm"
                     local targetPos = eRoot.Position
-                    Utility.PhysicsFlyTo(targetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
+                    local attackHeight = (chosenWeapon == "Dragonstorm" or chosenWeapon == "Dragon Storm" or chosenWeapon == "Gun") and 40 or 25
+                    local flyTargetPos = targetPos + Vector3.new(0, attackHeight, 0)
+                    Utility.PhysicsFlyTo(flyTargetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
+
+                    -- Thực hiện tấn công vũ khí liên tục
+                    if chosenWeapon == "Dragonstorm" or chosenWeapon == "Dragon Storm" then
+                        Utility.AttackDragonstorm(target, eRoot)
+                    elseif chosenWeapon == "Melee" then
+                        Utility.AttackMelee(target, eRoot)
+                    elseif chosenWeapon == "Sword" then
+                        Utility.AttackSword(target, eRoot)
+                    elseif chosenWeapon == "Fruit" then
+                        Utility.AttackFruitM1(target, eRoot)
+                    elseif chosenWeapon == "Gun" then
+                        Utility.AttackGun(target, eRoot)
+                    end
                 end
             else
                 Utility.StopPhysicsFly()
@@ -3457,6 +3605,8 @@ function Utility.EquipWeaponByType(category)
             return tip:find("fruit") or tip:find("blox fruit") or tool:FindFirstChild("LeftClickRemote") or name:find("-") or tool:FindFirstChild("Fruit")
         elseif targetType == "Gun" then
             return tip:find("gun") or name:find("gun") or name:find("rifle") or name:find("guitar") or name:find("bow") or name:find("cannon") or name:find("slingshot") or name:find("blaster") or name:find("pistol") or name:find("musket") or name:find("kabucha") or name:find("bizarre") or name:find("serpent") or name:find("acidum")
+        elseif targetType == "Dragonstorm" or targetType == "Dragon Storm" then
+            return name:find("dragonstorm") or name:find("dragon storm") or name:find("dragon's storm") or name:find("dragon") or tip:find("dragon")
         end
         return false
     end
@@ -3743,6 +3893,80 @@ function Utility.AttackGun(enemy, enemyRoot)
     local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
 
     for i = 1, 6 do
+        if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
+            pcall(function() shootGunEvent:FireServer(targetPos, { eRoot }) end)
+            pcall(function() shootGunEvent:FireServer(targetPos, {}) end)
+            pcall(function() shootGunEvent:FireServer(targetPos, { eHead or eRoot }) end)
+        end
+
+        if regAttack and regAttack:IsA("RemoteEvent") then
+            pcall(function() regAttack:FireServer(0) end)
+            pcall(function() regAttack:FireServer(0.1) end)
+        end
+
+        if regHit and regHit:IsA("RemoteEvent") then
+            pcall(function() regHit:FireServer(eRoot, hitArray1) end)
+            pcall(function() regHit:FireServer(eRoot, hitArray2) end)
+            pcall(function() regHit:FireServer(eRoot, { eRoot, eHead or eRoot }) end)
+        end
+    end
+
+    if commF and commF:IsA("RemoteFunction") then
+        pcall(function() commF:InvokeServer("RegisterAttack", 1) end)
+    end
+end
+
+--[[ Thực hiện tấn công bằng Dragonstorm (Tool activation & bão rồng siêu tốc) ]]
+function Utility.AttackDragonstorm(enemy, enemyRoot)
+    local tool = Utility.EquipWeaponByType("Dragonstorm")
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")))
+    local eHead = enemy and enemy:FindFirstChild("Head")
+    if not eRoot then return end
+
+    local char = LocalPlayer.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    local targetPos = eRoot.Position
+
+    if myRoot then
+        local flatTarget = Vector3.new(targetPos.X, myRoot.Position.Y, targetPos.Z)
+        if (flatTarget - myRoot.Position).Magnitude > 0.1 then
+            myRoot.CFrame = CFrame.lookAt(myRoot.Position, flatTarget)
+        end
+    end
+
+    local rep = game:GetService("ReplicatedStorage")
+    local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
+    local shootGunEvent = net and net:FindFirstChild("RE/ShootGunEvent")
+    local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
+    local regHit = net and net:FindFirstChild("RE/RegisterHit")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+
+    -- 1. Kích hoạt chuột qua VirtualInputManager
+    if tick() - lastGunClickTime >= 0.5 then
+        lastGunClickTime = tick()
+        if tool then
+            pcall(function() tool:Activate() end)
+            local lcr = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("LeftClickRemote", true)
+            if lcr and lcr:IsA("RemoteEvent") and myRoot then
+                pcall(function() lcr:FireServer((targetPos - myRoot.Position).Unit, 1, true, targetPos) end)
+            end
+        end
+        pcall(function()
+            local vim = game:GetService("VirtualInputManager")
+            vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            task.delay(0.001, function()
+                pcall(function()
+                    vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                end)
+            end)
+        end)
+    end
+
+    -- 2. Gây đa tầng sát thương trực tiếp lên Leviathan
+    local hitArray1 = { [1] = { [1] = eRoot, [2] = eRoot } }
+    local hitArray2 = { [1] = { [1] = eHead or eRoot, [2] = eRoot } }
+
+    for i = 1, 8 do
         if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
             pcall(function() shootGunEvent:FireServer(targetPos, { eRoot }) end)
             pcall(function() shootGunEvent:FireServer(targetPos, {}) end)
@@ -4423,8 +4647,8 @@ LevTab:AddSection("Auto Attack Leviathan")
 LevTab:AddDropdown({
     Name    = "Select Weapon for Leviathan",
     Desc    = "Choose weapon or rotate all (reads skills from Farm Setting)",
-    Options = { "Melee", "Sword", "Fruit", "Gun", "Rotate All" },
-    Default = S.LeviathanSelectedWeapon or "Melee",
+    Options = { "Dragonstorm", "Melee", "Sword", "Fruit", "Gun", "Rotate All" },
+    Default = S.LeviathanSelectedWeapon or "Dragonstorm",
     Callback = function(opt)
         S.LeviathanSelectedWeapon = opt
     end,
@@ -4432,7 +4656,7 @@ LevTab:AddDropdown({
 
 AutoAttackLeviToggle = LevTab:AddToggle({
     Name    = "Auto Attack Leviathan",
-    Desc    = "Fly to Leviathan Segments then Leviathan",
+    Desc    = "Fly to Leviathan Segments then Leviathan (attacks with selected weapon)",
     Default = false,
     Callback = function(val)
         S.AutoAttackLeviEnabled = val
@@ -4444,6 +4668,29 @@ AutoAttackLeviToggle = LevTab:AddToggle({
             end
             Utility.StartAutoAttackLeviathan()
         else
+            Utility.StopAutoAttackLeviathan()
+        end
+    end,
+})
+
+LevTab:AddToggle({
+    Name    = "Auto Attack Leviathan (Dragonstorm)",
+    Desc    = "Instantly equip Dragonstorm, fly & attack Leviathan",
+    Default = false,
+    Callback = function(val)
+        if val then
+            S.LeviathanSelectedWeapon = "Dragonstorm"
+            S.AutoAttackLeviEnabled = true
+            if AutoAttackLeviToggle then AutoAttackLeviToggle:Set(true) end
+            if S.MultipleFindLeviathanEnabled then
+                S.MultipleFindLeviathanEnabled = false
+                if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
+                Utility.StopMultipleFindLeviathan()
+            end
+            Utility.StartAutoAttackLeviathan()
+        else
+            S.AutoAttackLeviEnabled = false
+            if AutoAttackLeviToggle then AutoAttackLeviToggle:Set(false) end
             Utility.StopAutoAttackLeviathan()
         end
     end,
@@ -5305,6 +5552,30 @@ if _G.HilichurlKeyData and _G.HilichurlKeyData.LoadedFromLoader then
         end
     end)
 end
+
+PlayerTab:AddSection("Configuration & Backup")
+
+PlayerTab:AddButton({
+    Name = "Save Setting",
+    Desc = "Save current settings directly to local executor storage",
+    Callback = function()
+        Utility.SaveLocalConfig()
+    end,
+})
+
+PlayerTab:AddButton({
+    Name = "Copy Config",
+    Desc = "Export current config & loader code to clipboard",
+    Callback = function()
+        local code = Utility.GenerateConfigCode()
+        pcall(function()
+            if setclipboard then setclipboard(code)
+            elseif toclipboard then toclipboard(code)
+            elseif Clipboard and Clipboard.set then Clipboard.set(code) end
+        end)
+        UILib.Notify("Config", "Config script copied to clipboard!", 3)
+    end,
+})
 
 Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
 
