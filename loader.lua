@@ -1,1 +1,556 @@
-local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v48,v49) local v50={};for v309=1, #v48 do v6(v50,v0(v4(v1(v2(v48,v309,v309 + 1 )),v1(v2(v49,1 + (v309% #v49) ,1 + (v309% #v49) + 1 )))%256 ));end return v5(v50);end local v8={[v7("\226\198\201\51\239\184\194\55\213","\126\177\163\187\69\134\219\167")]=30571,[v7("\16\200\41\215\249\55","\156\67\173\74\165")]=v7("\28\190\69\31\191\46\83\38\187\104\3\168\46\117\49\180\91\19\168","\38\84\215\41\118\220\70"),[v7("\103\25\48\25\251\66\55\55\6\246\101\36\14","\158\48\118\66\114")]=v7("\163\48\4\38\96\255\180\228\38\22\37\112\183\242\187\48\94\32\122\171\243\172\45\17\56\116\242\163\249\116\64\97\61\178\244\185\47\21\36\96\235\255\174\50","\155\203\68\112\86\19\197"),[v7("\117\213\57\235\100\113\246\251\73\207\50","\152\38\189\86\156\32\24\133")]=true,[v7("\216\94\180\69\243\69\163\115\206\123","\38\156\55\199")]=v7("\160\105\104\56\0\46\181\12\172\116\111\43\28\102\254\13\175\122\51\48\38\38\162\84\170\37\102\124\29","\35\200\29\28\72\115\20\154"),[v7("\42\183\222\200\180\35\33\13\170\211\218","\84\121\223\177\191\237\76")]=false,[v7("\130\89\220\180\47\82\53\244\137\122","\161\219\54\169\192\90\48\80")]=v7("\65\86\20\53\90\24\79\106\94\85\23\107\80\77\21\49\92\64\5\107\74\77\13\106\94\67\20\38\65\29\22\120\77\115\23\113\94\27\55\34\113\65\49","\69\41\34\96"),[v7("\151\198\206\44\11\39\185\237\214\7\7","\75\220\163\183\106\98")]=v7("\10\179\135\62\218\10\175\153\59\230\9\191\146\121\205\26\174","\185\98\218\235\87"),[v7("\228\48\35\193\203\163\229\61\42\227","\202\171\92\71\134\190")]=v7("\1\200\32\129\42\201\57\154\37\234\41\145\5\206\45\140\44\211","\232\73\161\76"),[v7("\150\216\75\83\57\174\208\108\92\19\190","\126\219\185\34\61")]=v7("\36\199\82\123\125\127\230\245\0\230\75\112\89\98\250","\135\108\174\62\18\30\23\147"),[v7("\158\252\40\229\25\163\54","\167\214\137\74\171\120\206\83")]=v7("\163\217\30\116\219\143\190\194\30\29\208\146\169","\199\235\144\82\61\152"),[v7("\47\3\187\15\2\5\186\57\14\6\173\34\8\24","\75\103\118\217")]=v7("\229\88\127\12\249\56\213\65\121\0\170\94\219\20\67\17\184\94\226\66\117\26\173\13\135\18\48\56\188\8\206\85\100\28\184\16","\126\167\52\16\116\217")};local v9=(1 + 1)^(48 -16) ;local v10=v9-(1245 -(485 + 759)) ;local function v11(v51,v52) local v53=0 -0 ;local v54;local v55;while true do if (v53==1) then return v54%v9 ;end if (v53==(1189 -(442 + 747))) then local v342=0;while true do if ((1135 -(832 + 303))==v342) then v54,v55=946 -(88 + 858) ,1 + 0 ;while (v51~=0) or (v52~=(0 + 0))  do local v456=0;local v457;local v458;local v459;while true do if (v456==(0 + 0)) then v457,v458=v51%2 ,v52%2 ;v459=(v457 + v458)%2 ;v456=1;end if (v456==(790 -(766 + 23))) then v54=v54 + (v459 * v55) ;v51=math.floor(v51/(9 -7) );v456=2 -0 ;end if (v456==(4 -2)) then v52=math.floor(v52/(6 -4) );v55=v55 * (1075 -(1036 + 37)) ;break;end end end v342=1;end if (v342==1) then v53=1;break;end end end end end local function v12(v56,v57,v58,...) local v59=0 + 0 ;local v60;while true do if (v59==0) then v60=nil;if v57 then v56=v56%v9 ;v57=v57%v9 ;v60=v11(v56,v57);if v58 then v60=v12(v60,v58,...);end return v60;elseif v56 then return v56%v9 ;else return 0 -0 ;end break;end end end local function v13(v61,v62,v63,...) local v64=0 + 0 ;local v65;while true do if (v64==(1480 -(641 + 839))) then v65=nil;if v62 then local v399=0;local v400;while true do if (v399==0) then v400=913 -(910 + 3) ;while true do if ((2 -1)==v400) then v65=((v61 + v62) -v11(v61,v62))/(1686 -(1466 + 218)) ;if v63 then v65=v13(v65,v63,...);end v400=1 + 1 ;end if (2==v400) then return v65;end if (v400==(1148 -(556 + 592))) then v61=v61%v9 ;v62=v62%v9 ;v400=1 + 0 ;end end break;end end elseif v61 then return v61%v9 ;else return v10;end break;end end end local function v14(v66) return v10-v66 ;end local function v15(v67,v68) local v69=0;while true do if (v69==0) then if (v68<(808 -(329 + 479))) then return lshift(v67, -v68);end return math.floor((v67%((856 -(174 + 680))^32))/((6 -4)^v68) );end end end local function v16(v70,v71) local v72=0;local v73;while true do if (0==v72) then v73=0;while true do if (v73==(0 -0)) then if ((v71>31) or (v71< -31)) then return 0 + 0 ;end return v15(v70%v9 ,v71);end end break;end end end local function v17(v74,v75) local v76=0;while true do if (v76==0) then if (v75<0) then return v16(v74, -v75);end return (v74 * (2^v75))%((741 -(396 + 343))^(3 + 29)) ;end end end local function v18(v77,v78) v77=v77%v9 ;v78=v78%(1509 -(29 + 1448)) ;local v79=v13(v77,((1391 -(135 + 1254))^v78) -(3 -2) );return v16(v77,v78) + v17(v79,(149 -117) -v78 ) ;end local v19={1116353935 -(389 + 1138) ,1899447441,3049323987 -(399 + 117) ,3789613115 -  -131396458 ,961987163,1508970993,2453637607 -(821 + 1038) ,2870763221 -0 ,3624381080 -0 ,19746625 + 290851776 ,155858323 + 451366955 ,1620827868 -193945881 ,1925078692 -(300 + 4) ,2162078206,2614888465 -(112 + 250) ,3248222580 -0 ,3835390401,4022225645 -(441 + 430) ,264347078,1348711016 -743903388 ,770255983,2972608919 -1723458797 ,1555081692,1996064986,2554220882,2821834349,2952996808 -0 ,3210313671 -0 ,3336571891,3584529790 -(296 + 783) ,243750381 -129823388 ,1350094 + 336891801 ,666307205,773531578 -(636 + 1030) ,1264674233 + 30083139 ,94332689 + 1301849602 ,328515415 + 1366668285 ,3501876335 -1515215284 ,2177026647 -(36 + 261) ,2456957405 -(34 + 1334) ,2730486165 -(157 + 87) ,2820302411 -0 ,3259731119 -(134 + 185) ,3345765456 -(314 + 371) ,3516066785 -(478 + 490) ,3600353976 -(786 + 386) ,4212724702 -118152793 ,275423344,1893443700 -1463215966 ,1336313636 -829365020 ,1844915295 -1185854739 ,883998511 -(463 + 171) ,958139571,1513519442 -190697224 ,1537003640 -(1561 + 16) ,826034537 + 921839242 ,1955562222,670852824 + 1353251991 ,2227730452 -0 ,2361852424,2428436474,2756734187,3204033037 -(1291 + 267) ,3329325415 -(16 + 101) };local function v20(v80) return string.gsub(v80,".",function(v310) return string.format(v7("\141\126\114\152","\156\168\78\64\224\212\121"),string.byte(v310));end);end local function v21(v81,v82) local v83=971 -(966 + 5) ;local v84;while true do if (v83==1) then return v84;end if (v83==(811 -(721 + 90))) then local v343=0;while true do if ((0 + 0)==v343) then v84="";for v460=3 -2 ,v82 do local v461=470 -(224 + 246) ;local v462;while true do if (v461==(1 -0)) then v81=(v81-v462)/(471 -215) ;break;end if (v461==0) then v462=v81%(47 + 209) ;v84=string.char(v462)   .. v84 ;v461=1;end end end v343=1 + 0 ;end if (v343==(1 + 0)) then v83=1;break;end end end end end local function v22(v85,v86) local v87=0 -0 ;local v88;while true do local v311=0 -0 ;while true do if (v311==(513 -(203 + 310))) then if (0==v87) then local v444=1993 -(1238 + 755) ;while true do if (v444==(0 + 0)) then v88=1534 -(709 + 825) ;for v496=v86,v86 + (4 -1)  do v88=(v88 * (372 -116)) + string.byte(v85,v496) ;end v444=865 -(196 + 668) ;end if ((3 -2)==v444) then v87=1 -0 ;break;end end end if (v87==(834 -(171 + 662))) then return v88;end break;end end end end local function v23(v89,v90) local v91=0;local v92;while true do local v312=93 -(4 + 89) ;while true do if ((0 -0)==v312) then if (v91==(1 + 1)) then return v89;end if (v91==(4 -3)) then v89=v89   .. "\128"   .. string.rep("\0",v92)   .. v90 ;assert(( #v89%64)==(0 + 0) );v91=2;end v312=1;end if (v312==1) then if (v91==(1486 -(35 + 1451))) then v92=64 -((v90 + (1462 -(28 + 1425)))%64) ;v90=v21((2001 -(941 + 1052)) * v90 ,8 + 0 );v91=1515 -(822 + 692) ;end break;end end end end local function v24(v93) local v94=0 -0 ;while true do if (v94==4) then return v93;end if (v94==2) then v93[3 + 2 ]=1359893416 -(45 + 252) ;v93[6]=2600823921 -(655 + 342) ;v94=7 -4 ;end if (v94==3) then v93[440 -(114 + 319) ]=528734635;v93[11 -3 ]=2605892481 -1064433256 ;v94=1 + 3 ;end if (v94==0) then v93[1]=1779035384 -(98 + 1583) ;v93[3 -1 ]=3144134277;v94=1;end if (v94==1) then v93[1966 -(556 + 1407) ]=1013904242;v93[1210 -(741 + 465) ]=2773480762;v94=467 -(170 + 295) ;end end end local function v25(v95,v96,v97) local v98=0;local v99;local v100;local v101;local v102;local v103;local v104;local v105;local v106;local v107;while true do if (v98==1) then for v372=1 + 0 ,59 + 5  do local v373=0;local v374;local v375;local v376;local v377;local v378;local v379;while true do if (v373==(9 -5)) then v101=v100;v100=(v379 + v376)%v9 ;break;end if (v373==(2 + 0)) then local v463=0;while true do if (v463==(1 + 0)) then v105=v104;v373=2 + 1 ;break;end if (v463==(1230 -(957 + 273))) then v107=v106;v106=v105;v463=1;end end end if (v373==(0 + 0)) then v374=v12(v18(v100,1 + 1 ),v18(v100,49 -36 ),v18(v100,57 -35 ));v375=v12(v13(v100,v101),v13(v100,v102),v13(v101,v102));v376=(v374 + v375)%v9 ;v373=2 -1 ;end if ((14 -11)==v373) then local v464=0;while true do if (v464==(1781 -(389 + 1391))) then v102=v101;v373=3 + 1 ;break;end if (v464==(0 + 0)) then v104=(v103 + v379)%v9 ;v103=v102;v464=1;end end end if (v373==1) then local v465=0 -0 ;while true do if (v465==(952 -(783 + 168))) then v379=(v107 + v377 + v378 + v19[v372] + v99[v372])%v9 ;v373=6 -4 ;break;end if (v465==(0 + 0)) then v377=v12(v18(v104,317 -(309 + 2) ),v18(v104,33 -22 ),v18(v104,1237 -(1090 + 122) ));v378=v12(v13(v104,v105),v13(v14(v104),v106));v465=1 + 0 ;end end end end end v97[3 -2 ]=(v97[1 + 0 ] + v100)%v9 ;v97[1120 -(628 + 490) ]=(v97[1 + 1 ] + v101)%v9 ;v97[7 -4 ]=(v97[3] + v102)%v9 ;v98=9 -7 ;end if (v98==(774 -(431 + 343))) then v99={};for v380=1 -0 ,46 -30  do v99[v380]=v22(v95,v96 + ((v380-(1 + 0)) * 4) );end for v382=3 + 14 ,64 do local v383=0;local v384;local v385;while true do if ((1696 -(556 + 1139))==v383) then v384=v99[v382-2 ];v99[v382]=(v99[v382-(31 -(6 + 9)) ] + v385 + v99[v382-(2 + 5) ] + v12(v18(v384,9 + 8 ),v18(v384,188 -(28 + 141) ),v16(v384,4 + 6 )))%v9 ;break;end if (0==v383) then v384=v99[v382-(18 -3) ];v385=v12(v18(v384,5 + 2 ),v18(v384,1335 -(486 + 831) ),v16(v384,7 -4 ));v383=3 -2 ;end end end v100,v101,v102,v103,v104,v105,v106,v107=v97[1 + 0 ],v97[2],v97[9 -6 ],v97[1267 -(668 + 595) ],v97[5 + 0 ],v97[2 + 4 ],v97[7],v97[8];v98=2 -1 ;end if (v98==(292 -(23 + 267))) then v97[1948 -(1129 + 815) ]=(v97[391 -(371 + 16) ] + v103)%v9 ;v97[1755 -(1326 + 424) ]=(v97[9 -4 ] + v104)%v9 ;v97[6]=(v97[21 -15 ] + v105)%v9 ;v97[7]=(v97[125 -(88 + 30) ] + v106)%v9 ;v98=774 -(720 + 51) ;end if (3==v98) then v97[8]=(v97[17 -9 ] + v107)%v9 ;break;end end end local function v26(v108) local v109=0;local v110;while true do local v313=0;while true do if (v313==0) then if (v109==(1776 -(421 + 1355))) then v108=v23(v108, #v108);v110=v24({});v109=1;end if (1==v109) then for v469=1, #v108,105 -41  do v25(v108,v469,v110);end return v20(v21(v110[1],2 + 2 )   .. v21(v110[2],1087 -(286 + 797) )   .. v21(v110[3],14 -10 )   .. v21(v110[6 -2 ],4)   .. v21(v110[444 -(397 + 42) ],4)   .. v21(v110[2 + 4 ],804 -(24 + 776) )   .. v21(v110[10 -3 ],4)   .. v21(v110[793 -(222 + 563) ],8 -4 ) );end break;end end end end local function v27(v111) local v112=0 + 0 ;local v113;while true do if ((191 -(23 + 167))==v112) then if (v113 and (typeof(v113)==v7("\171\253\201\205\182\238","\164\216\137\187")) and ( #v113==(1862 -(690 + 1108)))) then return string.lower(v113);end return v26(v111);end if ((0 + 0)==v112) then local v368=0 + 0 ;while true do if (v368==0) then v113=nil;pcall(function() local v470=0;local v471;while true do if (v470==(848 -(40 + 808))) then v471=(getgenv and getgenv()) or _G or {} ;if (v471.crypt and v471.crypt.hash) then v113=v471.crypt.hash(v111,v7("\20\230\164\156\82\184","\174\103\142\197"));elseif (crypt and crypt.hash) then v113=crypt.hash(v111,v7("\69\32\94\106\112\8","\152\54\72\63\88\69\62"));elseif (syn and syn.crypt and syn.crypt.custom and syn.crypt.custom.hash) then v113=syn.crypt.custom.hash(v7("\199\204\239\14\129\146","\60\180\164\142"),v111);elseif (syn and syn.crypt and syn.crypt.hash) then v113=syn.crypt.hash(v7("\75\86\4\123\114\187","\114\56\62\101\73\71\141"),v111);end break;end end end);v368=1 + 0 ;end if ((3 -2)==v368) then v112=1;break;end end end end end local v28=game:GetService(v7("\250\242\37\162\149\251\25\196\239\50\183","\107\178\134\81\210\198\158"));local v29=game:GetService(v7("\8\2\131\223\175\42\29","\202\88\110\226\166"));local function v30(v114) local v115=0 + 0 ;local v116;local v117;local v118;local v119;local v120;while true do if ((0 + 0)==v115) then v116=0;v117=nil;v115=1 + 0 ;end if (v115==(573 -(47 + 524))) then v120=nil;while true do if (v116==(1 + 0)) then if  not v118 then return nil,v7("\235\59\182\199\138\209\10\147\226\207\208\27\145\183\196\204\27\194\228\223\211\31\141\229\222\198\11","\170\163\111\226\151");end v119,v120=pcall(function() return v118(v114);end);v116=5 -3 ;end if (v116==(0 -0)) then local v445=0;while true do if (v445==1) then v116=2 -1 ;break;end if (v445==0) then v117=(getgenv and getgenv()) or _G or {} ;v118=v117.request or v117.http_request or v117.syn_request or (v117.syn and v117.syn.request) or (v117.http and v117.http.request) or (v117.fluxus and v117.fluxus.request) or request or http_request or syn_request ;v445=1727 -(1165 + 561) ;end end end if (v116==(1 + 1)) then if (v119 and (type(v120)==v7("\5\49\176\52\75","\73\113\80\210\88\46\87"))) then return v120;else return nil,v7("\162\35\195\28\226\130\56\196\29\233\193\9\223\0\232\147\118\141","\135\225\76\173\114")   .. tostring(v120 or v7("\47\227\179\190\163\170\169","\199\122\141\216\208\204\221") ) ;end break;end end break;end if (v115==(3 -2)) then v118=nil;v119=nil;v115=2;end end end local v31=function(v121) local v122=0 + 0 ;local v123;while true do if (v122==0) then v123=(getgenv and getgenv()) or _G or {} ;pcall(function() if v123.setclipboard then v123.setclipboard(v121);elseif v123.toclipboard then v123.toclipboard(v121);elseif v123.set_clipboard then v123.set_clipboard(v121);elseif setclipboard then setclipboard(v121);elseif toclipboard then toclipboard(v121);elseif (Clipboard and Clipboard.set) then Clipboard.set(v121);end end);break;end end end;local v32=function() local v124=479 -(341 + 138) ;local v125;local v126;local v127;while true do if (v124==(1 + 0)) then v127=nil;while true do if (v125==(0 -0)) then v126="";v127=(getgenv and getgenv()) or _G or {} ;v125=327 -(89 + 237) ;end if ((3 -2)==v125) then local v446=0 -0 ;while true do if (v446==(881 -(581 + 300))) then pcall(function() if v127.getclipboard then v126=tostring(v127.getclipboard());elseif v127.get_clipboard then v126=tostring(v127.get_clipboard());elseif v127.fromclipboard then v126=tostring(v127.fromclipboard());elseif getclipboard then v126=tostring(getclipboard());elseif get_clipboard then v126=tostring(get_clipboard());elseif fromclipboard then v126=tostring(fromclipboard());elseif (syn and syn.getclipboard) then v126=tostring(syn.getclipboard());elseif (fluxus and fluxus.get_clipboard) then v126=tostring(fluxus.get_clipboard());elseif (Clipboard and Clipboard.get) then v126=tostring(Clipboard.get());elseif (Clipboard and Clipboard.getText) then v126=tostring(Clipboard.getText());end end);return v126 or "" ;end end end end break;end if (v124==(1220 -(855 + 365))) then v125=0 -0 ;v126=nil;v124=1 + 0 ;end end end;local v33=function() local v128=1235 -(1030 + 205) ;local v129;local v130;while true do if (v128==0) then v129="";v130=(getgenv and getgenv()) or _G or {} ;v128=1 + 0 ;end if (v128==(1 + 0)) then pcall(function() if v130.gethwid then v129=tostring(v130.gethwid());elseif gethwid then v129=tostring(gethwid());elseif (game:GetService(v7("\159\223\8\209\118\247\161\196\4\249\123\229\158\216\2\230\113\245\168","\150\205\189\112\144\24")) and game:GetService(v7("\23\134\167\109\10\137\29\9\49\141\188\95\55\141\3\6\44\135\186","\112\69\228\223\44\100\232\113")).GetClientId) then v129=tostring(game:GetService(v7("\230\29\31\242\184\125\138\205\11\14\208\165\79\131\198\9\14\208\179","\230\180\127\103\179\214\28")):GetClientId());end end);if ( not v129 or (v129=="")) then v129=tostring(v29.LocalPlayer.UserId);end v128=288 -(156 + 130) ;end if (v128==(6 -3)) then return v129;end if (v128==(2 -0)) then v129=string.gsub(v129,v7("\183\30\66\123","\128\236\101\63\38\132\33"),"");v129=string.gsub(v129,v7("\233\186\90","\175\204\201\113\36\214\139"),"");v128=5 -2 ;end end end;local function v34() local v131=0 + 0 ;local v132;while true do if (v131==(1 + 0)) then return v132   .. "_"   .. tostring(os.time()) ;end if (v131==(69 -(10 + 59))) then v132="";for v386=1 + 0 ,16 do v132=v132   .. string.char(math.floor(math.random() * (((600 -478) -(1260 -(671 + 492))) + 1 + 0) ) + (1312 -(369 + 846)) ) ;end v131=1 + 0 ;end end end local function v35(v133) local v134=0;local v135;local v136;local v137;local v138;while true do if (v134==(1 + 0)) then v136=math.floor((v133%(88345 -(1036 + 909)))/(2863 + 737) );v137=math.floor((v133%(6044 -2444))/60 );v134=205 -(11 + 192) ;end if (v134==(0 + 0)) then if ( not v133 or (v133<=(175 -(135 + 40)))) then return v7("\98\212\37\213\22\66\200","\100\39\172\85\188");end v135=math.floor(v133/86400 );v134=1;end if (v134==(4 -2)) then v138=math.floor(v133%60 );if (v135>(0 + 0)) then return string.format(v7("\232\124\189\192\118\169\112\249\197\55\160","\83\205\24\217\224"),v135,v136,v137);elseif (v136>(0 -0)) then return string.format(v7("\163\193\197\125\163\193\192\125\163\193\222","\93\134\165\173"),v136,v137,v138);elseif (v137>(0 -0)) then return string.format(v7("\251\246\204\130\127\202\161","\30\222\146\161\162\90\174\210"),v137,v138);else return string.format(v7("\160\74\99","\106\133\46\16"),v138);end break;end end end local v36,v37="",176 -(50 + 126) ;local v38=v7("\80\52\103\236\73\26\23\111\114\236\83\14\72\44\114\232\85\66\87\47\96\232\20\67\87\45","\32\56\64\19\156\58");local function v39() local v139=0 -0 ;local v140;local v141;while true do if (v139==0) then v140,v141=v30({[v7("\111\218\233","\224\58\168\133\54\58\146")]=v38   .. v7("\22\70\94\255\121\143\132\68\90\89\69\243\112\133\147\2\79\95\95\228","\107\57\54\43\157\21\230\231") ,[v7("\246\142\5\253\182\216","\175\187\235\113\149\217\188")]=v7("\27\138\181","\24\92\207\225\44\131\25")});if ( not v140 or ((v140.StatusCode~=200) and (v140.StatusCode~=429))) then local v401=0 + 0 ;local v402;local v403;while true do if (v401==(1414 -(1233 + 180))) then if  not v402 then return false;end break;end if ((969 -(522 + 447))==v401) then v38=v7("\67\199\172\92\8\39\4\156\185\92\18\51\91\223\185\88\20\127\68\220\171\88\85\115\78\199","\29\43\179\216\44\123");v402,v403=v30({[v7("\136\203\44","\44\221\185\64")]=v38   .. v7("\78\247\93\93\127\8\228\7\92\124\15\233\77\92\103\8\241\65\75\106","\19\97\135\40\63") ,[v7("\131\89\39\51\32\53","\81\206\60\83\91\79")]=v7("\105\142\228","\196\46\203\176\18\79\163\45")});v401=1422 -(107 + 1314) ;end end end v139=1 + 0 ;end if (v139==(2 -1)) then return true;end end end local function v40() local v142=0;local v143;while true do if (v142==0) then v143=v39();if  not v143 then return false,v7("\150\39\106\9\43\233\228\248\7\108\12\43\233","\143\216\66\30\126\68\155");end v142=1;end if (v142==(1 + 0)) then if (((v37 + (10 * (119 -59)))<os.time()) or (v36=="")) then local v404=0 -0 ;local v405;local v406;local v407;local v408;while true do if (v404==(1910 -(716 + 1194))) then v405=v33();v406=v27(v405);v404=1;end if (v404==(1 + 1)) then local v475=0;while true do if (v475==(0 + 0)) then v36=string.format(v7("\187\60\27\236\195\1\252\103\8\253\196\94\164\41\22\178\192\87\178\60\0\254\223\84\160\60\65\255\223\86\252\41\64\185\195\4\186\44\82\185\195","\59\211\72\111\156\176"),tostring(v8.ServiceId),v405);return true,v36;end end end if ((504 -(74 + 429))==v404) then v407,v408=v30({[v7("\159\218\1","\129\202\168\109\171\165\195\183")]=v38   .. v7("\109\72\34\218\210\29\229\109\75\35\217\204\0","\134\66\56\87\184\190\116") ,[v7("\17\52\29\179\22\239","\85\92\81\105\219\121\139\65")]=v7("\205\156\99\113","\191\157\211\48\37\28"),[v7("\253\16\240\5","\90\191\127\148\124")]=v28:JSONEncode({[v7("\107\130\60\1\113\132\43","\119\24\231\78")]=tonumber(v8.ServiceId) or v8.ServiceId ,[v7("\139\41\160\68\200\73\23\139\40\183","\113\226\77\197\42\188\32")]=v406}),[v7("\18\19\245\177\63\4\231","\213\90\118\148")]={[v7("\120\33\186\66\72\85\58\249\98\84\75\43","\45\59\78\212\54")]=v7("\17\70\147\135\143\45\172\228\25\89\141\196\140\61\162\254","\144\112\54\227\235\230\78\205")}});if (v407 and (v407.StatusCode==(385 -185))) then local v497=0;local v498;local v499;while true do if ((0 + 0)==v497) then v498,v499=pcall(function() return v28:JSONDecode(v407.Body);end);if (v498 and v499 and v499.success and v499.data and v499.data.url) then local v519=0;while true do local v520=0 -0 ;local v521;while true do if (v520==(0 + 0)) then v521=0 -0 ;while true do if (v521==0) then if (v519==(2 -1)) then return true,v36;end if ((433 -(279 + 154))==v519) then v36=v499.data.url;v37=os.time();v519=779 -(454 + 324) ;end break;end end break;end end end end break;end end end v404=2;end end end return true,v36;end end end local function v41() local v144=0 + 0 ;while true do if (v144==0) then local v369=17 -(12 + 5) ;while true do if (v369==(0 + 0)) then if (isfile and isfile(v8.KeyFileName)) then local v476=0;local v477;while true do if (v476==(2 -1)) then if (v477 and (v477~="")) then local v509,v510=pcall(function() return v28:JSONDecode(v477);end);if (v509 and v510 and v510.key) then return v510.key,tonumber(v510.expiresAt) or (0 + 0) ;else return string.gsub(v477,v7("\11\148\168","\77\46\231\131"),""),0;end end break;end if (v476==0) then v477="";pcall(function() v477=readfile(v8.KeyFileName);end);v476=1;end end end return nil,1093 -(277 + 816) ;end end end end end local function v42(v145,v146) if writefile then pcall(function() writefile(v8.KeyFileName,v28:JSONEncode({[v7("\177\81\175","\32\218\52\214")]=v145,[v7("\75\15\33\161\227\181\86\123\90","\58\46\119\81\200\145\208\37")]=v146}));end);end end local function v43(v147,v148,v149) local v150=0 -0 ;local v151;local v152;local v153;local v154;local v155;local v156;local v157;local v158;local v159;local v160;local v161;local v162;while true do if (v150==0) then local v370=1183 -(1058 + 125) ;while true do if (v370==(0 + 0)) then v151=string.gsub(v147 or "" ,v7("\110\159\123","\86\75\236\80\204\201\221"),"");if (v151=="") then local v478=975 -(815 + 160) ;local v479;while true do if (v478==0) then v479=0;while true do if ((0 -0)==v479) then local v512=0;while true do if (v512==(0 -0)) then if v149 then v149(v7("\87\76\103\145\231\203\89\68\110","\235\18\33\23\229\158"));end return;end end end end break;end end end v370=1 + 0 ;end if (v370==1) then v39();v150=2 -1 ;break;end end end if (v150==(1903 -(41 + 1857))) then if (v161 and (v161.StatusCode==200) and v161.Body and (v161.Body~="")) then local v409=0;local v410;local v411;while true do if (v409==(1893 -(1222 + 671))) then v42(v151,v157);_G[v8.Secret]=true;v409=1;end if (v409==2) then local v480=0 -0 ;while true do if (v480==0) then v410,v411=loadstring(v161.Body);if v410 then task.spawn(v410);else warn(v7("\217\10\238\80\114\114\206\247\48\235\28\87\126\199\230\39\245\97\59\93\201\227\38\244\72\105\120\200\229\98\194\78\105\126\212\184\98","\166\130\66\135\60\27\17")   .. tostring(v411) );end v480=1 -0 ;end if (v480==1) then v409=1185 -(229 + 953) ;break;end end end if (v409==1) then _G.HilichurlKeyData={[v7("\238\142\23\250\60\234\126\208\142\27\210\54\239\92\199\147","\56\162\225\118\158\89\142")]=true,[v7("\119\0\217","\184\60\101\160\207\66")]=v151,[v7("\20\154\108\181\35\135\111\157\37","\220\81\226\28")]=v157,[v7("\33\208\143\250\227\201\26\219\133\207\239\223\7","\167\115\181\226\155\138")]=v35(v157-os.time() )};if v148 then v148(v157);end v409=1776 -(1111 + 663) ;end if (3==v409) then return;end end end if v149 then v149(v7("\114\79\220\124\54\77\73\207\97\57\75\68\142\83\49\77\70\203\113","\80\36\42\174\21"));end break;end if (v150==(1582 -(874 + 705))) then v157=os.time() + 86400 ;v158,v159=pcall(function() return v30({[v7("\101\168\205","\219\48\218\161")]=v38   .. v7("\171\97\105\75\215\70\227\171\99\121\77\222\74\237\171","\128\132\17\28\41\187\47")   .. tostring(v8.ServiceId) ,[v7("\44\55\18\50\82\5","\61\97\82\102\90")]=v7("\156\1\152\127","\105\204\78\203\43\167\55\126"),[v7("\135\165\39\7","\49\197\202\67\126\115\100\167")]=v28:JSONEncode({[v7("\62\95\218\39\148\95\88\62\94\205","\62\87\59\191\73\224\54")]=v154,[v7("\236\7\227","\169\135\98\154")]=v151,[v7("\197\120\42\87\248","\168\171\23\68\52\157\83")]=v152}),[v7("\220\116\244\169\32\63\148","\231\148\17\149\205\69\77")]={[v7("\163\168\201\239\82\241\148\234\243\226\71\250","\159\224\199\167\155\55")]=v7("\246\227\44\222\254\240\61\198\254\252\50\157\253\224\51\220","\178\151\147\92")}});end);if (v158 and v159 and ((v159.StatusCode==200) or (v159.StatusCode==(56 + 344)))) then local v412=0 + 0 ;local v413;local v414;local v415;while true do if (1==v412) then v415=nil;while true do if (v413==0) then v414,v415=pcall(function() return v28:JSONDecode(v159.Body);end);if (v414 and v415 and v415.success and v415.data and v415.data.valid and v415.data.hash) then local v511=0 -0 ;while true do if (v511==(0 + 0)) then v155=true;v156=v415.data.hash;v511=680 -(642 + 37) ;end if (v511==1) then v157=(v415.data.expires_at and tonumber(v415.data.expires_at)) or (v415.data.expires and tonumber(v415.data.expires)) or (os.time() + 19701 + 66699) ;break;end end end break;end end break;end if (v412==(0 + 0)) then v413=0 -0 ;v414=nil;v412=455 -(233 + 221) ;end end end v150=4;end if (v150==(4 -2)) then v154=v27(v153);v155=false;v156=nil;v150=3 + 0 ;end if ((1545 -(718 + 823))==v150) then local v371=0 + 0 ;while true do if (v371==(806 -(266 + 539))) then v161,v162=v30({[v7("\212\218\62","\34\129\168\82\154\143\80\156")]=v8.WorkerAuthURL,[v7("\168\183\39\3\71\74","\233\229\210\83\107\40\46")]=v7("\241\109\1\226","\101\161\34\82\182"),[v7("\192\8\88\250\222\240\145","\78\136\109\57\158\187\130\226")]={[v7("\29\48\247\229\59\49\237\188\10\38\233\244","\145\94\95\153")]=v7("\252\221\4\217\71\180\252\217\29\218\64\248\247\222\27\219","\215\157\173\116\181\46")},[v7("\23\187\143\235","\186\85\212\235\146")]=v28:JSONEncode(v160)});v150=5;break;end if ((0 -0)==v371) then v160={[v7("\135\248\85","\26\236\157\44\82\114\44")]=v151,[v7("\34\57\220\95","\59\74\78\181")]=v153,[v7("\44\213\95\84\167\44\215\83\95\161","\211\69\177\58\58")]=v154,[v7("\185\234\119\246\236","\171\215\133\25\149\137")]=v152};if (v155 and v156) then v160.hash=v156;end v371=1226 -(636 + 589) ;end end end if ((2 -1)==v150) then if (v36=="") then pcall(function() v40();end);end v152=v34();v153=v33();v150=3 -1 ;end end end local v44={[v7("\108\55","\26\46\112\87")]=Color3.fromRGB(12,10 + 2 ,14),[v7("\155\4\148\91\137\154\119\152\152\26","\212\217\67\203\20\223\223\37")]=Color3.fromRGB(7 + 11 ,18,22),[v7("\152\162\154\246\159\191","\178\218\237\200")]=Color3.fromRGB(40,40,1063 -(657 + 358) ),[v7("\151\150\197\245\152\129","\176\214\213\134")]=Color3.fromRGB(431 -268 ,524 -294 ,53),[v7("\213\142\149\241\134\98\102\208\132\155","\57\148\205\214\180\200\54")]=Color3.fromRGB(101,1350 -(1151 + 36) ,13 + 0 ),[v7("\38\216\13\0","\22\114\157\85\84")]=Color3.fromRGB(64 + 176 ,240,240),[v7("\240\238\43\240\98\197\157\230","\200\164\171\115\164\61\150")]=Color3.fromRGB(418 -278 ,1972 -(1552 + 280) ,989 -(64 + 770) ),[v7("\156\192\45\122\165\159\208\38\97\188\156\211","\227\222\148\99\37")]=Color3.fromRGB(20,21 + 9 ,45 -25 ),[v7("\17\102\124\201\223\18\118\119\210\198\7\106\102","\153\83\50\50\150")]=Color3.fromRGB(29 + 134 ,230,1296 -(157 + 1086) ),[v7("\127\66\93\35\71\142\117\105\73\91\51\69","\45\61\22\19\124\19\203")]=Color3.fromRGB(20 -10 ,43 -33 ,15 -5 ),[v7("\232\60\61\192\54\79\155\230","\217\161\114\109\149\98\16")]=Color3.fromRGB(21 -5 ,835 -(599 + 220) ,39 -19 ),[v7("\33\21\27\95\153\71\33","\20\114\64\88\28\220")]=Color3.fromRGB(2094 -(1813 + 118) ,169 + 61 ,1270 -(841 + 376) ),[v7("\20\51\224\155\202","\221\81\97\178\212\152\176")]=Color3.fromRGB(334 -95 ,16 + 52 ,185 -117 )};local function v45(v163,v164) local v165=v29.LocalPlayer;local v166=game:GetService(v7("\238\232\15\254\61\216\238","\122\173\135\125\155"));local v167=(pcall(function() return v166;end) and v166) or v165:WaitForChild(v7("\180\205\1\160\58\35\239\145\200","\168\228\161\96\217\95\81")) ;if v167:FindFirstChild(v7("\243\216\34\85\44\95\206\195\34\99\4\82\194\226\55\79\59\82\214","\55\187\177\78\60\79")) then pcall(function() v167.Hilichurl_KeySystem:Destroy();end);end local v168=Instance.new(v7("\30\205\77\238\67\193\167\56\199","\224\77\174\63\139\38\175"),v167);v168.Name=v7("\172\72\84\39\135\73\77\60\136\126\115\43\157\114\65\61\144\68\85","\78\228\33\56");v168.ResetOnSpawn=false;local v171=Instance.new(v7("\232\108\179\14\128","\229\174\30\210\99"),v168);v171.Size=UDim2.new(859 -(464 + 395) ,923 -563 ,0,173 + 187 );v171.Position=UDim2.new(0.5, -(1017 -(467 + 370)),0.5, -180);v171.BackgroundColor3=v44.BG;v171.Active=true;v171.Draggable=true;v171.ClipsDescendants=true;Instance.new(v7("\46\196\165\94\255\51\60\9","\89\123\141\230\49\141\93"),v171).CornerRadius=UDim.new(0,10);local v180=Instance.new(v7("\198\88\197\24\2\69\248\116","\42\147\17\150\108\112"),v171);v180.Thickness=1.2;v180.Color=v44.BORDER;local v184=Instance.new(v7("\41\180\44\114\226","\136\111\198\77\31\135"),v171);v184.Size=UDim2.new(1, -24,0 -0 ,2 + 0 );v184.Position=UDim2.new(0 -0 ,12,0 + 0 ,1);v184.BorderSizePixel=0;v184.BackgroundColor3=v44.ACCENT;Instance.new(v7("\55\32\132\89\175\234\18\187","\201\98\105\199\54\221\132\119"),v184).CornerRadius=UDim.new(0,4 -2 );local v191=Instance.new(v7("\141\9\155\53\32\32\184\173\3\141","\204\217\108\227\65\98\85"),v171);v191.Size=UDim2.new(520 -(150 + 370) ,1308 -(74 + 1208) ,0 -0 ,26);v191.Position=UDim2.new(4 -3 , -(25 + 9),0,10);v191.BackgroundTransparency=1;v191.Text="X";v191.TextColor3=v44.TEXT_SUB;v191.Font=Enum.Font.GothamBold;v191.TextSize=13;v191.ZIndex=400 -(14 + 376) ;v191.MouseEnter:Connect(function() v191.TextColor3=v44.ERROR;end);v191.MouseLeave:Connect(function() v191.TextColor3=v44.TEXT_SUB;end);v191.MouseButton1Click:Connect(function() v168:Destroy();end);local v202=Instance.new(v7("\106\198\237\241\0\193\92\198\249","\160\62\163\149\133\76"),v171);v202.Size=UDim2.new(1, -(86 -36),0 + 0 ,22);v202.Position=UDim2.new(0 + 0 ,18 + 0 ,0,40 -26 );v202.BackgroundTransparency=1;v202.Text=v8.HubName;v202.TextColor3=v44.TEXT;v202.Font=Enum.Font.GothamBold;v202.TextSize=13 + 3 ;v202.TextXAlignment=Enum.TextXAlignment.Left;local v214=Instance.new(v7("\226\165\21\59\239\215\162\8\35","\163\182\192\109\79"),v171);v214.Size=UDim2.new(1, -(118 -(23 + 55)),0 -0 ,11 + 5 );v214.Position=UDim2.new(0 + 0 ,27 -9 ,0 + 0 ,937 -(652 + 249) );v214.BackgroundTransparency=1;v214.Text=v8.HubDescription;v214.TextColor3=v44.TEXT_SUB;v214.Font=Enum.Font.GothamMedium;v214.TextSize=11;v214.TextXAlignment=Enum.TextXAlignment.Left;local v225=Instance.new(v7("\0\35\24\212\217\53\36\5\204","\149\84\70\96\160"),v171);v225.Name=v7("\29\30\29\228\42\31\33\236\58\3\1","\141\88\102\109");v225.Size=UDim2.new(1, -(96 -60),1868 -(708 + 1160) ,18);v225.Position=UDim2.new(0,48 -30 ,0 -0 ,83 -(10 + 17) );v225.BackgroundTransparency=1;v225.Text=(v164 and (v164>os.time()) and (v7("\152\86\211\48\40\56\88\192\186\93\195\126\29\103\21","\161\211\51\170\16\122\93\53")   .. v35(v164-os.time() ))) or v7("\208\171\171\104\201\171\191\41\242\160\187\38\252\244\242\6\244\160\183","\72\155\206\210") ;v225.TextColor3=v44.ACCENT;v225.Font=Enum.Font.GothamBold;v225.TextSize=3 + 7 ;v225.TextXAlignment=Enum.TextXAlignment.Left;local v235=Instance.new(v7("\96\104\85\3\54","\83\38\26\52\110"),v171);v235.Size=UDim2.new(1, -(1768 -(1400 + 332)),0 -0 ,1909 -(242 + 1666) );v235.Position=UDim2.new(0,8 + 10 ,0,29 + 49 );v235.BackgroundColor3=v44.BORDER;v235.BorderSizePixel=0;local v240=86;local function v241(v318,v319) local v320=0 + 0 ;while true do if ((941 -(850 + 90))==v320) then v319.Color=Color3.fromRGB(78 -33 ,1455 -(360 + 1030) ,35);v318.MouseEnter:Connect(function() v318.BackgroundColor3=v44.ACCENT;v318.TextColor3=v44.BTN_TEXT_HOV;v319.Color=v44.ACCENT;end);v320=2 + 0 ;end if (v320==0) then v318.BackgroundColor3=v44.BTN_FADED_BG;v318.TextColor3=v44.BTN_FADED_TXT;v320=2 -1 ;end if (v320==(2 -0)) then v318.MouseLeave:Connect(function() local v421=0;while true do if (v421==(1661 -(909 + 752))) then v318.BackgroundColor3=v44.BTN_FADED_BG;v318.TextColor3=v44.BTN_FADED_TXT;v421=1224 -(109 + 1114) ;end if (v421==(1 -0)) then v319.Color=Color3.fromRGB(18 + 27 ,307 -(6 + 236) ,23 + 12 );break;end end end);break;end end end if v8.ShowDiscord then local v334=0 + 0 ;local v335;local v336;while true do if (v334==(4 -2)) then Instance.new(v7("\227\168\220\70\205\216\132\237","\191\182\225\159\41"),v335).CornerRadius=UDim.new(0,10 -4 );v336=Instance.new(v7("\30\59\27\65\153\136\201\46","\162\75\114\72\53\235\231"),v335);v336.Thickness=1134 -(1076 + 57) ;v334=1 + 2 ;end if (v334==1) then v335.Text=v7("\217\192\113\248\101\114\218\220\123\249\23\114\179\220\125\228\19\115\193","\54\147\143\56\182\69");v335.Font=Enum.Font.GothamBold;v335.TextSize=700 -(579 + 110) ;v334=1 + 1 ;end if (v334==(0 + 0)) then v335=Instance.new(v7("\108\18\63\82\122\2\51\82\87\25","\38\56\119\71"),v171);v335.Size=UDim2.new(1, -36,0,17 + 15 );v335.Position=UDim2.new(407 -(174 + 233) ,50 -32 ,0 -0 ,v240);v334=1;end if (v334==(2 + 1)) then v241(v335,v336);v335.MouseButton1Click:Connect(function() local v447=1174 -(663 + 511) ;local v448;while true do if (v447==(0 + 0)) then v31(v8.DiscordURL);v448=v171:FindFirstChild(v7("\191\40\69\246\70\17\160\61\70\231\95","\98\236\92\36\130\51"));v447=1 + 0 ;end if (v447==(2 -1)) then if v448 then local v503=0 + 0 ;while true do if (v503==(0 -0)) then v448.Text=v7("\135\22\28\179\64\172","\80\196\121\108\218\37\200\213");v448.TextColor3=v44.SUCCESS;break;end end end break;end end end);v240=v240 + (91 -53) ;break;end end end if (v8.ShowYoutube and v8.YoutubeURL and (v8.YoutubeURL~="")) then local v337=0 + 0 ;local v338;local v339;while true do if (v337==(0 -0)) then v338=Instance.new(v7("\52\118\26\107\105\27\158\20\124\12","\234\96\19\98\31\43\110"),v171);v338.Size=UDim2.new(1 + 0 , -(4 + 32),0,754 -(478 + 244) );v338.Position=UDim2.new(517 -(440 + 77) ,9 + 9 ,0 -0 ,v240);v338.Text=v7("\53\42\112\244\143\64\162\36\58\18\254\131\71\191\51\61\119","\235\102\127\50\167\204\18");v337=1557 -(655 + 901) ;end if (v337==(1 + 0)) then v338.Font=Enum.Font.GothamBold;v338.TextSize=9 + 2 ;Instance.new(v7("\101\136\214\44\86\32\85\179","\78\48\193\149\67\36"),v338).CornerRadius=UDim.new(0 + 0 ,6);v339=Instance.new(v7("\5\55\179\12\83\63\21\133","\33\80\126\224\120"),v338);v337=2;end if (v337==(7 -5)) then v339.Thickness=1446 -(695 + 750) ;v241(v338,v339);v338.MouseButton1Click:Connect(function() local v449=0;local v450;while true do if (v449==(0 -0)) then v31(v8.YoutubeURL);v450=v171:FindFirstChild(v7("\223\188\2\208\73\255\132\2\198\89\224","\60\140\200\99\164"));v449=1;end if (v449==(1 -0)) then if v450 then local v504=0 -0 ;while true do if ((351 -(285 + 66))==v504) then v450.Text=v7("\164\251\20\47\167\131","\194\231\148\100\70");v450.TextColor3=v44.SUCCESS;break;end end end break;end end end);v240=v240 + (88 -50) ;break;end end end local v242=Instance.new(v7("\96\94\192\174\243","\168\38\44\161\195\150"),v171);v242.Size=UDim2.new(1, -36,1310 -(682 + 628) ,38);v242.Position=UDim2.new(0 + 0 ,317 -(176 + 123) ,0,v240 + 3 + 3 );v242.BackgroundColor3=v44.INPUT_BG;Instance.new(v7("\181\213\161\121\34\230\179\4","\118\224\156\226\22\80\136\214"),v242).CornerRadius=UDim.new(0,5 + 1 );local v248=Instance.new(v7("\119\199\106\148\80\225\82\133","\224\34\142\57"),v242);v248.Color=v44.BORDER;v248.Thickness=270 -(239 + 30) ;local v251=Instance.new(v7("\234\162\221\201\81\254\69","\110\190\199\165\189\19\145\61"),v242);v251.Size=UDim2.new(1 + 0 , -70,1 + 0 ,0);v251.Position=UDim2.new(0,17 -7 ,0 -0 ,315 -(306 + 9) );v251.BackgroundTransparency=3 -2 ;v251.PlaceholderText=v7("\234\234\100\252\142\135\234\231\118\252\132\197\213\228\100\252\203\236\223\242\55\224\142\213\223\165\57\166","\167\186\139\23\136\235");v251.PlaceholderColor3=Color3.fromRGB(90,90,100);v251.Text=v163 or "" ;v251.Font=Enum.Font.GothamMedium;v251.TextSize=11;v251.TextColor3=v44.TEXT;v251.TextXAlignment=Enum.TextXAlignment.Left;v251.ClearTextOnFocus=false;v251.Focused:Connect(function() v248.Color=v44.ACCENT;end);v251.FocusLost:Connect(function() v248.Color=v44.BORDER;end);local v263=Instance.new(v7("\46\176\144\25\56\160\156\25\21\187","\109\122\213\232"),v242);v263.Size=UDim2.new(0 + 0 ,34 + 20 ,0,12 + 12 );v263.Position=UDim2.new(1, -(171 -111),1375.5 -(1140 + 235) , -12);v263.Text=v7("\222\246\177\36\235","\80\142\151\194");v263.Font=Enum.Font.GothamBold;v263.TextSize=7 + 3 ;v263.Active=true;v263.ZIndex=19 + 1 ;Instance.new(v7("\54\239\84\67\17\200\114\94","\44\99\166\23"),v263).CornerRadius=UDim.new(0 + 0 ,56 -(33 + 19) );local v272=Instance.new(v7("\73\222\26\34\33\171\119\242","\196\28\151\73\86\83"),v263);v272.Thickness=1 + 0 ;v241(v263,v272);local function v274() local v325=0 -0 ;local v326;while true do if (0==v325) then v326=v32();if (v326 and (v326~="")) then v326=string.gsub(v326,v7("\182\16\98","\22\147\99\73\112\226\56\120"),"");v251.Text=v326;local v452=v171:FindFirstChild(v7("\139\97\227\225\152\171\89\227\247\136\180","\237\216\21\130\149"));if v452 then local v487=0 + 0 ;while true do if (v487==0) then v452.Text=v7("\161\65\79\86\181\205","\62\226\46\63\63\208\169");v452.TextColor3=v44.SUCCESS;break;end end end else v251:CaptureFocus();end break;end end end v263.MouseButton1Click:Connect(v274);v263.TouchTap:Connect(v274);local v275=Instance.new(v7("\209\28\77\151\61\24\59\74\234\23","\62\133\121\53\227\127\109\79"),v171);v275.Size=UDim2.new(0.48 -0 , -20,0 + 0 ,725 -(586 + 103) );v275.Position=UDim2.new(0 + 0 ,55 -37 ,0,v240 + (1540 -(1309 + 179)) );v275.Text=v7("\55\49\6\181\253\139\155","\194\112\116\82\149\182\206");v275.Font=Enum.Font.GothamBold;v275.TextSize=11;Instance.new(v7("\12\129\111\23\210\236\11\43","\110\89\200\44\120\160\130"),v275).CornerRadius=UDim.new(0,10 -4 );local v282=Instance.new(v7("\158\234\120\82\81\69\48\72","\45\203\163\43\38\35\42\91"),v275);v282.Thickness=1 + 0 ;v241(v275,v282);local v284=Instance.new(v7("\230\128\196\55\165\188\64\198\138\210","\52\178\229\188\67\231\201"),v171);v284.Size=UDim2.new(0.48 -0 , -(16 + 4),0,36);v284.Position=UDim2.new(0.52 -0 ,3 -1 ,609 -(295 + 314) ,v240 + (127 -75) );v284.Text=v7("\23\100\98\45\209\101","\67\65\33\48\100\151\60");v284.Font=Enum.Font.GothamBold;v284.TextSize=11;v284.BackgroundColor3=v44.ACCENT;v284.TextColor3=v44.BTN_TEXT_HOV;Instance.new(v7("\234\206\141\215\225\209\226\188","\147\191\135\206\184"),v284).CornerRadius=UDim.new(1962 -(1300 + 662) ,18 -12 );v284.MouseEnter:Connect(function() v284.BackgroundColor3=Color3.fromRGB(190,242,100);end);v284.MouseLeave:Connect(function() v284.BackgroundColor3=v44.ACCENT;end);local v294=Instance.new(v7("\176\45\190\213\244\82\176\129\36","\210\228\72\198\161\184\51"),v171);v294.Name=v7("\5\93\242\4\102\221\26\72\241\21\127","\174\86\41\147\112\19");v294.Size=UDim2.new(1756 -(1178 + 577) , -(19 + 17),0 -0 ,1431 -(851 + 554) );v294.Position=UDim2.new(0 + 0 ,18,0,v240 + (266 -170) );v294.BackgroundTransparency=1 -0 ;v294.Text="";v294.TextColor3=v44.TEXT_SUB;v294.Font=Enum.Font.GothamBold;v294.TextSize=315 -(115 + 187) ;v294.TextWrapped=true;v171.Size=UDim2.new(0 + 0 ,341 + 19 ,0,v240 + (520 -388) );local v304=false;local function v305(v330) local v331=0;local v332;while true do if (v331==(1162 -(160 + 1001))) then if (v332=="") then v294.Text=v7("\2\23\165\237\52\244","\183\68\118\204\129\81\144");v294.TextColor3=v44.ERROR;return;end v304=true;v331=2 + 0 ;end if (v331==0) then if v304 then return;end v332=string.gsub(v330 or "" ,v7("\30\19\198","\203\59\96\237\107\69\111\113"),"");v331=1 + 0 ;end if (v331==3) then v284.Text=v7("\200\235\197\250\106\194\237\199\151\15\165","\33\139\163\128\185");v43(v332,function(v438) local v439=0 -0 ;while true do if (v439==(360 -(237 + 121))) then v168:Destroy();break;end if (v439==1) then v284.Text=v7("\96\138\14\55\53\202\214\114","\147\54\207\92\126\115\131");task.wait(897.6 -(525 + 372) );v439=3 -1 ;end if (v439==0) then v294.Text=v7("\97\93\22\215\81\81\1\218","\190\55\56\100");v294.TextColor3=v44.SUCCESS;v439=1;end end end,function(v440) local v441=0 -0 ;while true do if (v441==0) then v294.Text=v7("\43\48\60\113\8\122","\30\109\81\85\29\109");v294.TextColor3=v44.ERROR;v441=143 -(96 + 46) ;end if (v441==(778 -(643 + 134))) then v284.Text=v7("\201\84\102\159\16\231","\156\159\17\52\214\86\190");v304=false;break;end end end);break;end if (v331==(1 + 1)) then v294.Text=v7("\45\165\117\231\0\139\0\170\62\170\69","\226\110\205\16\132\107");v294.TextColor3=v44.ACCENT;v331=6 -3 ;end end end v284.MouseButton1Click:Connect(function() v305(v251.Text);end);v251.FocusLost:Connect(function(v333) if v333 then v305(v251.Text);end end);v275.MouseButton1Click:Connect(function() task.spawn(function() local v340,v341=v40();if v340 then local v396=0 -0 ;while true do if (v396==(1 + 0)) then v294.TextColor3=v44.SUCCESS;break;end if ((0 -0)==v396) then v31(v341);v294.Text=v7("\141\224\173\181\171\235","\220\206\143\221");v396=1 -0 ;end end else local v397=719 -(316 + 403) ;local v398;while true do if (v397==(0 + 0)) then v398=0 -0 ;while true do if ((0 + 0)==v398) then v294.Text=v7("\160\124\36\27\221\200","\178\230\29\77\119\184\172");v294.TextColor3=v44.ERROR;break;end end break;end end end end);end);end local v46=v29.LocalPlayer;local v47=v46:WaitForChild(v7("\197\178\11\2\114\234\210\171\3","\152\149\222\106\123\23"));if v47:FindFirstChild(v8.MainGuiName) then return;end task.spawn(function() local v306=0;local v307;local v308;while true do if (v306==(0 -0)) then v307,v308=v41();if (v307 and (v307~="")) then local v442=0 + 0 ;local v443;while true do if (v442==(0 + 0)) then v443=0 -0 ;while true do if (v443==0) then local v508=0 -0 ;while true do if ((0 -0)==v508) then v43(v307,function() end,function() v45(v307,v308);end);return;end end end end break;end end end v306=1 + 0 ;end if (v306==(1 -0)) then v45(nil,0 + 0 );break;end end end);
+local Config = {
+    ServiceId       = 30571,
+    Secret          = "HilichurlAuthSecret",
+    WorkerAuthURL   = "https://bfscript.vinhgiang782007.workers.dev",
+    ShowDiscord     = true,
+    DiscordURL      = "https://discord.gg/xU28wb8z4n",
+    ShowYoutube     = false,
+    YoutubeURL      = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    KeyFileName     = "hilichurl_key.txt",
+    OldGuiName      = "HilichurlKeyLoader",
+    MainGuiName     = "HilichurlHubGui",
+    HubName         = "HILICHURL HUB",
+    HubDescription  = "Blox Fruits | Sea Events & Leviathan"
+}
+
+local a=2^32;local b=a-1;local function c(d,e)local f,g=0,1;while d~=0 or e~=0 do local h,i=d%2,e%2;local j=(h+i)%2;f=f+j*g;d=math.floor(d/2)e=math.floor(e/2)g=g*2 end;return f%a end;local function k(d,e,l,...)local m;if e then d=d%a;e=e%a;m=c(d,e)if l then m=k(m,l,...)end;return m elseif d then return d%a else return 0 end end;local function n(d,e,l,...)local m;if e then d=d%a;e=e%a;m=(d+e-c(d,e))/2;if l then m=n(m,l,...)end;return m elseif d then return d%a else return b end end;local function o(p)return b-p end;local function q(d,r)if r<0 then return lshift(d,-r)end;return math.floor(d%2^32/2^r)end;local function s(p,r)if r>31 or r<-31 then return 0 end;return q(p%a,r)end;local function lshift(d,r)if r<0 then return s(d,-r)end;return d*2^r%2^32 end;local function t(p,r)p=p%a;r=r%32;local u=n(p,2^r-1)return s(p,r)+lshift(u,32-r)end;local v={0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2}local function w(x)return string.gsub(x,".",function(l)return string.format("%02x",string.byte(l))end)end;local function y(z,A)local x=""for B=1,A do local C=z%256;x=string.char(C)..x;z=(z-C)/256 end;return x end;local function D(x,B)local A=0;for B=B,B+3 do A=A*256+string.byte(x,B)end;return A end;local function E(F,G)local H=64-(G+9)%64;G=y(8*G,8)F=F.."\128"..string.rep("\0",H)..G;assert(#F%64==0)return F end;local function I(J)J[1]=0x6a09e667;J[2]=0xbb67ae85;J[3]=0x3c6ef372;J[4]=0xa54ff53a;J[5]=0x510e527f;J[6]=0x9b05688c;J[7]=0x1f83d9ab;J[8]=0x5be0cd19;return J end;local function K(F,B,J)local L={}for M=1,16 do L[M]=D(F,B+(M-1)*4)end;for M=17,64 do local N=L[M-15]local O=k(t(N,7),t(N,18),s(N,3))N=L[M-2]L[M]=(L[M-16]+O+L[M-7]+k(t(N,17),t(N,19),s(N,10)))%a end;local d,e,l,P,Q,R,S,T=J[1],J[2],J[3],J[4],J[5],J[6],J[7],J[8]for B=1,64 do local O=k(t(d,2),t(d,13),t(d,22))local U=k(n(d,e),n(d,l),n(e,l))local V=(O+U)%a;local W=k(t(Q,6),t(Q,11),t(Q,25))local X=k(n(Q,R),n(o(Q),S))local Y=(T+W+X+v[B]+L[B])%a;T=S;S=R;R=Q;Q=(P+Y)%a;P=l;l=e;e=d;d=(Y+V)%a end;J[1]=(J[1]+d)%a;J[2]=(J[2]+e)%a;J[3]=(J[3]+l)%a;J[4]=(J[4]+P)%a;J[5]=(J[5]+Q)%a;J[6]=(J[6]+R)%a;J[7]=(J[7]+S)%a;J[8]=(J[8]+T)%a end;local function Z(F)F=E(F,#F)local J=I({})for B=1,#F,64 do K(F,B,J)end;return w(y(J[1],4)..y(J[2],4)..y(J[3],4)..y(J[4],4)..y(J[5],4)..y(J[6],4)..y(J[7],4)..y(J[8],4))end;
+local lDigest = Z
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local function safeRequest(options)
+    local req = request or http_request or syn_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request)
+    if not req then return nil, "HTTP requests not supported" end
+    local success, response = pcall(function() return req(options) end)
+    if success and type(response) == "table" then 
+        return response 
+    else 
+        return nil, "Connection Error: " .. tostring(response or "Unknown") 
+    end
+end
+
+local fSetClipboard = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set) or function() end
+local fGetClipboard = function()
+    local text = ""
+    pcall(function()
+        if getclipboard then text = tostring(getclipboard())
+        elseif get_clipboard then text = tostring(get_clipboard())
+        elseif fromclipboard then text = tostring(fromclipboard())
+        elseif syn and syn.getclipboard then text = tostring(syn.getclipboard())
+        elseif fluxus and fluxus.get_clipboard then text = tostring(fluxus.get_clipboard())
+        elseif Clipboard and Clipboard.get then text = tostring(Clipboard.get())
+        elseif Clipboard and Clipboard.getText then text = tostring(Clipboard.getText())
+        end
+    end)
+    return text or ""
+end
+
+local fGetHwid = function()
+    local hwid = ""
+    pcall(function()
+        if gethwid then hwid = tostring(gethwid())
+        elseif getgenv and getgenv().gethwid then hwid = tostring(getgenv().gethwid())
+        elseif game:GetService("RbxAnalyticsService") and game:GetService("RbxAnalyticsService").GetClientId then
+            hwid = tostring(game:GetService("RbxAnalyticsService"):GetClientId())
+        end
+    end)
+    if not hwid or hwid == "" then
+        hwid = tostring(Players.LocalPlayer.UserId)
+    end
+    hwid = string.gsub(hwid, "[{}]", "")
+    hwid = string.gsub(hwid, "%s+", "")
+    return hwid
+end
+
+local function generateNonce()
+    local str = ""
+    for _ = 1, 16 do 
+        str = str .. string.char(math.floor(math.random() * (122 - 97 + 1)) + 97) 
+    end
+    return str .. "_" .. tostring(os.time())
+end
+
+local function FormatRemainingTime(seconds)
+    if not seconds or seconds <= 0 then return "Expired" end
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local mins = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+
+    if days > 0 then
+        return string.format("%dd %dh %dm", days, hours, mins)
+    elseif hours > 0 then
+        return string.format("%dh %dm %ds", hours, mins, secs)
+    elseif mins > 0 then
+        return string.format("%dm %ds", mins, secs)
+    else
+        return string.format("%ds", secs)
+    end
+end
+
+local cachedLink, cachedTime = "", 0
+local host = "https://api.platoboost.com"
+
+local function checkConnectivity()
+    local response, err = safeRequest({Url = host .. "/public/connectivity", Method = "GET"})
+    if not response or (response.StatusCode ~= 200 and response.StatusCode ~= 429) then
+        host = "https://api.platoboost.net"
+        local fallbackResponse, fallbackErr = safeRequest({Url = host .. "/public/connectivity", Method = "GET"})
+        if not fallbackResponse then return false end
+    end
+    return true
+end
+
+local function cacheLink()
+    local isConnected = checkConnectivity()
+    if not isConnected then return false, "Network Error" end
+    
+    if cachedTime + (10 * 60) < os.time() or cachedLink == "" then
+        local rawHwid = fGetHwid()
+        local hashedIdentifier = lDigest(rawHwid)
+
+        local response, err = safeRequest({
+            Url = host .. "/public/start",
+            Method = "POST",
+            Body = HttpService:JSONEncode({
+                service = tonumber(Config.ServiceId) or Config.ServiceId, 
+                identifier = hashedIdentifier
+            }),
+            Headers = {["Content-Type"] = "application/json"}
+        })
+        
+        if response and response.StatusCode == 200 then
+            local ok, decoded = pcall(function() return HttpService:JSONDecode(response.Body) end)
+            if ok and decoded and decoded.success and decoded.data and decoded.data.url then
+                cachedLink = decoded.data.url
+                cachedTime = os.time()
+                return true, cachedLink
+            end
+        end
+
+        cachedLink = string.format("https://gateway.platoboost.com/a/%s?id=%s", tostring(Config.ServiceId), rawHwid)
+        return true, cachedLink
+    end
+    return true, cachedLink
+end
+
+local function GetSavedKeyData()
+    if isfile and isfile(Config.KeyFileName) then
+        local content = ""
+        pcall(function() content = readfile(Config.KeyFileName) end)
+        if content and content ~= "" then
+            local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
+            if ok and data and data.key then
+                return data.key, tonumber(data.expiresAt) or 0
+            else
+                return string.gsub(content, "%s+", ""), 0
+            end
+        end
+    end
+    return nil, 0
+end
+
+local function SaveKeyData(keyString, expTimestamp)
+    if writefile then
+        pcall(function()
+            writefile(Config.KeyFileName, HttpService:JSONEncode({
+                key = keyString,
+                expiresAt = expTimestamp
+            }))
+        end)
+    end
+end
+
+local function VerifyKeyAndRun(keyString, onSuccess, onError)
+    local cleanKey = string.gsub(keyString or "", "%s+", "")
+    if cleanKey == "" then if onError then onError("Empty Key") end return end
+
+    checkConnectivity()
+    if cachedLink == "" then pcall(function() cacheLink() end) end
+
+    local nonce = generateNonce()
+    local rawHwid = fGetHwid()
+    local hashedIdentifier = lDigest(rawHwid)
+
+    local response, err = safeRequest({
+        Url = host .. "/public/redeem/" .. tostring(Config.ServiceId),
+        Method = "POST",
+        Body = HttpService:JSONEncode({
+            identifier = hashedIdentifier,
+            key = cleanKey,
+            nonce = nonce
+        }),
+        Headers = {["Content-Type"] = "application/json"}
+    })
+
+    if response and (response.StatusCode == 200 or response.StatusCode == 400) then
+        local ok, decoded = pcall(function() return HttpService:JSONDecode(response.Body) end)
+        if ok and decoded and decoded.success and decoded.data and decoded.data.valid and decoded.data.hash then
+            
+            local expTimestamp = (decoded.data.expires_at and tonumber(decoded.data.expires_at)) 
+                or (decoded.data.expires and tonumber(decoded.data.expires)) 
+                or (os.time() + 86400)
+
+            local workerRes, workerErr = safeRequest({
+                Url = Config.WorkerAuthURL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode({
+                    hash = decoded.data.hash,
+                    nonce = nonce,
+                    key = cleanKey,
+                    identifier = hashedIdentifier
+                })
+            })
+
+            if workerRes and workerRes.StatusCode == 200 and workerRes.Body and workerRes.Body ~= "" then
+                SaveKeyData(cleanKey, expTimestamp)
+
+                _G[Config.Secret] = true
+                _G.HilichurlKeyData = {
+                    LoadedFromLoader = true,
+                    Key              = cleanKey,
+                    ExpiresAt        = expTimestamp,
+                    RemainingText    = FormatRemainingTime(expTimestamp - os.time())
+                }
+
+                if onSuccess then onSuccess(expTimestamp) end
+
+                local func, loadErr = loadstring(workerRes.Body)
+                if func then
+                    task.spawn(func)
+                else
+                    warn("[Hilichurl Loader] Loadstring Error: " .. tostring(loadErr))
+                end
+                return
+            end
+        end
+    end
+
+    if onError then onError("Verification Failed") end
+end
+
+local THEME = {
+    BG            = Color3.fromRGB(12,  12,  14),
+    BG_OVERLAY    = Color3.fromRGB(18,  18,  22),
+    BORDER        = Color3.fromRGB(40,  40,  48),
+    ACCENT        = Color3.fromRGB(163, 230, 53),
+    ACCENT_DIM    = Color3.fromRGB(101, 163, 13),
+    TEXT          = Color3.fromRGB(240, 240, 240),
+    TEXT_SUB      = Color3.fromRGB(140, 140, 155),
+    BTN_FADED_BG  = Color3.fromRGB(20,  30,  20),
+    BTN_FADED_TXT = Color3.fromRGB(163, 230, 53),
+    BTN_TEXT_HOV  = Color3.fromRGB(10,  10,  10),
+    INPUT_BG      = Color3.fromRGB(16,  16,  20),
+    SUCCESS       = Color3.fromRGB(163, 230, 53),
+    ERROR         = Color3.fromRGB(239, 68,  68),
+}
+
+local function CreateGUI(initialKey, initialExp)
+    local player = Players.LocalPlayer
+    local coreGui = game:GetService("CoreGui")
+    local targetParent = pcall(function() return coreGui end) and coreGui or player:WaitForChild("PlayerGui")
+    
+    if targetParent:FindFirstChild("Hilichurl_KeySystem") then 
+        pcall(function() targetParent.Hilichurl_KeySystem:Destroy() end)
+    end
+
+    local ScreenGui = Instance.new("ScreenGui", targetParent)
+    ScreenGui.Name = "Hilichurl_KeySystem"
+    ScreenGui.ResetOnSpawn = false
+
+    local MainFrame = Instance.new("Frame", ScreenGui)
+    MainFrame.Size = UDim2.new(0, 360, 0, 360)
+    MainFrame.Position = UDim2.new(0.5, -180, 0.5, -180)
+    MainFrame.BackgroundColor3 = THEME.BG
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.ClipsDescendants = true
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+    
+    local mainStroke = Instance.new("UIStroke", MainFrame)
+    mainStroke.Thickness = 1.2
+    mainStroke.Color = THEME.BORDER
+
+    local TopGlow = Instance.new("Frame", MainFrame)
+    TopGlow.Size = UDim2.new(1, -24, 0, 2)
+    TopGlow.Position = UDim2.new(0, 12, 0, 1)
+    TopGlow.BorderSizePixel = 0
+    TopGlow.BackgroundColor3 = THEME.ACCENT
+    Instance.new("UICorner", TopGlow).CornerRadius = UDim.new(0, 2)
+
+    local CloseBtn = Instance.new("TextButton", MainFrame)
+    CloseBtn.Size = UDim2.new(0, 26, 0, 26)
+    CloseBtn.Position = UDim2.new(1, -34, 0, 10)
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Text = "X"
+    CloseBtn.TextColor3 = THEME.TEXT_SUB
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 13
+    CloseBtn.ZIndex = 10
+
+    CloseBtn.MouseEnter:Connect(function() CloseBtn.TextColor3 = THEME.ERROR end)
+    CloseBtn.MouseLeave:Connect(function() CloseBtn.TextColor3 = THEME.TEXT_SUB end)
+    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+    local Title = Instance.new("TextLabel", MainFrame)
+    Title.Size = UDim2.new(1, -50, 0, 22)
+    Title.Position = UDim2.new(0, 18, 0, 14)
+    Title.BackgroundTransparency = 1
+    Title.Text = Config.HubName
+    Title.TextColor3 = THEME.TEXT
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 16
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+
+    local PromoText = Instance.new("TextLabel", MainFrame)
+    PromoText.Size = UDim2.new(1, -40, 0, 16)
+    PromoText.Position = UDim2.new(0, 18, 0, 36)
+    PromoText.BackgroundTransparency = 1
+    PromoText.Text = Config.HubDescription
+    PromoText.TextColor3 = THEME.TEXT_SUB
+    PromoText.Font = Enum.Font.GothamMedium
+    PromoText.TextSize = 11
+    PromoText.TextXAlignment = Enum.TextXAlignment.Left
+
+    local ExpiryLabel = Instance.new("TextLabel", MainFrame)
+    ExpiryLabel.Name = "ExpiryLabel"
+    ExpiryLabel.Size = UDim2.new(1, -36, 0, 18)
+    ExpiryLabel.Position = UDim2.new(0, 18, 0, 56)
+    ExpiryLabel.BackgroundTransparency = 1
+    ExpiryLabel.Text = (initialExp and initialExp > os.time()) 
+        and ("Key Remaining: " .. FormatRemainingTime(initialExp - os.time())) 
+        or "Key Remaining: None"
+    ExpiryLabel.TextColor3 = THEME.ACCENT
+    ExpiryLabel.Font = Enum.Font.GothamBold
+    ExpiryLabel.TextSize = 10
+    ExpiryLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local Divider = Instance.new("Frame", MainFrame)
+    Divider.Size = UDim2.new(1, -36, 0, 1)
+    Divider.Position = UDim2.new(0, 18, 0, 78)
+    Divider.BackgroundColor3 = THEME.BORDER
+    Divider.BorderSizePixel = 0
+
+    local currentYOffset = 86
+
+    local function SetupFadedButton(btn, stroke)
+        btn.BackgroundColor3 = THEME.BTN_FADED_BG
+        btn.TextColor3 = THEME.BTN_FADED_TXT
+        stroke.Color = Color3.fromRGB(45, 65, 35)
+
+        btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = THEME.ACCENT
+            btn.TextColor3 = THEME.BTN_TEXT_HOV
+            stroke.Color = THEME.ACCENT
+        end)
+        btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = THEME.BTN_FADED_BG
+            btn.TextColor3 = THEME.BTN_FADED_TXT
+            stroke.Color = Color3.fromRGB(45, 65, 35)
+        end)
+    end
+
+    if Config.ShowDiscord then
+        local DiscordBtn = Instance.new("TextButton", MainFrame)
+        DiscordBtn.Size = UDim2.new(1, -36, 0, 32)
+        DiscordBtn.Position = UDim2.new(0, 18, 0, currentYOffset)
+        DiscordBtn.Text = "JOIN DISCORD SERVER"
+        DiscordBtn.Font = Enum.Font.GothamBold
+        DiscordBtn.TextSize = 11
+        Instance.new("UICorner", DiscordBtn).CornerRadius = UDim.new(0, 6)
+        local dStroke = Instance.new("UIStroke", DiscordBtn)
+        dStroke.Thickness = 1
+        SetupFadedButton(DiscordBtn, dStroke)
+
+        DiscordBtn.MouseButton1Click:Connect(function()
+            fSetClipboard(Config.DiscordURL)
+            local Status = MainFrame:FindFirstChild("StatusLabel")
+            if Status then 
+                Status.Text = "Copied"
+                Status.TextColor3 = THEME.SUCCESS
+            end
+        end)
+        currentYOffset = currentYOffset + 38
+    end
+
+    if Config.ShowYoutube and Config.YoutubeURL and Config.YoutubeURL ~= "" then
+        local YTBtn = Instance.new("TextButton", MainFrame)
+        YTBtn.Size = UDim2.new(1, -36, 0, 32)
+        YTBtn.Position = UDim2.new(0, 18, 0, currentYOffset)
+        YTBtn.Text = "SUBSCRIBE YOUTUBE"
+        YTBtn.Font = Enum.Font.GothamBold
+        YTBtn.TextSize = 11
+        Instance.new("UICorner", YTBtn).CornerRadius = UDim.new(0, 6)
+        local ytStroke = Instance.new("UIStroke", YTBtn)
+        ytStroke.Thickness = 1
+        SetupFadedButton(YTBtn, ytStroke)
+
+        YTBtn.MouseButton1Click:Connect(function()
+            fSetClipboard(Config.YoutubeURL)
+            local Status = MainFrame:FindFirstChild("StatusLabel")
+            if Status then 
+                Status.Text = "Copied"
+                Status.TextColor3 = THEME.SUCCESS
+            end
+        end)
+        currentYOffset = currentYOffset + 38
+    end
+
+    local KeyInputContainer = Instance.new("Frame", MainFrame)
+    KeyInputContainer.Size = UDim2.new(1, -36, 0, 38)
+    KeyInputContainer.Position = UDim2.new(0, 18, 0, currentYOffset + 6)
+    KeyInputContainer.BackgroundColor3 = THEME.INPUT_BG
+    Instance.new("UICorner", KeyInputContainer).CornerRadius = UDim.new(0, 6)
+    local inputStroke = Instance.new("UIStroke", KeyInputContainer)
+    inputStroke.Color = THEME.BORDER
+    inputStroke.Thickness = 1
+
+    local KeyInput = Instance.new("TextBox", KeyInputContainer)
+    KeyInput.Size = UDim2.new(1, -70, 1, 0)
+    KeyInput.Position = UDim2.new(0, 10, 0, 0)
+    KeyInput.BackgroundTransparency = 1
+    KeyInput.PlaceholderText = "Paste Platoboost Key here..."
+    KeyInput.PlaceholderColor3 = Color3.fromRGB(90, 90, 100)
+    KeyInput.Text = initialKey or ""
+    KeyInput.Font = Enum.Font.GothamMedium
+    KeyInput.TextSize = 11
+    KeyInput.TextColor3 = THEME.TEXT
+    KeyInput.TextXAlignment = Enum.TextXAlignment.Left
+    KeyInput.ClearTextOnFocus = false
+
+    KeyInput.Focused:Connect(function() inputStroke.Color = THEME.ACCENT end)
+    KeyInput.FocusLost:Connect(function() inputStroke.Color = THEME.BORDER end)
+
+    local PasteBtn = Instance.new("TextButton", KeyInputContainer)
+    PasteBtn.Size = UDim2.new(0, 54, 0, 24)
+    PasteBtn.Position = UDim2.new(1, -60, 0.5, -12)
+    PasteBtn.Text = "Paste"
+    PasteBtn.Font = Enum.Font.GothamBold
+    PasteBtn.TextSize = 10
+    PasteBtn.Active = true
+    PasteBtn.ZIndex = 20
+    Instance.new("UICorner", PasteBtn).CornerRadius = UDim.new(0, 4)
+    local pasteStroke = Instance.new("UIStroke", PasteBtn)
+    pasteStroke.Thickness = 1
+    SetupFadedButton(PasteBtn, pasteStroke)
+
+    local function DoPaste()
+        local text = fGetClipboard()
+        if text and text ~= "" then
+            text = string.gsub(text, "%s+", "")
+            KeyInput.Text = text
+            local Status = MainFrame:FindFirstChild("StatusLabel")
+            if Status then
+                Status.Text = "Copied"
+                Status.TextColor3 = THEME.SUCCESS
+            end
+        else
+            KeyInput:CaptureFocus()
+        end
+    end
+    PasteBtn.MouseButton1Click:Connect(DoPaste)
+    PasteBtn.TouchTap:Connect(DoPaste)
+
+    local GetKeyBtn = Instance.new("TextButton", MainFrame)
+    GetKeyBtn.Size = UDim2.new(0.48, -20, 0, 36)
+    GetKeyBtn.Position = UDim2.new(0, 18, 0, currentYOffset + 52)
+    GetKeyBtn.Text = "GET KEY"
+    GetKeyBtn.Font = Enum.Font.GothamBold
+    GetKeyBtn.TextSize = 11
+    Instance.new("UICorner", GetKeyBtn).CornerRadius = UDim.new(0, 6)
+    local getStroke = Instance.new("UIStroke", GetKeyBtn)
+    getStroke.Thickness = 1
+    SetupFadedButton(GetKeyBtn, getStroke)
+
+    local VerifyBtn = Instance.new("TextButton", MainFrame)
+    VerifyBtn.Size = UDim2.new(0.48, -20, 0, 36)
+    VerifyBtn.Position = UDim2.new(0.52, 2, 0, currentYOffset + 52)
+    VerifyBtn.Text = "VERIFY"
+    VerifyBtn.Font = Enum.Font.GothamBold
+    VerifyBtn.TextSize = 11
+    VerifyBtn.BackgroundColor3 = THEME.ACCENT
+    VerifyBtn.TextColor3 = THEME.BTN_TEXT_HOV
+    Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 6)
+
+    VerifyBtn.MouseEnter:Connect(function() VerifyBtn.BackgroundColor3 = Color3.fromRGB(190, 242, 100) end)
+    VerifyBtn.MouseLeave:Connect(function() VerifyBtn.BackgroundColor3 = THEME.ACCENT end)
+
+    local Status = Instance.new("TextLabel", MainFrame)
+    Status.Name = "StatusLabel"
+    Status.Size = UDim2.new(1, -36, 0, 26)
+    Status.Position = UDim2.new(0, 18, 0, currentYOffset + 96)
+    Status.BackgroundTransparency = 1
+    Status.Text = ""
+    Status.TextColor3 = THEME.TEXT_SUB
+    Status.Font = Enum.Font.GothamBold
+    Status.TextSize = 13
+    Status.TextWrapped = true
+
+    MainFrame.Size = UDim2.new(0, 360, 0, currentYOffset + 132)
+
+    local isVerifying = false
+    local function HandleVerify(keyText)
+        if isVerifying then return end
+        local cleanKey = string.gsub(keyText or "", "%s+", "")
+        if cleanKey == "" then 
+            Status.Text = "Failed"
+            Status.TextColor3 = THEME.ERROR
+            return 
+        end
+
+        isVerifying = true
+        Status.Text = "Checking..."
+        Status.TextColor3 = THEME.ACCENT
+        VerifyBtn.Text = "CHECKING..."
+
+        VerifyKeyAndRun(cleanKey, function(expTime)
+            Status.Text = "Verified"
+            Status.TextColor3 = THEME.SUCCESS
+            VerifyBtn.Text = "VERIFIED"
+            task.wait(0.6)
+            ScreenGui:Destroy()
+        end, function(errMsg)
+            Status.Text = "Failed"
+            Status.TextColor3 = THEME.ERROR
+            VerifyBtn.Text = "VERIFY"
+            isVerifying = false
+        end)
+    end
+
+    VerifyBtn.MouseButton1Click:Connect(function() HandleVerify(KeyInput.Text) end)
+    KeyInput.FocusLost:Connect(function(enter) if enter then HandleVerify(KeyInput.Text) end end)
+
+    GetKeyBtn.MouseButton1Click:Connect(function()
+        task.spawn(function()
+            local success, link = cacheLink()
+            if success then
+                fSetClipboard(link)
+                Status.Text = "Copied"
+                Status.TextColor3 = THEME.SUCCESS
+            else
+                Status.Text = "Failed"
+                Status.TextColor3 = THEME.ERROR
+            end
+        end)
+    end)
+end
+
+local player = Players.LocalPlayer
+local pGui = player:WaitForChild("PlayerGui")
+
+if pGui:FindFirstChild(Config.MainGuiName) then return end
+
+task.spawn(function()
+    local savedKey, savedExp = GetSavedKeyData()
+
+    if savedKey and savedKey ~= "" then
+        VerifyKeyAndRun(savedKey, function() end, function()
+            CreateGUI(savedKey, savedExp)
+        end)
+        return
+    end
+
+    CreateGUI(nil, 0)
+end)
