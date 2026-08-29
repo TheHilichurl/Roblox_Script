@@ -2983,6 +2983,7 @@ function Utility.StartAutoFarmSeaEvents()
     _conns["autoFarmSeaEvents"] = task.spawn(function()
         local lastCharacter = LocalPlayer.Character
         local needBuyNewBoat = true
+        local boatDestroyedAtSea = false
         local playerBoat = nil
 
         while S.AutoFarmSeaEventsEnabled do
@@ -2997,6 +2998,7 @@ function Utility.StartAutoFarmSeaEvents()
                 if char ~= lastCharacter then
                     lastCharacter = char
                     needBuyNewBoat = true
+                    boatDestroyedAtSea = false
                     DisconnectConnection("seaEventsBoatFly")
                     if ActiveBoat then
                         Utility.ForceStopBoat(ActiveBoat)
@@ -3011,6 +3013,16 @@ function Utility.StartAutoFarmSeaEvents()
                 -- TUYỆT ĐỐI KHÔNG MUA THUYỀN, KHÔNG RESET, TẬP TRUNG 100% TẤN CÔNG DIỆT QUÁI
                 if #seaTargets > 0 then
                     DisconnectConnection("seaEventsBoatFly")
+
+                    -- Theo dõi nếu thuyền bị quái đánh nổ trong lúc giao tranh
+                    if playerBoat and playerBoat.Parent then
+                        local boatHp = playerBoat:FindFirstChild("Humanoid")
+                        if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
+                            boatDestroyedAtSea = true
+                        end
+                    elseif not needBuyNewBoat then
+                        boatDestroyedAtSea = true
+                    end
 
                     -- Rời khỏi ghế lái nếu đang ngồi để bay tới tấn công
                     if hum.SeatPart or hum.Sit then
@@ -3093,24 +3105,11 @@ function Utility.StartAutoFarmSeaEvents()
 
                 -- [TRƯỜNG HỢP B]: ĐÃ TIÊU DIỆT HẾT KẺ ĐỊCH (#seaTargets == 0)
                 else
-                    -- Kiểm tra xem thuyền có còn sống hay đã bị phá hủy
                     local selBoatName = S.SeaEventsBoat or "Beast Hunter"
-                    local boatIsBroken = false
 
-                    if playerBoat and playerBoat.Parent then
-                        local boatHp = playerBoat:FindFirstChild("Humanoid")
-                        if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
-                            boatIsBroken = true
-                        end
-                    else
-                        playerBoat = Utility.GetPlayerBoat(selBoatName)
-                        if not playerBoat or not playerBoat.Parent then
-                            boatIsBroken = true
-                        end
-                    end
-
-                    -- Nếu thuyền đã vỡ / không còn VÀ đã diệt sạch quái: Reset nhân vật về bến để hồi sinh & mua thuyền mới
-                    if boatIsBroken then
+                    -- Nếu thuyền bị nổ ngoài biển trong lúc đánh quái VÀ hiện tại đã diệt sạch quái: Reset nhân vật về bến 1 lần
+                    if boatDestroyedAtSea then
+                        boatDestroyedAtSea = false
                         playerBoat = nil
                         ActiveBoat = nil
                         needBuyNewBoat = true
@@ -3122,7 +3121,7 @@ function Utility.StartAutoFarmSeaEvents()
                         continue
                     end
 
-                    -- Nếu chưa có thuyền (vừa hồi sinh về đảo): Tiến hành mua thuyền
+                    -- Nếu chưa có thuyền (vừa hồi sinh hoặc đang ở đảo): Tiến hành mua thuyền
                     if needBuyNewBoat then
                         UILib.Notify("Sea Events", "Buying boat " .. selBoatName .. "...", 3)
                         Utility.BuyBoat(selBoatName)
@@ -3132,6 +3131,7 @@ function Utility.StartAutoFarmSeaEvents()
                             playerBoat = Utility.GetPlayerBoat(selBoatName)
                             if playerBoat and playerBoat.Parent then
                                 needBuyNewBoat = false
+                                boatDestroyedAtSea = false
                                 break
                             end
                             task.wait(0.5)
