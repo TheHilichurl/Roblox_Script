@@ -3450,18 +3450,12 @@ function Utility.EquipWeaponByType(category)
     return nil
 end
 
---[[ 4. Thực hiện tấn công bằng Melee (tầm xa mở rộng 350 studs) ]]
+--[[ 4. Thực hiện tấn công bằng Melee ]]
 function Utility.AttackMelee(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Melee")
     local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
     local eHead = enemy and enemy:FindFirstChild("Head")
     if not eRoot then return end
-
-    pcall(function()
-        eRoot.Size = Vector3.new(60, 60, 60)
-        eRoot.CanCollide = false
-        eRoot.Transparency = 1
-    end)
 
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
@@ -3477,7 +3471,6 @@ function Utility.AttackMelee(enemy, enemyRoot)
             if cf and cf.activeController then
                 local ctrl = cf.activeController
                 ctrl.timeToNextAttack = 0
-                ctrl.hitboxMagnitude = 350
                 ctrl:attack()
             end
         end
@@ -3501,7 +3494,7 @@ function Utility.AttackMelee(enemy, enemyRoot)
     end
 end
 
---[[ 5. Thực hiện tấn công bằng Sword (tầm xa mở rộng 350 studs) ]]
+--[[ 5. Thực hiện tấn công bằng Sword ]]
 function Utility.AttackSword(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Sword")
     local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
@@ -3510,12 +3503,6 @@ function Utility.AttackSword(enemy, enemyRoot)
 
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-
-    pcall(function()
-        eRoot.Size = Vector3.new(60, 60, 60)
-        eRoot.CanCollide = false
-        eRoot.Transparency = 1
-    end)
 
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
@@ -3531,7 +3518,6 @@ function Utility.AttackSword(enemy, enemyRoot)
             if cf and cf.activeController then
                 local ctrl = cf.activeController
                 ctrl.timeToNextAttack = 0
-                ctrl.hitboxMagnitude = 350
                 ctrl:attack()
             end
         end
@@ -3599,7 +3585,7 @@ function Utility.ReleaseAllHeldSkills()
     end
 end
 
---[[ 6. Thực hiện tấn công bằng M1 của Fruit (tầm xa mở rộng 350 studs) ]]
+--[[ 6. Thực hiện tấn công bằng M1 của Fruit ]]
 function Utility.AttackFruitM1(enemy, enemyRoot)
     local tool = Utility.EquipWeaponByType("Fruit")
     local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")))
@@ -3611,13 +3597,6 @@ function Utility.AttackFruitM1(enemy, enemyRoot)
     if not myRoot then return end
     local myPos = myRoot.Position
     local targetPos = eRoot.Position
-
-    -- 1. Mở rộng vùng nhận sát thương của quái trên Client lên 60 studs
-    pcall(function()
-        eRoot.Size = Vector3.new(60, 60, 60)
-        eRoot.CanCollide = false
-        eRoot.Transparency = 1
-    end)
 
     -- Xoay nhân vật hướng thẳng về phía mục tiêu
     local flatTarget = Vector3.new(targetPos.X, myPos.Y, targetPos.Z)
@@ -3633,7 +3612,7 @@ function Utility.AttackFruitM1(enemy, enemyRoot)
     local combo = fruitM1ComboIndex
     fruitM1ComboIndex = (fruitM1ComboIndex % 4) + 1
 
-    -- 2. Bắn trực tiếp LeftClickRemote với combo 1..4 và vector hướng chuẩn
+    -- Bắn trực tiếp LeftClickRemote với combo 1..4 và vector hướng chuẩn
     if tool then
         pcall(function() tool:Activate() end)
         local lcr = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("LeftClickRemote", true)
@@ -3643,7 +3622,7 @@ function Utility.AttackFruitM1(enemy, enemyRoot)
         end
     end
 
-    -- 3. Kích hoạt CombatFramework với tầm với mở rộng 350 studs
+    -- Kích hoạt CombatFramework
     pcall(function()
         local ps = LocalPlayer:FindFirstChild("PlayerScripts")
         local cfModule = ps and ps:FindFirstChild("CombatFramework")
@@ -3652,13 +3631,12 @@ function Utility.AttackFruitM1(enemy, enemyRoot)
             if cf and cf.activeController then
                 local ctrl = cf.activeController
                 ctrl.timeToNextAttack = 0
-                ctrl.hitboxMagnitude = 350
                 ctrl:attack()
             end
         end
     end)
 
-    -- 4. Gửi RegisterAttack và RegisterHit lên server gây sát thương
+    -- Gửi RegisterAttack và RegisterHit lên server gây sát thương
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
     local regAttack = net and net:FindFirstChild("RE/RegisterAttack")
