@@ -3004,70 +3004,24 @@ function Utility.StartAutoFarmSeaEvents()
                     end
                 end
 
-                -- 2. Tự động mua thuyền nếu chưa có (chuẩn theo Find Leviathan)
-                local selBoatName = S.SeaEventsBoat or "Beast Hunter"
-                if needBuyNewBoat then
-                    UILib.Notify("Sea Events", "Buying boat " .. selBoatName .. "...", 3)
-                    Utility.BuyBoat(selBoatName)
-
-                    local tBuy = os.clock()
-                    while S.AutoFarmSeaEventsEnabled and (os.clock() - tBuy < 6) do
-                        playerBoat = Utility.GetPlayerBoat(selBoatName)
-                        if playerBoat and playerBoat.Parent then
-                            needBuyNewBoat = false
-                            break
-                        end
-                        task.wait(0.5)
-                    end
-                else
-                    playerBoat = Utility.GetPlayerBoat(selBoatName)
-                    if not playerBoat or not playerBoat.Parent then
-                        needBuyNewBoat = true
-                    end
-                end
-
+                -- 2. Quét danh sách các mục tiêu Sea Event đã chọn còn sống
                 local seaTargets = Utility.GetActiveSeaEventTargets()
 
-                -- Kiểm tra thuyền có bị nổ/vỡ không (Chỉ reset khi KHÔNG CÒN quái Sea Event)
-                local boatIsBroken = false
-                if playerBoat and playerBoat.Parent then
-                    local boatHp = playerBoat:FindFirstChild("Humanoid")
-                    if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
-                        boatIsBroken = true
-                    end
-                else
-                    if not needBuyNewBoat then
-                        boatIsBroken = true
-                    end
-                end
-
-                if boatIsBroken and #seaTargets == 0 then
-                    playerBoat = nil
-                    ActiveBoat = nil
-                    needBuyNewBoat = true
+                -- [TRƯỜNG HỢP A]: CÒN KẺ ĐỊCH ĐANG TỒN TẠI (#seaTargets > 0)
+                -- TUYỆT ĐỐI KHÔNG MUA THUYỀN, KHÔNG RESET, TẬP TRUNG 100% TẤN CÔNG DIỆT QUÁI
+                if #seaTargets > 0 then
                     DisconnectConnection("seaEventsBoatFly")
-                    Utility.StopPhysicsFly()
-                    UILib.Notify("Sea Events", "Boat destroyed & all enemies defeated! Respawning...", 3)
-                    Utility.RespawnPlayer()
-                    task.wait(3)
-                    continue
-                end
 
-                if (playerBoat and playerBoat.Parent and char and hum and hum.Health > 0) or (#seaTargets > 0 and char and hum and hum.Health > 0) then
-                    ActiveBoat = playerBoat
-                    local vSeat = playerBoat and (playerBoat:FindFirstChildOfClass("VehicleSeat") or playerBoat:FindFirstChild("VehicleSeat", true))
+                    -- Rời khỏi ghế lái nếu đang ngồi để bay tới tấn công
+                    if hum.SeatPart or hum.Sit then
+                        hum.Sit = false
+                        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+                        task.wait(0.05)
+                    end
 
-                    -- 3. NẾU CÓ MỤC TIÊU SEA EVENT: Rời khỏi ghế lái, dừng thuyền tại chỗ và bay đi tấn công
-                    if #seaTargets > 0 then
-                        DisconnectConnection("seaEventsBoatFly")
-
-                        -- Rời khỏi ghế lái trước khi bay tới tấn công
-                        if hum.SeatPart or hum.Sit then
-                            hum.Sit = false
-                            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-                            task.wait(0.05)
-                        end
-
+                    -- Dừng thuyền tại chỗ nếu thuyền còn tồn tại
+                    if playerBoat and playerBoat.Parent then
+                        local vSeat = playerBoat:FindFirstChildOfClass("VehicleSeat") or playerBoat:FindFirstChild("VehicleSeat", true)
                         if vSeat then
                             local att = vSeat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
                             att.Name = "FlyAttachment"; att.Parent = vSeat
@@ -3081,77 +3035,120 @@ function Utility.StartAutoFarmSeaEvents()
                             ao.MaxTorque = math.huge; ao.Responsiveness = 200
                             ao.Mode = Enum.OrientationAlignmentMode.OneAttachment; ao.Parent = vSeat
 
-                            -- Dừng thuyền cố định tại chỗ khi quái xuất hiện
                             lv.VectorVelocity = Vector3.zero
                         end
+                    end
 
-                        -- Người chơi bay đi tấn công mục tiêu
-                        local bestTarget = seaTargets[1]
-                        local tModel = bestTarget.Model
-                        local tRoot = bestTarget.Root
-                        local tType = bestTarget.Type
+                    -- Tấn công mục tiêu gần nhất
+                    local bestTarget = seaTargets[1]
+                    local tModel = bestTarget.Model
+                    local tRoot = bestTarget.Root
+                    local tType = bestTarget.Type
 
-                        if tModel and tModel.Parent and tRoot then
-                            local basePos = tRoot.Position
-                            local wType = S.SeaEventsWeapon or "Melee"
+                    if tModel and tModel.Parent and tRoot then
+                        local basePos = tRoot.Position
+                        local wType = S.SeaEventsWeapon or "Melee"
 
-                            if tType == "Terrorshark" and terrorsharkDodgeActive and os.clock() < terrorsharkDodgeEndTime then
-                                -- Né chiêu Terrorshark: bay lên Y = 500 với tốc độ 200
-                                local dodgePos = Vector3.new(basePos.X, 500, basePos.Z)
-                                Utility.PhysicsFlyTo(dodgePos, 200)
-                            elseif tType == "Sea Beast" then
-                                -- Tấn công Sea Beast: bay đến độ cao 150 studs so với humanoid và luôn đảm bảo cao hơn Y = 30
-                                terrorsharkDodgeActive = false
-                                local sbAttackY = math.max(30, basePos.Y + 150)
-                                local attackPos = Vector3.new(basePos.X, sbAttackY, basePos.Z)
-                                Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
-                            else
-                                -- Tấn công các quái Sea Event khác: mặc định 40 studs (Gun 100 studs), luôn đảm bảo không thấp hơn Y = 30
-                                terrorsharkDodgeActive = false
-                                local baseAttackHeight = (wType == "Gun") and 100 or 40
-                                local attackY = math.max(30, basePos.Y + baseAttackHeight)
-                                local attackPos = Vector3.new(basePos.X, attackY, basePos.Z)
-                                Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
-                            end
+                        if tType == "Terrorshark" and terrorsharkDodgeActive and os.clock() < terrorsharkDodgeEndTime then
+                            -- Né chiêu Terrorshark: bay lên Y = 500 với tốc độ 200
+                            local dodgePos = Vector3.new(basePos.X, 500, basePos.Z)
+                            Utility.PhysicsFlyTo(dodgePos, 200)
+                        elseif tType == "Sea Beast" then
+                            -- Tấn công Sea Beast: bay đến độ cao 150 studs so với humanoid và luôn đảm bảo cao hơn Y = 30
+                            terrorsharkDodgeActive = false
+                            local sbAttackY = math.max(30, basePos.Y + 150)
+                            local attackPos = Vector3.new(basePos.X, sbAttackY, basePos.Z)
+                            Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
+                        else
+                            -- Tấn công các quái Sea Event khác: mặc định 40 studs (Gun 100 studs), luôn đảm bảo không thấp hơn Y = 30
+                            terrorsharkDodgeActive = false
+                            local baseAttackHeight = (wType == "Gun") and 100 or 40
+                            local attackY = math.max(30, basePos.Y + baseAttackHeight)
+                            local attackPos = Vector3.new(basePos.X, attackY, basePos.Z)
+                            Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
+                        end
 
+                        if wType == "Melee" then
+                            Utility.AttackMelee(tModel, tRoot)
+                        elseif wType == "Sword" then
+                            Utility.AttackSword(tModel, tRoot)
+                        elseif wType == "Fruit" then
+                            Utility.AttackFruitM1(tModel, tRoot)
+                        elseif wType == "Gun" then
+                            Utility.AttackGun(tModel, tRoot)
+                        end
+
+                        if S.AutoFarmSeaEventsSkills then
                             if wType == "Melee" then
-                                Utility.AttackMelee(tModel, tRoot)
+                                Utility.CastSkillsMelee(basePos, tModel)
                             elseif wType == "Sword" then
-                                Utility.AttackSword(tModel, tRoot)
+                                Utility.CastSkillsSword(basePos, tModel)
                             elseif wType == "Fruit" then
-                                Utility.AttackFruitM1(tModel, tRoot)
+                                Utility.CastSkillsFruit(basePos, tModel)
                             elseif wType == "Gun" then
-                                Utility.AttackGun(tModel, tRoot)
-                            end
-
-                            if S.AutoFarmSeaEventsSkills then
-                                if wType == "Melee" then
-                                    Utility.CastSkillsMelee(basePos, tModel)
-                                elseif wType == "Sword" then
-                                    Utility.CastSkillsSword(basePos, tModel)
-                                elseif wType == "Fruit" then
-                                    Utility.CastSkillsFruit(basePos, tModel)
-                                elseif wType == "Gun" then
-                                    Utility.CastSkillsGun(basePos, tModel)
-                                end
+                                Utility.CastSkillsGun(basePos, tModel)
                             end
                         end
+                    end
 
-                    -- 4. KHI KHÔNG CÓ MỤC TIÊU:
+                -- [TRƯỜNG HỢP B]: ĐÃ TIÊU DIỆT HẾT KẺ ĐỊCH (#seaTargets == 0)
+                else
+                    -- Kiểm tra xem thuyền có còn sống hay đã bị phá hủy
+                    local selBoatName = S.SeaEventsBoat or "Beast Hunter"
+                    local boatIsBroken = false
+
+                    if playerBoat and playerBoat.Parent then
+                        local boatHp = playerBoat:FindFirstChild("Humanoid")
+                        if boatHp and (boatHp:IsA("IntValue") or boatHp:IsA("NumberValue")) and boatHp.Value <= 0 then
+                            boatIsBroken = true
+                        end
                     else
-                        if boatIsBroken then
-                            playerBoat = nil
-                            ActiveBoat = nil
-                            needBuyNewBoat = true
-                            DisconnectConnection("seaEventsBoatFly")
-                            Utility.StopPhysicsFly()
-                            UILib.Notify("Sea Events", "Boat destroyed & all enemies defeated! Respawning...", 3)
-                            Utility.RespawnPlayer()
-                            task.wait(3)
-                            continue
+                        playerBoat = Utility.GetPlayerBoat(selBoatName)
+                        if not playerBoat or not playerBoat.Parent then
+                            boatIsBroken = true
                         end
+                    end
 
-                        if playerBoat and playerBoat.Parent and vSeat then
+                    -- Nếu thuyền đã vỡ / không còn VÀ đã diệt sạch quái: Reset nhân vật về bến để hồi sinh & mua thuyền mới
+                    if boatIsBroken then
+                        playerBoat = nil
+                        ActiveBoat = nil
+                        needBuyNewBoat = true
+                        DisconnectConnection("seaEventsBoatFly")
+                        Utility.StopPhysicsFly()
+                        UILib.Notify("Sea Events", "Boat destroyed & all enemies defeated! Respawning...", 3)
+                        Utility.RespawnPlayer()
+                        task.wait(3)
+                        continue
+                    end
+
+                    -- Nếu chưa có thuyền (vừa hồi sinh về đảo): Tiến hành mua thuyền
+                    if needBuyNewBoat then
+                        UILib.Notify("Sea Events", "Buying boat " .. selBoatName .. "...", 3)
+                        Utility.BuyBoat(selBoatName)
+
+                        local tBuy = os.clock()
+                        while S.AutoFarmSeaEventsEnabled and (os.clock() - tBuy < 6) do
+                            playerBoat = Utility.GetPlayerBoat(selBoatName)
+                            if playerBoat and playerBoat.Parent then
+                                needBuyNewBoat = false
+                                break
+                            end
+                            task.wait(0.5)
+                        end
+                    else
+                        playerBoat = Utility.GetPlayerBoat(selBoatName)
+                        if not playerBoat or not playerBoat.Parent then
+                            needBuyNewBoat = true
+                        end
+                    end
+
+                    -- Nếu thuyền còn sống và không có quái: Ngồi vào ghế lái và tiếp tục bay tuần tra tìm quái
+                    if playerBoat and playerBoat.Parent then
+                        ActiveBoat = playerBoat
+                        local vSeat = playerBoat:FindFirstChildOfClass("VehicleSeat") or playerBoat:FindFirstChild("VehicleSeat", true)
+
+                        if vSeat then
                             if hum.SeatPart ~= vSeat then
                                 DisconnectConnection("seaEventsBoatFly")
                                 Utility.SitVehicleSeat(playerBoat)
@@ -3160,7 +3157,7 @@ function Utility.StartAutoFarmSeaEvents()
                             if hum.SeatPart == vSeat then
                                 if FlyActive then Utility.StopPhysicsFly() end
 
-                                -- Kích hoạt luồng bay với các bước nâng độ cao của Find Leviathan
+                                -- Kích hoạt luồng bay tìm quái Sea Events
                                 if not _conns["seaEventsBoatFly"] or ActiveBoat ~= playerBoat then
                                     Utility.StartSeaEventsBoatFlight(playerBoat)
                                 end
@@ -3170,7 +3167,7 @@ function Utility.StartAutoFarmSeaEvents()
                 end
             end
 
-            task.wait(0.5)
+            task.wait(0.08)
         end
 
         DisconnectConnection("seaEventsBoatFly")
