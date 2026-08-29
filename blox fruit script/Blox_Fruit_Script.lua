@@ -3226,9 +3226,9 @@ function Utility.StartAutoFarmSeaEvents()
                             local attackPos = Vector3.new(basePos.X, sbAttackY, basePos.Z)
                             Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
                         else
-                            -- Tấn công các quái Sea Event khác: mặc định 40 studs (Gun 100 studs), luôn đảm bảo không thấp hơn Y = 30
+                            -- Tấn công các quái Sea Event khác: mặc định 40 studs (Gun 200 studs), luôn đảm bảo không thấp hơn Y = 30
                             terrorsharkDodgeActive = false
-                            local baseAttackHeight = (wType == "Gun") and 100 or 40
+                            local baseAttackHeight = (wType == "Gun") and 200 or 40
                             local attackY = math.max(30, basePos.Y + baseAttackHeight)
                             local attackPos = Vector3.new(basePos.X, attackY, basePos.Z)
                             Utility.PhysicsFlyTo(attackPos, S.TeleportFlySpeed or 200)
