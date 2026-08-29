@@ -806,15 +806,19 @@ function Utility.UpdateBoatCache(boat)
     end
 end
 
---[[ Bật / tắt Player NoClip tối ưu - Chỉ lắng nghe Stepped khi kích hoạt ]]
-function Utility.SetPlayerNoClip(enabled)
-    S.PlayerNoClipEnabled = enabled
+--[[ Cập nhật trạng thái Player NoClip (Tự động kích hoạt khi bật tay hoặc khi Auto Farm Sea Events hoạt động) ]]
+function Utility.UpdatePlayerNoClipState()
+    local shouldNoClip = S.PlayerNoClipEnabled or S.AutoFarmSeaEventsEnabled
     DisconnectConnection("playerNoClipStepped")
-    if enabled then
+    if shouldNoClip then
         Utility.UpdateCharacterCache()
         _conns["playerNoClipStepped"] = RunService.Stepped:Connect(function()
-            if not S.PlayerNoClipEnabled then
+            local active = S.PlayerNoClipEnabled or S.AutoFarmSeaEventsEnabled
+            if not active then
                 DisconnectConnection("playerNoClipStepped")
+                for _, part in ipairs(CharacterParts) do
+                    if part and part.Parent then part.CanCollide = true end
+                end
                 return
             end
             for _, part in ipairs(CharacterParts) do
@@ -826,6 +830,12 @@ function Utility.SetPlayerNoClip(enabled)
             if part and part.Parent then part.CanCollide = true end
         end
     end
+end
+
+--[[ Bật / tắt Player NoClip tối ưu - Chỉ lắng nghe Stepped khi kích hoạt ]]
+function Utility.SetPlayerNoClip(enabled)
+    S.PlayerNoClipEnabled = enabled
+    Utility.UpdatePlayerNoClipState()
 end
 
 --[[ Bật / tắt Boat NoClip tối ưu - Chỉ lắng nghe Stepped khi kích hoạt ]]
@@ -2968,6 +2978,7 @@ function Utility.StartAutoFarmSeaEvents()
     DisconnectConnection("autoFarmSeaEvents")
     DisconnectConnection("seaEventsBoatFly")
     Utility.EnsureBodyMoverListener()
+    Utility.UpdatePlayerNoClipState()
 
     _conns["autoFarmSeaEvents"] = task.spawn(function()
         local lastCharacter = LocalPlayer.Character
@@ -3173,6 +3184,7 @@ function Utility.StopAutoFarmSeaEvents()
     DisconnectConnection("autoFarmSeaEvents")
     DisconnectConnection("seaEventsBoatFly")
     DisconnectConnection("terrorsharkBodyMover")
+    Utility.UpdatePlayerNoClipState()
     Utility.StopPhysicsFly()
     if ActiveBoat then
         Utility.ForceStopBoat(ActiveBoat)
@@ -5112,6 +5124,7 @@ Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
 LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.5)
     Utility.UpdateCharacterCache()
+    Utility.UpdatePlayerNoClipState()
     task.spawn(function()
         task.wait(0.8)
         if not Utility.IsBusoActive() then
