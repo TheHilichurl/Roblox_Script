@@ -1838,7 +1838,6 @@ end
 --[[ Handle Leviathan detection cleanup, safe smooth landing, and camera release ]]
 function Utility.HandleLeviathanFound()
     DisconnectConnection("findLev")
-    DisconnectConnection("multiFindLev")
     DisconnectConnection("levNpcAdded")
     DisconnectConnection("levSeaAdded")
     DisconnectConnection("levMapAdded")
@@ -1846,10 +1845,13 @@ function Utility.HandleLeviathanFound()
     DisconnectConnection("teleportPlayerLoop")
 
     S.FindLeviathanEnabled = false
-    S.MultipleFindLeviathanEnabled = false
     S.TeleportPlayerEnabled = false
     if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
-    if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
+
+    -- Lưu ý: Nếu đang bật Multiple Find Leviathan thì KHÔNG tắt toggle và KHÔNG ngắt multiFindLev để tiếp tục ngồi yên trên thuyền
+    if not S.MultipleFindLeviathanEnabled then
+        DisconnectConnection("multiFindLev")
+    end
 
     Utility.StopPhysicsFly()
 
@@ -1872,41 +1874,47 @@ function Utility.HandleLeviathanFound()
         end)
     end
 
-    UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan! Đang hạ cánh an toàn xuống mặt nước...", 6)
+    if S.MultipleFindLeviathanEnabled then
+        UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan! Đang tiếp tục ngồi trên thuyền của " .. tostring(S.SelectedBoatOwner) .. "...", 6)
+    else
+        UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan! Đang hạ cánh an toàn xuống mặt nước...", 6)
+    end
 
-    -- Cơ chế hạ cánh từ từ 60 studs/s xuống mặt biển an toàn (Y = 25) trước khi tắt lực bay & tắt NoClip
-    task.spawn(function()
-        local boat = ActiveBoat
-        local seat = boat and (boat:FindFirstChildOfClass("VehicleSeat") or boat.PrimaryPart)
-        if seat then
-            local att = seat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
-            att.Name = "FlyAttachment"; att.Parent = seat
+    -- Cơ chế hạ cánh từ từ 60 studs/s xuống mặt biển an toàn (Y = 25) trước khi tắt lực bay & tắt NoClip (chỉ áp dụng khi tự lái thuyền)
+    if not S.MultipleFindLeviathanEnabled then
+        task.spawn(function()
+            local boat = ActiveBoat
+            local seat = boat and (boat:FindFirstChildOfClass("VehicleSeat") or boat.PrimaryPart)
+            if seat then
+                local att = seat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+                att.Name = "FlyAttachment"; att.Parent = seat
 
-            local lv = seat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
-            lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
-            lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = seat
+                local lv = seat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+                lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+                lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = seat
 
-            local ao = seat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
-            ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
-            ao.MaxTorque = math.huge; ao.Responsiveness = 200
-            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
-            ao.Parent = seat
+                local ao = seat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+                ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+                ao.MaxTorque = math.huge; ao.Responsiveness = 200
+                ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+                ao.Parent = seat
 
-            local t0 = os.clock()
-            while boat and boat.Parent and seat and seat.Position.Y > 25 and (os.clock() - t0 < 15) do
-                -- Hạ độ cao với tốc độ 60 stud/s, triệt tiêu vận tốc ngang
-                lv.VectorVelocity = Vector3.new(0, -60, 0)
-                ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
-                task.wait(0.03)
+                local t0 = os.clock()
+                while boat and boat.Parent and seat and seat.Position.Y > 25 and (os.clock() - t0 < 15) do
+                    -- Hạ độ cao với tốc độ 60 stud/s, triệt tiêu vận tốc ngang
+                    lv.VectorVelocity = Vector3.new(0, -60, 0)
+                    ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
+                    task.wait(0.03)
+                end
             end
-        end
 
-        if boat and boat.Parent then
-            Utility.ForceStopBoat(boat)
-        end
-        S.BoatNoClipEnabled = false
-        Utility.SetBoatNoClip(false)
-    end)
+            if boat and boat.Parent then
+                Utility.ForceStopBoat(boat)
+            end
+            S.BoatNoClipEnabled = false
+            Utility.SetBoatNoClip(false)
+        end)
+    end
 end
 
 --[[ Enable object watcher for Leviathan spawn in workspace folders ]]
@@ -2066,16 +2074,19 @@ function Utility.StartMultipleFindLeviathan()
 
     if Utility.IsFrozenWatcher() then
         Utility.HandleLeviathanFound()
-        return
     end
 
     DisconnectConnection("multiFindLev")
     _conns["multiFindLev"] = task.spawn(function()
         local lastNotifyTime = 0
+        local leviFoundAnnounced = false
+
         while S.MultipleFindLeviathanEnabled do
             if Utility.IsFrozenWatcher() then
-                Utility.HandleLeviathanFound()
-                break
+                if not leviFoundAnnounced then
+                    leviFoundAnnounced = true
+                    Utility.HandleLeviathanFound()
+                end
             end
 
             local char = LocalPlayer.Character
@@ -2550,6 +2561,12 @@ Utility.CastSkills = Utility.CastSkillsLeviathan
 --[[ Start auto attack Leviathan routine ]]
 function Utility.StartAutoAttackLeviathan()
     DisconnectConnection("autoAttackLevi")
+    if S.MultipleFindLeviathanEnabled then
+        S.MultipleFindLeviathanEnabled = false
+        if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
+        Utility.StopMultipleFindLeviathan()
+    end
+
     _conns["autoAttackLevi"] = task.spawn(function()
         while S.AutoAttackLeviEnabled do
             local target, isSegment = Utility.GetLeviathanTarget()
@@ -4406,6 +4423,11 @@ AutoAttackLeviToggle = LevTab:AddToggle({
     Callback = function(val)
         S.AutoAttackLeviEnabled = val
         if val then
+            if S.MultipleFindLeviathanEnabled then
+                S.MultipleFindLeviathanEnabled = false
+                if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
+                Utility.StopMultipleFindLeviathan()
+            end
             Utility.StartAutoAttackLeviathan()
         else
             Utility.StopAutoAttackLeviathan()
