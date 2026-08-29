@@ -4357,6 +4357,7 @@ function Utility.UnloadAllScript()
     DisconnectConnection("antiAfkLoop")
     DisconnectConnection("boatNoClipStepped")
     DisconnectConnection("playerNoClipStepped")
+    DisconnectConnection("keyExpiryLoop")
 
     if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
     Utility.StopPhysicsFly()
@@ -5273,6 +5274,37 @@ PlayerTab:AddButton({
         UILib.Notify("Clipboard", "Job ID copied to clipboard!", 3)
     end,
 })
+
+if _G.HilichurlKeyData and _G.HilichurlKeyData.LoadedFromLoader then
+    PlayerTab:AddSection("Key Information")
+    local keyExpiryInfo = PlayerTab:AddInfo({ Title = "Key Expiration", Value = _G.HilichurlKeyData.RemainingText or "Active" })
+    
+    _conns["keyExpiryLoop"] = task.spawn(function()
+        while true do
+            task.wait(1)
+            if _G.HilichurlKeyData and _G.HilichurlKeyData.ExpiresAt then
+                local remainingSec = _G.HilichurlKeyData.ExpiresAt - os.time()
+                if remainingSec > 0 then
+                    local days = math.floor(remainingSec / 86400)
+                    local hours = math.floor((remainingSec % 86400) / 3600)
+                    local mins = math.floor((remainingSec % 3600) / 60)
+                    local secs = math.floor(remainingSec % 60)
+                    if days > 0 then
+                        keyExpiryInfo:Set(string.format("%dd %dh %dm", days, hours, mins))
+                    elseif hours > 0 then
+                        keyExpiryInfo:Set(string.format("%dh %dm %ds", hours, mins, secs))
+                    elseif mins > 0 then
+                        keyExpiryInfo:Set(string.format("%dm %ds", mins, secs))
+                    else
+                        keyExpiryInfo:Set(string.format("%ds", secs))
+                    end
+                else
+                    keyExpiryInfo:Set("Expired")
+                end
+            end
+        end
+    end)
+end
 
 Utility.StartPlayerPanelLoop(statusInfo, coordsInfo, timeInfo, sessionInfo)
 
