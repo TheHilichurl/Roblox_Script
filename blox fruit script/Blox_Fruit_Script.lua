@@ -933,6 +933,32 @@ function Utility.ForceStopBoat(boat)
     end)
 end
 
+--[[ Kiểm tra xem có Fishboat / Tàu cá / Pirate Ships trong bán kính quanh thuyền không ]]
+function Utility.IsFishboatNearby(pos, radius)
+    local rad = radius or 500
+    local checkFolders = { workspace:FindFirstChild("Enemies"), workspace:FindFirstChild("SeaEvents"), workspace:FindFirstChild("SeaBeasts") }
+    for _, folder in ipairs(checkFolders) do
+        if folder then
+            for _, model in ipairs(folder:GetChildren()) do
+                if model:IsA("Model") then
+                    local lowerName = model.Name:lower()
+                    if lowerName:find("fishboat") or lowerName:find("fish ship") or lowerName:find("fish")
+                       or lowerName:find("brigade") or lowerName:find("bridge") or lowerName:find("pirate") or lowerName:find("ship") or lowerName:find("boat") then
+                        local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
+                        if root then
+                            local dist = (root.Position - pos).Magnitude
+                            if dist <= rad then
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 --[[ Check if Frozen Watcher or Leviathan Gate spawned in workspace ]]
 function Utility.IsFrozenWatcher()
     local npcsFolder = workspace:FindFirstChild("NPCs")
@@ -1646,8 +1672,9 @@ function Utility.StartBoatFlight(boat)
 
         local flatDir = Vector3.new(dir.X, 0, dir.Z).Unit
         local distFromOriginZ = math.abs(pos.Z - 480)
+        local isNearFishboat = Utility.IsFishboatNearby(pos, 500)
 
-        -- Kiểm tra toạ độ Z = 480: trong bán kính 2000 studs luôn đẩy lên Y = 800 trước rồi mới bay tiếp, ra ngoài bán kính 2000 studs thì chuyển về độ cao bình thường
+        -- 1. Ưu tiên kiểm tra toạ độ Z = 480: trong bán kính 2000 studs luôn đẩy lên Y = 800 trước rồi mới bay tiếp
         if distFromOriginZ <= 2000 then
             local climbSpeed = 200
             local deltaY = 800 - pos.Y
@@ -1660,8 +1687,14 @@ function Utility.StartBoatFlight(boat)
                 -- Đã đạt độ cao 800 thì bắt đầu bay tiếp
                 lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
             end
+        -- 2. Khi phát hiện Fishboat trong bán kính 500 studs: tự động bay lên Y = 350 với tốc độ 200 studs/s
+        elseif isNearFishboat then
+            local climbSpeed = 200
+            local deltaY = 350 - pos.Y
+            local vy = math.clamp(deltaY * 10, -climbSpeed, climbSpeed)
+            lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
         else
-            -- Ra khỏi bán kính 2000 studs so với toạ độ Z: trở về độ cao bình thường (Y = 190)
+            -- 3. Ra khỏi bán kính 2000 studs so với toạ độ Z và không có Fishboat: trở về độ cao bình thường (Y = 190)
             lv.VectorVelocity = Vector3.new(dir.Unit.X * speed, (flyY - pos.Y) * 5, dir.Unit.Z * speed)
         end
 
@@ -1670,7 +1703,7 @@ function Utility.StartBoatFlight(boat)
     _conns["findLev"] = FindLeviathanConnection
 end
 
---[[ Handle Leviathan detection cleanup and camera release ]]
+--[[ Handle Leviathan detection cleanup, safe smooth landing, and camera release ]]
 function Utility.HandleLeviathanFound()
     DisconnectConnection("findLev")
     DisconnectConnection("multiFindLev")
@@ -1683,11 +1716,9 @@ function Utility.HandleLeviathanFound()
     S.FindLeviathanEnabled = false
     S.MultipleFindLeviathanEnabled = false
     S.TeleportPlayerEnabled = false
-    S.BoatNoClipEnabled = false
     if FindLeviathanToggle then FindLeviathanToggle:Set(false) end
     if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
 
-    if ActiveBoat then Utility.ForceStopBoat(ActiveBoat) end
     Utility.StopPhysicsFly()
 
     task.delay(0.1, function()
@@ -1709,7 +1740,41 @@ function Utility.HandleLeviathanFound()
         end)
     end
 
-    UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan / Cổng Frozen Dimension!", 6)
+    UILib.Notify("Leviathan", "❄️ Đã tìm thấy Leviathan! Đang hạ cánh an toàn xuống mặt nước...", 6)
+
+    -- Cơ chế hạ cánh từ từ 60 studs/s xuống mặt biển an toàn (Y = 25) trước khi tắt lực bay & tắt NoClip
+    task.spawn(function()
+        local boat = ActiveBoat
+        local seat = boat and (boat:FindFirstChildOfClass("VehicleSeat") or boat.PrimaryPart)
+        if seat then
+            local att = seat:FindFirstChild("FlyAttachment") or Instance.new("Attachment")
+            att.Name = "FlyAttachment"; att.Parent = seat
+
+            local lv = seat:FindFirstChild("FlyLinearVelocity") or Instance.new("LinearVelocity")
+            lv.Name = "FlyLinearVelocity"; lv.Attachment0 = att
+            lv.MaxForce = math.huge; lv.RelativeTo = Enum.ActuatorRelativeTo.World; lv.Parent = seat
+
+            local ao = seat:FindFirstChild("FlyAlignOrientation") or Instance.new("AlignOrientation")
+            ao.Name = "FlyAlignOrientation"; ao.Attachment0 = att
+            ao.MaxTorque = math.huge; ao.Responsiveness = 200
+            ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+            ao.Parent = seat
+
+            local t0 = os.clock()
+            while boat and boat.Parent and seat and seat.Position.Y > 25 and (os.clock() - t0 < 15) do
+                -- Hạ độ cao với tốc độ 60 stud/s, triệt tiêu vận tốc ngang
+                lv.VectorVelocity = Vector3.new(0, -60, 0)
+                ao.CFrame = CFrame.lookAt(Vector3.zero, Vector3.new(-1, 0, 0))
+                task.wait(0.03)
+            end
+        end
+
+        if boat and boat.Parent then
+            Utility.ForceStopBoat(boat)
+        end
+        S.BoatNoClipEnabled = false
+        Utility.SetBoatNoClip(false)
+    end)
 end
 
 --[[ Enable object watcher for Leviathan spawn in workspace folders ]]
@@ -4118,6 +4183,7 @@ function Utility.UnloadAllScript()
     DisconnectConnection("playerPanelLoop")
     DisconnectConnection("renderLoop")
     DisconnectConnection("antiAfk")
+    DisconnectConnection("antiAfkLoop")
     DisconnectConnection("boatNoClipStepped")
     DisconnectConnection("playerNoClipStepped")
 
@@ -5102,7 +5168,21 @@ end)
 
 _conns["antiAfk"] = LocalPlayer.Idled:Connect(function()
     if S.AntiAFKEnabled then
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0, 0))
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new(100, 100))
+        end)
+    end
+end)
+
+_conns["antiAfkLoop"] = task.spawn(function()
+    while true do
+        task.wait(300)
+        if S.AntiAFKEnabled then
+            pcall(function()
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new(100, 100))
+            end)
+        end
     end
 end)
