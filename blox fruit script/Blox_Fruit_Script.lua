@@ -548,12 +548,32 @@ function UILib.CreateWindow(cfg)
         function Tab:AddDropdown(dc)
             dc = dc or {}
             local lbl = dc.Name or "Dropdown"; local opts = dc.Options or {}; local cb = dc.Callback or function() end
-            local desc = dc.Desc or ""; local rH = desc ~= "" and 44 or 30; local selectedText = dc.Default or "None"
+            local desc = dc.Desc or ""; local rH = desc ~= "" and 44 or 30; local isMulti = dc.Multi or false
+
+            local selectedList = {}
+            local selectedText = "None"
+
+            if isMulti then
+                if type(dc.Default) == "table" then
+                    for _, v in ipairs(dc.Default) do
+                        table.insert(selectedList, v)
+                    end
+                elseif type(dc.Default) == "string" and dc.Default ~= "" and dc.Default ~= "None" then
+                    table.insert(selectedList, dc.Default)
+                end
+                if #selectedList == 0 and #opts > 0 then
+                    table.insert(selectedList, opts[1])
+                end
+                selectedText = #selectedList > 0 and table.concat(selectedList, ", ") or "None"
+            else
+                selectedText = type(dc.Default) == "string" and dc.Default or (opts[1] or "None")
+            end
+
             local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "DD_" .. lbl, Parent = page, Radius = 5})
             local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
-            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -100, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
-            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -100, 0, 14), Pos = UDim2.fromOffset(0, 22), Parent = row}) end
-            local selLbl = CreateLabel({Text = selectedText .. "", Size = 10, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0, 95, 0, 16), Pos = UDim2.new(1, -95, 0, 4), Name = "SelLbl", Parent = row})
+            CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -120, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
+            if desc ~= "" then CreateLabel({Text = desc, Size = 9, Color = THEME.TEXT_SUB, Font = Enum.Font.Gotham, FS = UDim2.new(1, -120, 0, 14), Pos = UDim2.fromOffset(0, 22), Parent = row}) end
+            local selLbl = CreateLabel({Text = selectedText .. "", Size = 10, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0, 115, 0, 16), Pos = UDim2.new(1, -115, 0, 4), Name = "SelLbl", Parent = row})
 
             local activeDropdown = nil
             local activeBackdrop = nil
@@ -617,22 +637,62 @@ function UILib.CreateWindow(cfg)
 
                 local dll = Instance.new("UIListLayout"); dll.SortOrder = Enum.SortOrder.LayoutOrder; dll.Padding = UDim.new(0, 2); dll.Parent = scrollDD
 
+                local buttons = {}
+
+                local function UpdateButtonsUI()
+                    for optName, ob in pairs(buttons) do
+                        if isMulti then
+                            local isSelected = table.find(selectedList, optName) ~= nil
+                            ob.Text = (isSelected and "[✓] " or "[   ] ") .. optName
+                            ob.TextColor3 = isSelected and THEME.ACCENT or THEME.TEXT
+                            ob.BackgroundColor3 = isSelected and Color3.fromRGB(30, 35, 45) or THEME.BTN_IDLE
+                        else
+                            local isSelected = (selectedText == optName)
+                            ob.Text = optName
+                            ob.TextColor3 = isSelected and THEME.ACCENT or THEME.TEXT
+                            ob.BackgroundColor3 = isSelected and Color3.fromRGB(30, 35, 45) or THEME.BTN_IDLE
+                        end
+                    end
+                end
+
                 for _, opt in ipairs(opts) do
                     local ob = Instance.new("TextButton")
-                    ob.Text = opt; ob.Font = Enum.Font.GothamMedium; ob.TextSize = 10; ob.TextColor3 = THEME.TEXT
-                    ob.BackgroundColor3 = THEME.BTN_IDLE; ob.BackgroundTransparency = 0.2; ob.AutoButtonColor = false
+                    ob.Font = Enum.Font.GothamMedium; ob.TextSize = 10
+                    ob.BackgroundTransparency = 0.2; ob.AutoButtonColor = false
                     ob.Size = UDim2.new(1, 0, 0, 24); ob.TextXAlignment = Enum.TextXAlignment.Left; ob.ZIndex = 502; ob.Parent = scrollDD
 
                     local op = Instance.new("UIPadding"); op.PaddingLeft = UDim.new(0, 8); op.Parent = ob
+                    buttons[opt] = ob
 
                     ob.MouseEnter:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0, TextColor3 = THEME.BTN_TEXT_HOV, BackgroundColor3 = THEME.BTN_HOVER}):Play() end)
-                    ob.MouseLeave:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() end)
+                    ob.MouseLeave:Connect(function()
+                        UpdateButtonsUI()
+                    end)
+
                     ob.MouseButton1Click:Connect(function()
-                        selectedText = opt; selLbl.Text = opt .. ""
-                        CloseDropdown()
-                        pcall(cb, opt)
+                        if isMulti then
+                            local idx = table.find(selectedList, opt)
+                            if idx then
+                                if #selectedList > 1 then
+                                    table.remove(selectedList, idx)
+                                end
+                            else
+                                table.insert(selectedList, opt)
+                            end
+                            selectedText = #selectedList > 0 and table.concat(selectedList, ", ") or "None"
+                            selLbl.Text = selectedText
+                            UpdateButtonsUI()
+                            pcall(cb, selectedList)
+                        else
+                            selectedText = opt; selLbl.Text = opt .. ""
+                            UpdateButtonsUI()
+                            CloseDropdown()
+                            pcall(cb, opt)
+                        end
                     end)
                 end
+
+                UpdateButtonsUI()
             end
 
             local clDD = Instance.new("TextButton"); clDD.Text = ""; clDD.BackgroundTransparency = 1; clDD.Size = UDim2.new(1, 0, 1, 0); clDD.AutoButtonColor = false; clDD.Parent = row
@@ -641,11 +701,35 @@ function UILib.CreateWindow(cfg)
             local DDObj = {}
             function DDObj:Refresh(newOpts) 
                 opts = newOpts 
-                if #opts == 0 then selectedText = "None"; selLbl.Text = "None" end
+                if isMulti then
+                    selectedList = {}
+                    if #opts > 0 then table.insert(selectedList, opts[1]) end
+                    selectedText = #selectedList > 0 and table.concat(selectedList, ", ") or "None"
+                else
+                    selectedText = opts[1] or "None"
+                end
+                selLbl.Text = selectedText
                 CloseDropdown()
             end
-            function DDObj:Get() return selectedText end
+            function DDObj:Get() 
+                return isMulti and selectedList or selectedText 
+            end
+            function DDObj:Set(val)
+                if isMulti and type(val) == "table" then
+                    selectedList = val
+                    selectedText = #selectedList > 0 and table.concat(selectedList, ", ") or "None"
+                else
+                    selectedText = tostring(val)
+                end
+                selLbl.Text = selectedText
+            end
             return DDObj
+        end
+
+        function Tab:AddMultiDropdown(dc)
+            dc = dc or {}
+            dc.Multi = true
+            return Tab:AddDropdown(dc)
         end
 
         function Tab:AddInput(ic)
@@ -755,6 +839,7 @@ local S = {
     -- Sea Events Tab Configuration
     SeaEventsBoat               = "Guardian",
     SeaEventsWeapon             = "Melee",
+    SeaEventsWeapons            = { "Melee" },
     SelectedSeaEvent            = "All",
     AutoFarmSeaEventsEnabled    = false,
     AutoFarmSeaEventsSkills     = false,
@@ -3026,6 +3111,8 @@ function Utility.StartAutoFarmSeaEvents()
         local needBuyNewBoat = true
         local boatDestroyedAtSea = false
         local playerBoat = nil
+        local currentWeaponIndex = 1
+        local lastWeaponSwitchTime = os.clock()
 
         while S.AutoFarmSeaEventsEnabled do
             local char = LocalPlayer.Character
@@ -3092,6 +3179,22 @@ function Utility.StartAutoFarmSeaEvents()
                         end
                     end
 
+                    -- Quản lý đổi vũ khí định kỳ 2 giây nếu chọn từ 2 vũ khí trở lên
+                    local wList = (type(S.SeaEventsWeapons) == "table" and #S.SeaEventsWeapons > 0) and S.SeaEventsWeapons or { S.SeaEventsWeapon or "Melee" }
+                    if #wList >= 2 then
+                        if os.clock() - lastWeaponSwitchTime >= 2.0 then
+                            currentWeaponIndex = (currentWeaponIndex % #wList) + 1
+                            lastWeaponSwitchTime = os.clock()
+                            local nextW = wList[currentWeaponIndex]
+                            Utility.EquipWeaponByType(nextW)
+                        end
+                    else
+                        currentWeaponIndex = 1
+                    end
+
+                    local wType = wList[currentWeaponIndex] or S.SeaEventsWeapon or "Melee"
+                    S.SeaEventsWeapon = wType
+
                     -- Tấn công mục tiêu gần nhất
                     local bestTarget = seaTargets[1]
                     local tModel = bestTarget.Model
@@ -3100,7 +3203,6 @@ function Utility.StartAutoFarmSeaEvents()
 
                     if tModel and tModel.Parent and tRoot then
                         local basePos = tRoot.Position
-                        local wType = S.SeaEventsWeapon or "Melee"
 
                         if tType == "Terrorshark" and terrorsharkDodgeActive and os.clock() < terrorsharkDodgeEndTime then
                             -- Né chiêu Terrorshark: bay lên Y = 500 với tốc độ 200
@@ -4638,14 +4740,17 @@ SeaEventsTab:AddDropdown({
     end,
 })
 
-SeaEventsTab:AddDropdown({
-    Name    = "Select Weapon",
-    Desc    = "Choose weapon to attack Sea Events",
+SeaEventsTab:AddMultiDropdown({
+    Name    = "Select Weapons",
+    Desc    = "Choose weapons (switches every 2s if >= 2 selected)",
     Options = { "Melee", "Sword", "Fruit", "Gun" },
-    Default = S.SeaEventsWeapon or "Melee",
-    Callback = function(opt)
-        S.SeaEventsWeapon = opt
-        Utility.EquipWeaponByType(opt)
+    Default = S.SeaEventsWeapons or { "Melee" },
+    Callback = function(opts)
+        S.SeaEventsWeapons = opts
+        if #opts > 0 then
+            S.SeaEventsWeapon = opts[1]
+            Utility.EquipWeaponByType(opts[1])
+        end
     end,
 })
 
