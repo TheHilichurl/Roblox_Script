@@ -363,6 +363,8 @@ function UILib.CreateWindow(cfg)
         if _notificationHolder then pcall(function() _notificationHolder.Parent:Destroy() end) end
     end
 
+    local ActiveGlobalDropdown = nil
+
     function W:AddTab(cfg2)
         cfg2 = cfg2 or {}
         local tname = cfg2.Name or "Tab"; local ticon = cfg2.Icon or ""
@@ -384,6 +386,7 @@ function UILib.CreateWindow(cfg)
         local pp = Instance.new("UIPadding"); pp.PaddingTop = UDim.new(0, 6); pp.PaddingLeft = UDim.new(0, 8); pp.PaddingRight = UDim.new(0, 8); pp.PaddingBottom = UDim.new(0, 6); pp.Parent = page
 
         local function ActivateTab()
+            if ActiveGlobalDropdown then ActiveGlobalDropdown() end
             if activePage   then activePage.Visible   = false end
             if activeTabBtn then TweenService:Create(activeTabBtn, TI_FAST, {BackgroundColor3 = THEME.TAB_IDLE, TextColor3 = THEME.TEXT_SUB}):Play() end
             page.Visible = true; activePage = page; activeTabBtn = tabBtn
@@ -545,7 +548,7 @@ function UILib.CreateWindow(cfg)
         function Tab:AddDropdown(dc)
             dc = dc or {}
             local lbl = dc.Name or "Dropdown"; local opts = dc.Options or {}; local cb = dc.Callback or function() end
-            local desc = dc.Desc or ""; local rH = desc ~= "" and 44 or 30; local selectedText = "None"
+            local desc = dc.Desc or ""; local rH = desc ~= "" and 44 or 30; local selectedText = dc.Default or "None"
             local row = CreateFrame({Color = THEME.BTN_IDLE, Size = UDim2.new(1, 0, 0, rH), Name = "DD_" .. lbl, Parent = page, Radius = 5})
             local ip = Instance.new("UIPadding"); ip.PaddingLeft = UDim.new(0, 8); ip.PaddingRight = UDim.new(0, 8); ip.Parent = row
             CreateLabel({Text = lbl, Size = 11, Color = THEME.TEXT, FS = UDim2.new(1, -100, 0, 16), Pos = UDim2.fromOffset(0, 4), Parent = row})
@@ -553,11 +556,47 @@ function UILib.CreateWindow(cfg)
             local selLbl = CreateLabel({Text = selectedText .. "", Size = 10, Color = THEME.ACCENT, XA = Enum.TextXAlignment.Right, FS = UDim2.new(0, 95, 0, 16), Pos = UDim2.new(1, -95, 0, 4), Name = "SelLbl", Parent = row})
 
             local activeDropdown = nil
+            local activeBackdrop = nil
+
+            local function CloseDropdown()
+                if activeDropdown then
+                    activeDropdown:Destroy()
+                    activeDropdown = nil
+                end
+                if activeBackdrop then
+                    activeBackdrop:Destroy()
+                    activeBackdrop = nil
+                end
+                if ActiveGlobalDropdown == CloseDropdown then
+                    ActiveGlobalDropdown = nil
+                end
+            end
 
             local function BuildDropdown()
-                if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil; return end
+                if activeDropdown then
+                    CloseDropdown()
+                    return
+                end
+                if ActiveGlobalDropdown then
+                    ActiveGlobalDropdown()
+                end
+
                 local n = #opts
                 if n == 0 then return end
+
+                -- Lớp phủ tàng hình toàn màn hình: Bấm vào bất kỳ đâu ngoài dropdown sẽ tự động đóng lại
+                local backdrop = Instance.new("TextButton")
+                backdrop.Name = "DropdownBackdrop"
+                backdrop.BackgroundTransparency = 1
+                backdrop.Text = ""
+                backdrop.Size = UDim2.new(1, 0, 1, 0)
+                backdrop.Position = UDim2.new(0, 0, 0, 0)
+                backdrop.ZIndex = 499
+                backdrop.AutoButtonColor = false
+                backdrop.Parent = sg
+                activeBackdrop = backdrop
+
+                backdrop.MouseButton1Click:Connect(CloseDropdown)
 
                 local ddH = math.min(n, 5) * 26 + 4
                 local dropdown = CreateFrame({
@@ -565,7 +604,9 @@ function UILib.CreateWindow(cfg)
                     Pos = UDim2.fromOffset(row.AbsolutePosition.X, row.AbsolutePosition.Y + row.AbsoluteSize.Y + 4),
                     Name = "GlobalDDList", Parent = sg, Radius = 5
                 })
-                dropdown.ZIndex = 500; activeDropdown = dropdown
+                dropdown.ZIndex = 500
+                activeDropdown = dropdown
+                ActiveGlobalDropdown = CloseDropdown
 
                 local outSt = Instance.new("UIStroke"); outSt.Color = THEME.ACCENT; outSt.Thickness = 1; outSt.Parent = dropdown
 
@@ -588,8 +629,8 @@ function UILib.CreateWindow(cfg)
                     ob.MouseLeave:Connect(function() TweenService:Create(ob, TI_FAST, {BackgroundTransparency = 0.2, TextColor3 = THEME.TEXT, BackgroundColor3 = THEME.BTN_IDLE}):Play() end)
                     ob.MouseButton1Click:Connect(function()
                         selectedText = opt; selLbl.Text = opt .. ""
+                        CloseDropdown()
                         pcall(cb, opt)
-                        if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil end
                     end)
                 end
             end
@@ -601,7 +642,7 @@ function UILib.CreateWindow(cfg)
             function DDObj:Refresh(newOpts) 
                 opts = newOpts 
                 if #opts == 0 then selectedText = "None"; selLbl.Text = "None" end
-                if activeDropdown then activeDropdown:Destroy(); activeDropdown = nil end
+                CloseDropdown()
             end
             function DDObj:Get() return selectedText end
             return DDObj
@@ -712,7 +753,7 @@ local S = {
     AutoSkillsLeviEnabled       = false,
     AutoFarmWithSkillsEnabled   = false,
     -- Sea Events Tab Configuration
-    SeaEventsBoat               = "Beast Hunter",
+    SeaEventsBoat               = "Guardian",
     SeaEventsWeapon             = "Melee",
     SelectedSeaEvent            = "All",
     AutoFarmSeaEventsEnabled    = false,
@@ -3105,7 +3146,7 @@ function Utility.StartAutoFarmSeaEvents()
 
                 -- [TRƯỜNG HỢP B]: ĐÃ TIÊU DIỆT HẾT KẺ ĐỊCH (#seaTargets == 0)
                 else
-                    local selBoatName = S.SeaEventsBoat or "Beast Hunter"
+                    local selBoatName = S.SeaEventsBoat or "Guardian"
 
                     -- Nếu thuyền bị nổ ngoài biển trong lúc đánh quái VÀ hiện tại đã diệt sạch quái: Reset nhân vật về bến 1 lần
                     if boatDestroyedAtSea then
@@ -4416,11 +4457,6 @@ LevTab:AddDropdown({
         "Guardian",
         "Miracle",
         "PirateBrigade",
-        "Swan Ship",
-        "Flower Ship",
-        "Enel's Ship",
-        "Speed Boat",
-        "Galleon",
         "Sloop",
         "Dinghy"
     },
@@ -4593,15 +4629,10 @@ SeaEventsTab:AddDropdown({
         "Guardian",
         "Miracle",
         "PirateBrigade",
-        "Swan Ship",
-        "Flower Ship",
-        "Enel's Ship",
-        "Speed Boat",
-        "Galleon",
         "Sloop",
         "Dinghy"
     },
-    Default = S.SeaEventsBoat or "Beast Hunter",
+    Default = S.SeaEventsBoat or "Guardian",
     Callback = function(opt)
         S.SeaEventsBoat = opt
     end,
