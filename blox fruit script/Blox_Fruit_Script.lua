@@ -1065,17 +1065,23 @@ function Utility.ForceStopBoat(boat)
     end)
 end
 
---[[ Kiểm tra xem có Fishboat / Tàu cá / Pirate Ships trong bán kính quanh thuyền không ]]
+--[[ Kiểm tra xem có Fishboat / Tàu cá / Pirate Boat / Thuyền ma trong bán kính quanh thuyền không ]]
 function Utility.IsFishboatNearby(pos, radius)
     local rad = radius or 500
-    local checkFolders = { workspace:FindFirstChild("Enemies"), workspace:FindFirstChild("SeaEvents"), workspace:FindFirstChild("SeaBeasts") }
+    local checkFolders = {
+        workspace:FindFirstChild("Enemies"),
+        workspace:FindFirstChild("SeaEvents"),
+        workspace:FindFirstChild("SeaBeasts"),
+        workspace:FindFirstChild("Boats")
+    }
     for _, folder in ipairs(checkFolders) do
         if folder then
             for _, model in ipairs(folder:GetChildren()) do
-                if model:IsA("Model") then
+                if model:IsA("Model") and model ~= ActiveBoat then
                     local lowerName = model.Name:lower()
-                    if lowerName:find("fishboat") or lowerName:find("fish ship") or lowerName:find("fish")
-                       or lowerName:find("brigade") or lowerName:find("bridge") or lowerName:find("pirate") or lowerName:find("ship") or lowerName:find("boat") then
+                    if lowerName:find("fishboat") or lowerName:find("fish ship") or lowerName:find("fish crew") or lowerName:find("fish")
+                       or lowerName:find("pirate") or lowerName:find("ghost") or lowerName:find("brigade") or lowerName:find("bridge")
+                       or lowerName:find("ship") or lowerName:find("boat") then
                         local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head") or model.PrimaryPart or model:FindFirstChildOfClass("BasePart")
                         if root then
                             local dist = (root.Position - pos).Magnitude
@@ -1819,14 +1825,21 @@ function Utility.StartBoatFlight(boat)
                 -- Đã đạt độ cao 800 thì bắt đầu bay tiếp
                 lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
             end
-        -- 2. Khi phát hiện Fishboat trong bán kính 500 studs: tự động bay lên Y = 350 với tốc độ 200 studs/s
+        -- 2. Khi phát hiện Fishboat / Pirate Boat trong bán kính 500 studs: tự động bay lên Y = 450 với tốc độ 200 studs/s
         elseif isNearFishboat then
             local climbSpeed = 200
-            local deltaY = 350 - pos.Y
+            local deltaY = 450 - pos.Y
             local vy = math.clamp(deltaY * 10, -climbSpeed, climbSpeed)
-            lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
+
+            if pos.Y < 440 then
+                -- Ưu tiên nâng độ cao vượt qua đỉnh cột buồm thuyền ma / tàu hải tặc
+                lv.VectorVelocity = Vector3.new(flatDir.X * (speed * 0.6), vy, flatDir.Z * (speed * 0.6))
+            else
+                -- Đã đạt độ cao 450 thì bay thẳng mượt mà ở trên cao
+                lv.VectorVelocity = Vector3.new(flatDir.X * speed, vy, flatDir.Z * speed)
+            end
         else
-            -- 3. Ra khỏi bán kính 2000 studs so với toạ độ Z và không có Fishboat: trở về độ cao bình thường (Y = 190)
+            -- 3. Ra khỏi bán kính 2000 studs so với toạ độ Z và không có Fishboat / Pirate Boat: trở về độ cao bình thường (Y = 190)
             lv.VectorVelocity = Vector3.new(dir.Unit.X * speed, (flyY - pos.Y) * 5, dir.Unit.Z * speed)
         end
 
