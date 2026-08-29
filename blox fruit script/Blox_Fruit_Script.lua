@@ -836,6 +836,7 @@ local S = {
     SeaEventsWeapon             = "",
     SeaEventsWeapons            = {},
     SelectedSeaEvent            = "All",
+    SelectedSeaEvents           = { "All" },
     AutoFarmSeaEventsEnabled    = false,
     AutoFarmSeaEventsSkills     = false,
     -- Farm Setting & Skills Configuration
@@ -2967,14 +2968,26 @@ function Utility.GetActiveSeaEventTargets()
 
         if isSeaEvent then
             local eventType = GetSeaEventType(model)
-            local matchFilter = true
-            if S.SelectedSeaEvent and S.SelectedSeaEvent ~= "All" then
-                if S.SelectedSeaEvent == "Shark" and eventType ~= "Shark" then matchFilter = false
-                elseif S.SelectedSeaEvent == "Piranha" and eventType ~= "Piranha" then matchFilter = false
-                elseif S.SelectedSeaEvent == "Fish Crew" and eventType ~= "Fish Crew Member" then matchFilter = false
-                elseif S.SelectedSeaEvent == "Pirate Ships" and eventType ~= "Boat" then matchFilter = false
-                elseif S.SelectedSeaEvent == "Sea Beast" and eventType ~= "Sea Beast" then matchFilter = false
-                elseif S.SelectedSeaEvent == "Terrorshark" and eventType ~= "Terrorshark" then matchFilter = false
+            local matchFilter = false
+            local selEvents = (type(S.SelectedSeaEvents) == "table" and #S.SelectedSeaEvents > 0) and S.SelectedSeaEvents or (S.SelectedSeaEvent and { S.SelectedSeaEvent } or { "All" })
+
+            if table.find(selEvents, "All") or #selEvents == 0 then
+                matchFilter = true
+            else
+                for _, sel in ipairs(selEvents) do
+                    if sel == "Shark" and eventType == "Shark" then
+                        matchFilter = true; break
+                    elseif sel == "Piranha" and eventType == "Piranha" then
+                        matchFilter = true; break
+                    elseif sel == "Fish Crew" and eventType == "Fish Crew Member" then
+                        matchFilter = true; break
+                    elseif sel == "Pirate Ships" and eventType == "Boat" then
+                        matchFilter = true; break
+                    elseif sel == "Sea Beast" and eventType == "Sea Beast" then
+                        matchFilter = true; break
+                    elseif sel == "Terrorshark" and eventType == "Terrorshark" then
+                        matchFilter = true; break
+                    end
                 end
             end
 
@@ -4732,13 +4745,14 @@ SeaEventsTab:AddMultiDropdown({
     end,
 })
 
-SeaEventsTab:AddDropdown({
-    Name    = "Select Sea Event",
-    Desc    = "Filter target Sea Events (or All)",
+SeaEventsTab:AddMultiDropdown({
+    Name    = "Select Sea Events",
+    Desc    = "Filter target Sea Events (choose one or multiple)",
     Options = { "All", "Shark", "Piranha", "Fish Crew", "Pirate Ships", "Sea Beast", "Terrorshark" },
-    Default = S.SelectedSeaEvent or "All",
-    Callback = function(opt)
-        S.SelectedSeaEvent = opt
+    Default = S.SelectedSeaEvents or { "All" },
+    Callback = function(opts)
+        S.SelectedSeaEvents = opts
+        S.SelectedSeaEvent = (#opts > 0 and opts[1] or "All")
     end,
 })
 
