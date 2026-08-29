@@ -561,9 +561,6 @@ function UILib.CreateWindow(cfg)
                 elseif type(dc.Default) == "string" and dc.Default ~= "" and dc.Default ~= "None" then
                     table.insert(selectedList, dc.Default)
                 end
-                if #selectedList == 0 and #opts > 0 then
-                    table.insert(selectedList, opts[1])
-                end
                 selectedText = #selectedList > 0 and table.concat(selectedList, ", ") or "None"
             else
                 selectedText = type(dc.Default) == "string" and dc.Default or (opts[1] or "None")
@@ -673,9 +670,7 @@ function UILib.CreateWindow(cfg)
                         if isMulti then
                             local idx = table.find(selectedList, opt)
                             if idx then
-                                if #selectedList > 1 then
-                                    table.remove(selectedList, idx)
-                                end
+                                table.remove(selectedList, idx)
                             else
                                 table.insert(selectedList, opt)
                             end
@@ -838,8 +833,8 @@ local S = {
     AutoFarmWithSkillsEnabled   = false,
     -- Sea Events Tab Configuration
     SeaEventsBoat               = "Guardian",
-    SeaEventsWeapon             = "Melee",
-    SeaEventsWeapons            = { "Melee" },
+    SeaEventsWeapon             = "",
+    SeaEventsWeapons            = {},
     SelectedSeaEvent            = "All",
     AutoFarmSeaEventsEnabled    = false,
     AutoFarmSeaEventsSkills     = false,
@@ -3180,7 +3175,8 @@ function Utility.StartAutoFarmSeaEvents()
                     end
 
                     -- Quản lý đổi vũ khí định kỳ 2 giây nếu chọn từ 2 vũ khí trở lên
-                    local wList = (type(S.SeaEventsWeapons) == "table" and #S.SeaEventsWeapons > 0) and S.SeaEventsWeapons or { S.SeaEventsWeapon or "Melee" }
+                    local wList = (type(S.SeaEventsWeapons) == "table" and #S.SeaEventsWeapons > 0) and S.SeaEventsWeapons or ((S.SeaEventsWeapon and S.SeaEventsWeapon ~= "" and S.SeaEventsWeapon ~= "None") and { S.SeaEventsWeapon } or {})
+                    local wType = ""
                     if #wList >= 2 then
                         if os.clock() - lastWeaponSwitchTime >= 2.0 then
                             currentWeaponIndex = (currentWeaponIndex % #wList) + 1
@@ -3188,11 +3184,13 @@ function Utility.StartAutoFarmSeaEvents()
                             local nextW = wList[currentWeaponIndex]
                             Utility.EquipWeaponByType(nextW)
                         end
-                    else
+                        wType = wList[currentWeaponIndex] or ""
+                    elseif #wList == 1 then
                         currentWeaponIndex = 1
+                        wType = wList[1] or ""
+                    else
+                        wType = ""
                     end
-
-                    local wType = wList[currentWeaponIndex] or S.SeaEventsWeapon or "Melee"
                     S.SeaEventsWeapon = wType
 
                     -- Tấn công mục tiêu gần nhất
@@ -3233,7 +3231,7 @@ function Utility.StartAutoFarmSeaEvents()
                             Utility.AttackGun(tModel, tRoot)
                         end
 
-                        if S.AutoFarmSeaEventsSkills then
+                        if S.AutoFarmSeaEventsSkills and wType ~= "" then
                             if wType == "Melee" then
                                 Utility.CastSkillsMelee(basePos, tModel)
                             elseif wType == "Sword" then
@@ -4722,12 +4720,14 @@ SeaEventsTab:AddMultiDropdown({
     Name    = "Select Weapons",
     Desc    = "Choose weapons (switches every 2s if >= 2 selected)",
     Options = { "Melee", "Sword", "Fruit", "Gun" },
-    Default = S.SeaEventsWeapons or { "Melee" },
+    Default = S.SeaEventsWeapons or {},
     Callback = function(opts)
         S.SeaEventsWeapons = opts
         if #opts > 0 then
             S.SeaEventsWeapon = opts[1]
             Utility.EquipWeaponByType(opts[1])
+        else
+            S.SeaEventsWeapon = ""
         end
     end,
 })
