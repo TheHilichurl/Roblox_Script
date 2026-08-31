@@ -835,7 +835,7 @@ local S = {
     AutoFarmWithSkillsEnabled   = false,
     -- Advanced Auto Farm Suite Configuration
     BringMobEnabled             = true,
-    BringMobDistance            = 160,
+    BringMobDistance            = 240,
     BringMobSpeed               = 110,
     AutoFarmLevelEnabled        = false,
     AutoNextSeaEnabled          = true,
@@ -5068,27 +5068,51 @@ local LEVEL_QUEST_DATA = {
     { Min = 650, Max = 699, Mob = "Galley Captain", Quest = "FountainQuest", QLevel = 2, GiverPos = Vector3.new(5259, 39, 4050), MobPos = Vector3.new(5600, 39, 4900) },
 
     -- Sea 2 (World 2)
-    { Min = 700, Max = 724, Mob = "Raider", Quest = "Area1Quest", QLevel = 1, GiverPos = Vector3.new(-424, 73, 1836), MobPos = Vector3.new(-700, 73, 2300) },
-    { Min = 725, Max = 774, Mob = "Mercenary", Quest = "Area1Quest", QLevel = 2, GiverPos = Vector3.new(-424, 73, 1836), MobPos = Vector3.new(-950, 73, 1700) },
+    { 
+        Min = 700, Max = 724, 
+        Mob = "Raider", 
+        Quest = "Area1Quest", 
+        QLevel = 1, 
+        GiverPos = Vector3.new(-424, 73, 1836), 
+        MobPos = Vector3.new(-733, 39, 2383),
+        SpawnPoints = {
+            Vector3.new(-733, 39, 2383),
+            Vector3.new(373, 39, 2331)
+        }
+    },
+    { Min = 725, Max = 774, Mob = "Mercenary", Quest = "Area1Quest", QLevel = 2, GiverPos = Vector3.new(-424, 73, 1836), MobPos = Vector3.new(-1005, 73, 1398) },
     { Min = 775, Max = 799, Mob = "Swan Pirate", Quest = "Area2Quest", QLevel = 1, GiverPos = Vector3.new(638, 73, 918), MobPos = Vector3.new(850, 73, 1200) },
-    { Min = 800, Max = 874, Mob = "Factory Staff", Quest = "Area2Quest", QLevel = 2, GiverPos = Vector3.new(638, 73, 918), MobPos = Vector3.new(300, 73, -100) },
+    { 
+        Min = 800, Max = 874, 
+        Mob = "Factory Staff", 
+        Quest = "Area2Quest", 
+        QLevel = 2, 
+        GiverPos = Vector3.new(638, 73, 918), 
+        MobPos = Vector3.new(300, 73, -100),
+        SpawnPoints = {
+            Vector3.new(-258, 73, -550),
+            Vector3.new(-96, 149, -161),
+            Vector3.new(637, 73, 42)
+        }
+    },
     { Min = 875, Max = 899, Mob = "Marine Lieutenant", Quest = "MarineQuest3", QLevel = 1, GiverPos = Vector3.new(-2440, 73, -3217), MobPos = Vector3.new(-2800, 73, -3000) },
     { Min = 900, Max = 949, Mob = "Marine Captain", Quest = "MarineQuest3", QLevel = 2, GiverPos = Vector3.new(-2440, 73, -3217), MobPos = Vector3.new(-2000, 73, -3300) },
-    { Min = 950, Max = 999, Mob = "Zombie", Quest = "ZombieQuest", QLevel = 1, GiverPos = Vector3.new(-5491, 48, -794), MobPos = Vector3.new(-5600, 48, -700) },
-    { Min = 1000, Max = 1099, Mob = "Vampire", Quest = "ZombieQuest", QLevel = 2, GiverPos = Vector3.new(-5491, 48, -794), MobPos = Vector3.new(-6000, 6, -1300) },
-    { Min = 1100, Max = 1124, Mob = "Snow Trooper", Quest = "SnowMountainQuest", QLevel = 1, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(500, 401, -5500) },
-    { Min = 1125, Max = 1174, Mob = "Winter Warrior", Quest = "SnowMountainQuest", QLevel = 2, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(1200, 450, -5200) },
-    { Min = 1175, Max = 1199, Mob = "Lab Subordinate", Quest = "IceSideQuest", QLevel = 1, GiverPos = Vector3.new(-5800, 16, -5000), MobPos = Vector3.new(-5700, 16, -4500) },
-    { Min = 1200, Max = 1249, Mob = "Horned Warrior", Quest = "FireSideQuest", QLevel = 1, GiverPos = Vector3.new(-5800, 16, -5000), MobPos = Vector3.new(-6400, 16, -5800) },
-    { Min = 1250, Max = 1274, Mob = "Magma Ninja", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-5800, 16, -5000), MobPos = Vector3.new(-5400, 16, -5900) },
-    { Min = 1275, Max = 1299, Mob = "Ship Deckhand", Quest = "ShipQuest1", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1150, 125, 33000) },
-    { Min = 1300, Max = 1324, Mob = "Ship Engineer", Quest = "ShipQuest1", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 45, 33000) },
-    { Min = 1325, Max = 1349, Mob = "Ship Steward", Quest = "ShipQuest2", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 90, 33400) },
-    { Min = 1350, Max = 1374, Mob = "Ship Officer", Quest = "ShipQuest2", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1000, 170, 33400) },
-    { Min = 1375, Max = 1424, Mob = "Arctic Warrior", Quest = "IceCastleQuest", QLevel = 1, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(6000, 29, -6800) },
-    { Min = 1425, Max = 1449, Mob = "Snow Lurker", Quest = "IceCastleQuest", QLevel = 2, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(5500, 29, -6800) },
-    { Min = 1450, Max = 1474, Mob = "Sea Soldier", Quest = "ForgottenQuest", QLevel = 1, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3200, 237, -9700) },
-    { Min = 1475, Max = 1499, Mob = "Water Fighter", Quest = "ForgottenQuest", QLevel = 2, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3400, 237, -10400) },
+    { Min = 950, Max = 974, Mob = "Zombie", Quest = "ZombieQuest", QLevel = 1, GiverPos = Vector3.new(-5491, 48, -794), MobPos = Vector3.new(-5600, 48, -700) },
+    { Min = 975, Max = 999, Mob = "Vampire", Quest = "ZombieQuest", QLevel = 2, GiverPos = Vector3.new(-5491, 48, -794), MobPos = Vector3.new(-6000, 6, -1300) },
+    { Min = 1000, Max = 1049, Mob = "Snow Trooper", Quest = "SnowMountainQuest", QLevel = 1, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(500, 401, -5500) },
+    { Min = 1050, Max = 1099, Mob = "Winter Warrior", Quest = "SnowMountainQuest", QLevel = 2, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(1200, 450, -5200) },
+    { Min = 1100, Max = 1124, Mob = "Lab Subordinate", Quest = "IceSideQuest", QLevel = 1, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5769, 82, -4490) },
+    { Min = 1125, Max = 1174, Mob = "Horned Warrior", Quest = "FireSideQuest", QLevel = 1, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-6347, 35, -5887) },
+    { Min = 1175, Max = 1199, Mob = "Magma Ninja", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5400, 16, -5900) },
+    { Min = 1200, Max = 1249, Mob = "Lava Pirate", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5200, 39, -4700) },
+    { Min = 1250, Max = 1274, Mob = "Ship Deckhand", Quest = "ShipQuest1", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1150, 125, 33000) },
+    { Min = 1275, Max = 1299, Mob = "Ship Engineer", Quest = "ShipQuest1", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 45, 33000) },
+    { Min = 1300, Max = 1324, Mob = "Ship Steward", Quest = "ShipQuest2", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 90, 33400) },
+    { Min = 1325, Max = 1349, Mob = "Ship Officer", Quest = "ShipQuest2", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1000, 170, 33400) },
+    { Min = 1350, Max = 1374, Mob = "Arctic Warrior", Quest = "IceCastleQuest", QLevel = 1, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(6000, 29, -6800) },
+    { Min = 1375, Max = 1424, Mob = "Snow Lurker", Quest = "IceCastleQuest", QLevel = 2, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(5500, 29, -6800) },
+    { Min = 1425, Max = 1449, Mob = "Sea Soldier", Quest = "ForgottenQuest", QLevel = 1, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3200, 237, -9700) },
+    { Min = 1450, Max = 1499, Mob = "Water Fighter", Quest = "ForgottenQuest", QLevel = 2, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3400, 237, -10400) },
 
     -- Sea 3 (World 3)
     { Min = 1500, Max = 1524, Mob = "Pirate Millionaire", Quest = "PortTownQuest", QLevel = 1, GiverPos = Vector3.new(-290, 7, 5330), MobPos = Vector3.new(-712, 98, 5711) },
@@ -5287,6 +5311,57 @@ function Utility.StartQuest(qName, qLevel)
     end
 end
 
+--[[ Tìm thông tin Quest gắn liền với tên quái cụ thể (Dùng cho cả Auto Farm và Testing Milestones) ]]
+function Utility.GetQuestDataForMob(mobName)
+    if not mobName or mobName == "" then return nil end
+    local lowerName = mobName:lower()
+    for _, q in ipairs(LEVEL_FARM_DATA) do
+        if q.Mob == mobName or q.Mob:lower() == lowerName then
+            return q
+        end
+    end
+    for _, q in ipairs(LEVEL_FARM_DATA) do
+        if q.Mob:lower():find(lowerName, 1, true) or lowerName:find(q.Mob:lower(), 1, true) then
+            return q
+        end
+    end
+    return nil
+end
+
+--[[ Đảm bảo nhận đúng quest của quái mục tiêu trước khi tấn công ]]
+function Utility.EnsureQuestForMob(mobName)
+    local qData = Utility.GetQuestDataForMob(mobName)
+    if not qData then return true end
+
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+
+    -- 1. Nếu đang có quest nhưng quest đó KHÔNG PHẢI của quái mục tiêu -> HỦY QUEST CŨ NGAY
+    if Utility.HasActiveQuest() and not Utility.IsQuestMatchingMob(qData.Mob) then
+        Utility.AbandonQuest()
+        task.wait(0.25)
+        return false
+    end
+
+    -- 2. Nếu chưa có quest -> Bay tới NPC giao quest và nhận quest của quái mục tiêu
+    if not Utility.HasActiveQuest() then
+        currentBringData = nil
+        Utility.CheckAndHandleUnderwaterTransition(qData.GiverPos)
+        local giverDist = (root.Position - qData.GiverPos).Magnitude
+        if giverDist > 25 then
+            Utility.PhysicsFlyTo(qData.GiverPos + Vector3.new(0, 5, 0), S.TeleportFlySpeed or 200)
+            return false
+        else
+            Utility.StartQuest(qData.Quest, qData.QLevel)
+            task.wait(0.35)
+            return Utility.HasActiveQuest() and Utility.IsQuestMatchingMob(qData.Mob)
+        end
+    end
+
+    return true
+end
+
 --[[ Find enemy by mob name ]]
 function Utility.GetEnemyByName(mobName)
     local enemies = workspace:FindFirstChild("Enemies")
@@ -5364,7 +5439,7 @@ end)
 
 --[[ Gom quái về điểm tâm với tốc độ mượt mà và giới hạn Y >= 10 ]]
 function Utility.BringMatchingMobs(mobName, maxRadius)
-    local radius = maxRadius or S.BringMobDistance or 130
+    local radius = maxRadius or S.BringMobDistance or 240
     local enemiesFolder = workspace:FindFirstChild("Enemies")
     if not enemiesFolder then 
         currentBringData = nil
@@ -5442,31 +5517,65 @@ end
      SPECIAL QUESTS & AUTO NEXT SEA PROGRESSION SYSTEM
    ═══════════════════════════════════════════════════════════════════════════ ]]
 
+local _inventoryCache = {}
+local _lastInventoryFetch = 0
+local _locallyOwnedItems = {}
+
+function Utility.GetCachedInventory()
+    local now = os.clock()
+    if (now - _lastInventoryFetch > 4.0) or #_inventoryCache == 0 then
+        _lastInventoryFetch = now
+        local rep = game:GetService("ReplicatedStorage")
+        local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+        if commF then
+            pcall(function()
+                local inv = commF:InvokeServer("getInventory")
+                if typeof(inv) == "table" then
+                    _inventoryCache = inv
+                    for _, itm in pairs(inv) do
+                        if typeof(itm) == "table" and itm.Name then
+                            _locallyOwnedItems[itm.Name] = true
+                        elseif typeof(itm) == "string" then
+                            _locallyOwnedItems[itm] = true
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    return _inventoryCache
+end
+
 function Utility.HasItem(itemName)
-    -- 1. Kiểm tra trong túi đồ đang có (Backpack - khi đang cầm vũ khí khác hoặc không cầm gì)
+    if not itemName or itemName == "" then return false end
+    if _locallyOwnedItems[itemName] then return true end
+
+    -- 1. Kiểm tra trong túi đồ đang có (Backpack)
     local bp = LocalPlayer:FindFirstChild("Backpack")
-    if bp and bp:FindFirstChild(itemName) then return true end
+    if bp and bp:FindFirstChild(itemName) then 
+        _locallyOwnedItems[itemName] = true
+        return true 
+    end
 
     -- 2. Kiểm tra nếu đang trang bị cầm trên tay (Character)
     local ch = LocalPlayer.Character
-    if ch and ch:FindFirstChild(itemName) then return true end
+    if ch and ch:FindFirstChild(itemName) then 
+        _locallyOwnedItems[itemName] = true
+        return true 
+    end
 
-    -- 3. Kiểm tra qua dữ liệu Inventory Remote của Server (trường hợp cất trong kho hoặc chưa load model)
-    local rep = game:GetService("ReplicatedStorage")
-    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
-    if commF then
-        local success, inv = pcall(function()
-            return commF:InvokeServer("getInventory")
-        end)
-        if success and typeof(inv) == "table" then
-            for _, item in pairs(inv) do
-                if typeof(item) == "table" and item.Name then
-                    if item.Name == itemName or string.find(item.Name, itemName, 1, true) then
-                        return true
-                    end
-                elseif typeof(item) == "string" and (item == itemName or string.find(item, itemName, 1, true)) then
+    -- 3. Kiểm tra qua dữ liệu Inventory Remote đã cache
+    local inv = Utility.GetCachedInventory()
+    if typeof(inv) == "table" then
+        for _, item in pairs(inv) do
+            if typeof(item) == "table" and item.Name then
+                if item.Name == itemName or string.find(item.Name:lower(), itemName:lower(), 1, true) then
+                    _locallyOwnedItems[itemName] = true
                     return true
                 end
+            elseif typeof(item) == "string" and (item == itemName or string.find(item:lower(), itemName:lower(), 1, true)) then
+                _locallyOwnedItems[itemName] = true
+                return true
             end
         end
     end
@@ -6139,7 +6248,7 @@ function Utility.HandleBartiloQuest()
         task.wait(0.5)
 
         -- Farm 50 Swan Pirate
-        local centerPos, mainMob, cluster = Utility.BringMatchingMobs("Swan Pirate", S.BringMobDistance or 130)
+        local centerPos, mainMob, cluster = Utility.BringMatchingMobs("Swan Pirate", S.BringMobDistance or 240)
         if centerPos and mainMob and #cluster > 0 then
             local _, _, mRoot = Utility.GetEnemyRootCFrame(mainMob)
             if mRoot then
@@ -6519,12 +6628,27 @@ function Utility.GetNextLinearUnownedMelee()
     return nil
 end
 
+local _masteryTargetCache = {
+    Melee = { Target = nil, LastCheck = 0 },
+    Sword = { Target = nil, LastCheck = 0 },
+    Gun   = { Target = nil, LastCheck = 0 },
+}
+
 --[[ Thuật toán Farm Max Mastery & Quay lui (Backtracking Mastery Algorithm):
      - Ưu tiên dùng vũ khí bậc cao nhất hiện có để cày.
      - Khi vũ khí cao nhất đạt 600 (hoặc max target) -> Quay lui về cày các vũ khí trước đó chưa max.
 ]]
 function Utility.GetBacktrackingMasteryTarget(wType, maxTargetMastery)
     maxTargetMastery = maxTargetMastery or S.MasteryTargetLevel or 600
+    local now = os.clock()
+    local c = _masteryTargetCache[wType]
+    if c and c.Target and (now - c.LastCheck < 3.0) then
+        local curMas = Utility.GetItemMastery(c.Target)
+        if curMas < maxTargetMastery then
+            return c.Target
+        end
+    end
+
     local ladder = nil
     if wType == "Melee" then
         ladder = MELEE_PROGRESSION_LADDER
@@ -6547,6 +6671,7 @@ function Utility.GetBacktrackingMasteryTarget(wType, maxTargetMastery)
 
     if #ownedList == 0 then
         local unfin, _ = Utility.GetUnfinishedMasteryWeapon(wType, maxTargetMastery)
+        if c then c.Target = unfin; c.LastCheck = now end
         return unfin
     end
 
@@ -6555,6 +6680,7 @@ function Utility.GetBacktrackingMasteryTarget(wType, maxTargetMastery)
 
     -- Nếu món cao nhất CHƯA ĐẠT Max Mastery -> Tiếp tục dùng món cao nhất này để farm
     if highestOwned.Mastery < maxTargetMastery then
+        if c then c.Target = highestOwned.Name; c.LastCheck = now end
         return highestOwned.Name
     end
 
@@ -6563,10 +6689,12 @@ function Utility.GetBacktrackingMasteryTarget(wType, maxTargetMastery)
     for i = #ownedList - 1, 1, -1 do
         local prevItem = ownedList[i]
         if prevItem.Mastery < maxTargetMastery then
+            if c then c.Target = prevItem.Name; c.LastCheck = now end
             return prevItem.Name
         end
     end
 
+    if c then c.Target = nil; c.LastCheck = now end
     return nil
 end
 
@@ -6599,6 +6727,8 @@ function Utility.BuyAllAffordableSwordsStep()
             pcall(function()
                 commF:InvokeServer("BuyItem", sw.Name)
             end)
+            _locallyOwnedItems[sw.Name] = true
+            table.insert(_inventoryCache, sw.Name)
             anyPurchased = true
             UILib.Notify("Auto Buy Sword", "Purchased Sword: " .. sw.Name, 2)
             task.wait(0.3)
@@ -6642,6 +6772,8 @@ function Utility.BuyAllAffordableGunsStep()
                     commF:InvokeServer("BuyItem", g.Name)
                 end
             end)
+            _locallyOwnedItems[g.Name] = true
+            table.insert(_inventoryCache, g.Name)
             anyPurchased = true
             UILib.Notify("Auto Buy Gun", "Purchased Gun: " .. g.Name, 2)
             task.wait(0.3)
@@ -6679,6 +6811,8 @@ function Utility.BuyAllAffordableAccessoriesStep()
             pcall(function()
                 commF:InvokeServer("BuyItem", acc.Name)
             end)
+            _locallyOwnedItems[acc.Name] = true
+            table.insert(_inventoryCache, acc.Name)
             anyPurchased = true
             UILib.Notify("Auto Buy Accessory", "Purchased Accessory: " .. acc.Name, 2)
             task.wait(0.3)
@@ -6768,51 +6902,36 @@ function Utility.ExecuteStandardLevelFarmStep()
     local qData = Utility.GetQuestForLevel()
     if not qData then return end
 
-    -- Kiểm tra nếu có quest nhưng không khớp với quái của Level hiện tại -> Hủy quest cũ
-    if Utility.HasActiveQuest() and not Utility.IsQuestMatchingMob(qData.Mob) then
-        Utility.AbandonQuest()
-        task.wait(0.25)
-        return
-    end
+    -- Đảm bảo kiểm tra & nhận đúng quest của quái trước khi tấn công
+    local questReady = Utility.EnsureQuestForMob(qData.Mob)
+    if not questReady then return end
 
-    if not Utility.HasActiveQuest() then
-        currentBringData = nil
-        Utility.CheckAndHandleUnderwaterTransition(qData.GiverPos)
-        local giverDist = (root.Position - qData.GiverPos).Magnitude
-        if giverDist > 25 then
-            Utility.PhysicsFlyTo(qData.GiverPos + Vector3.new(0, 5, 0), S.TeleportFlySpeed or 200)
-        else
-            Utility.StartQuest(qData.Quest, qData.QLevel)
-            task.wait(0.4)
-        end
-    else
-        local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 130)
-        if centerPos and mainMob and #cluster > 0 then
-            local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
-            if mainRoot then
-                local targetFlyPos = centerPos + Vector3.new(0, S.AttackHeight or 40, 0)
-                Utility.PhysicsFlyTo(targetFlyPos, S.TeleportFlySpeed or 200)
+    local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 240)
+    if centerPos and mainMob and #cluster > 0 then
+        local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
+        if mainRoot then
+            local targetFlyPos = centerPos + Vector3.new(0, S.AttackHeight or 40, 0)
+            Utility.PhysicsFlyTo(targetFlyPos, S.TeleportFlySpeed or 200)
 
-                local wType = S.SelectedWeaponType or "Melee"
-                if wType == "Melee" then Utility.AttackMelee(mainMob, mainRoot, cluster)
-                elseif wType == "Sword" then Utility.AttackSword(mainMob, mainRoot, cluster)
-                elseif wType == "Fruit" then Utility.AttackFruitM1(mainMob, mainRoot, cluster)
-                elseif wType == "Gun" then Utility.AttackGun(mainMob, mainRoot, cluster)
-                end
+            local wType = S.SelectedWeaponType or "Melee"
+            if wType == "Melee" then Utility.AttackMelee(mainMob, mainRoot, cluster)
+            elseif wType == "Sword" then Utility.AttackSword(mainMob, mainRoot, cluster)
+            elseif wType == "Fruit" then Utility.AttackFruitM1(mainMob, mainRoot, cluster)
+            elseif wType == "Gun" then Utility.AttackGun(mainMob, mainRoot, cluster)
+            end
 
-                if S.AutoFarmUseSkills then
-                    if wType == "Melee" then Utility.CastSkillsMelee(centerPos, mainMob)
-                    elseif wType == "Fruit" then Utility.CastSkillsFruit(centerPos, mainMob)
-                    elseif wType == "Sword" then Utility.CastSkillsSword(centerPos, mainMob)
-                    elseif wType == "Gun" then Utility.CastSkillsGun(centerPos, mainMob)
-                    end
+            if S.AutoFarmUseSkills then
+                if wType == "Melee" then Utility.CastSkillsMelee(centerPos, mainMob)
+                elseif wType == "Fruit" then Utility.CastSkillsFruit(centerPos, mainMob)
+                elseif wType == "Sword" then Utility.CastSkillsSword(centerPos, mainMob)
+                elseif wType == "Gun" then Utility.CastSkillsGun(centerPos, mainMob)
                 end
             end
-        else
-            currentBringData = nil
-            local patrolTarget = Utility.GetSpawnPatrolPos(qData)
-            Utility.PhysicsFlyTo(patrolTarget + Vector3.new(0, S.AttackHeight or 40, 0), S.TeleportFlySpeed or 200)
         end
+    else
+        currentBringData = nil
+        local patrolTarget = Utility.GetSpawnPatrolPos(qData)
+        Utility.PhysicsFlyTo(patrolTarget + Vector3.new(0, S.AttackHeight or 40, 0), S.TeleportFlySpeed or 200)
     end
 end
 
@@ -7132,31 +7251,41 @@ function Utility.StartAutoFarmSelectedMob()
                 local root = char and char:FindFirstChild("HumanoidRootPart")
 
                 if char and hum and hum.Health > 0 and root then
-                    local centerPos, mainMob, cluster = Utility.BringMatchingMobs(mobName, S.BringMobDistance or 130)
-                    if centerPos and mainMob and #cluster > 0 then
-                        local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
-                        if mainRoot then
-                            local targetFlyPos = centerPos + Vector3.new(0, S.AttackHeight or 40, 0)
-                            Utility.PhysicsFlyTo(targetFlyPos, S.TeleportFlySpeed or 200)
+                    -- Đảm bảo kiểm tra & nhận đúng quest của mob mục tiêu trước khi tấn công
+                    local questReady = Utility.EnsureQuestForMob(mobName)
+                    if questReady then
+                        local centerPos, mainMob, cluster = Utility.BringMatchingMobs(mobName, S.BringMobDistance or 240)
+                        if centerPos and mainMob and #cluster > 0 then
+                            local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
+                            if mainRoot then
+                                local targetFlyPos = centerPos + Vector3.new(0, S.AttackHeight or 40, 0)
+                                Utility.PhysicsFlyTo(targetFlyPos, S.TeleportFlySpeed or 200)
 
-                            local wType = S.SelectedWeaponType or "Melee"
-                            if wType == "Melee" then Utility.AttackMelee(mainMob, mainRoot, cluster)
-                            elseif wType == "Sword" then Utility.AttackSword(mainMob, mainRoot, cluster)
-                            elseif wType == "Fruit" then Utility.AttackFruitM1(mainMob, mainRoot, cluster)
-                            elseif wType == "Gun" then Utility.AttackGun(mainMob, mainRoot, cluster)
-                            end
+                                local wType = S.SelectedWeaponType or "Melee"
+                                if wType == "Melee" then Utility.AttackMelee(mainMob, mainRoot, cluster)
+                                elseif wType == "Sword" then Utility.AttackSword(mainMob, mainRoot, cluster)
+                                elseif wType == "Fruit" then Utility.AttackFruitM1(mainMob, mainRoot, cluster)
+                                elseif wType == "Gun" then Utility.AttackGun(mainMob, mainRoot, cluster)
+                                end
 
-                            if S.AutoFarmUseSkills then
-                                if wType == "Melee" then Utility.CastSkillsMelee(centerPos, mainMob)
-                                elseif wType == "Fruit" then Utility.CastSkillsFruit(centerPos, mainMob)
-                                elseif wType == "Sword" then Utility.CastSkillsSword(centerPos, mainMob)
-                                elseif wType == "Gun" then Utility.CastSkillsGun(centerPos, mainMob)
+                                if S.AutoFarmUseSkills then
+                                    if wType == "Melee" then Utility.CastSkillsMelee(centerPos, mainMob)
+                                    elseif wType == "Fruit" then Utility.CastSkillsFruit(centerPos, mainMob)
+                                    elseif wType == "Sword" then Utility.CastSkillsSword(centerPos, mainMob)
+                                    elseif wType == "Gun" then Utility.CastSkillsGun(centerPos, mainMob)
+                                    end
                                 end
                             end
+                        else
+                            currentBringData = nil
+                            local qData = Utility.GetQuestDataForMob(mobName)
+                            local patrolTarget = qData and Utility.GetSpawnPatrolPos(qData) or (qData and qData.MobPos)
+                            if patrolTarget then
+                                Utility.PhysicsFlyTo(patrolTarget + Vector3.new(0, S.AttackHeight or 40, 0), S.TeleportFlySpeed or 200)
+                            else
+                                Utility.StopPhysicsFly()
+                            end
                         end
-                    else
-                        currentBringData = nil
-                        Utility.StopPhysicsFly()
                     end
                 else
                     currentBringData = nil
@@ -7249,7 +7378,7 @@ function Utility.StartAutoFarmMaterial()
             local root = char and char:FindFirstChild("HumanoidRootPart")
 
             if char and hum and hum.Health > 0 and root and mData then
-                local centerPos, mainMob, cluster = Utility.BringMatchingMobs(mData.Mob, S.BringMobDistance or 130)
+                local centerPos, mainMob, cluster = Utility.BringMatchingMobs(mData.Mob, S.BringMobDistance or 240)
                 if centerPos and mainMob and #cluster > 0 then
                     local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
                     if mainRoot then
@@ -7372,24 +7501,9 @@ function Utility.StartTestAutoFarmMilestone()
             local root = char and char:FindFirstChild("HumanoidRootPart")
 
             if char and hum and hum.Health > 0 and root and qData then
-                -- Kiểm tra nếu có quest nhưng không khớp với quái mốc test -> Hủy quest cũ
-                if Utility.HasActiveQuest() and not Utility.IsQuestMatchingMob(qData.Mob) then
-                    Utility.AbandonQuest()
-                    task.wait(0.25)
-                end
-
-                if not Utility.HasActiveQuest() then
-                    currentBringData = nil
-                    Utility.CheckAndHandleUnderwaterTransition(qData.GiverPos)
-                    local giverDist = (root.Position - qData.GiverPos).Magnitude
-                    if giverDist > 25 then
-                        Utility.PhysicsFlyTo(qData.GiverPos + Vector3.new(0, 5, 0), S.TeleportFlySpeed or 200)
-                    else
-                        Utility.StartQuest(qData.Quest, qData.QLevel)
-                        task.wait(0.4)
-                    end
-                else
-                    local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 130)
+                local questReady = Utility.EnsureQuestForMob(qData.Mob)
+                if questReady then
+                    local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 240)
                     if centerPos and mainMob and #cluster > 0 then
                         local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
                         if mainRoot then
@@ -8240,7 +8354,7 @@ UI_ELEMENTS["BringMobEnabled"] = FarmTab:AddToggle({
 FarmTab:AddSlider({
     Name    = "Bring Mob Range",
     Desc    = "Max search range",
-    Min     = 50, Max = 350, Default = S.BringMobDistance or 130, Suffix = " studs",
+    Min     = 50, Max = 350, Default = S.BringMobDistance or 240, Suffix = " studs",
     Callback = function(v)
         S.BringMobDistance = v
     end,
