@@ -853,9 +853,10 @@ local S = {
     AutoGetAllGunsEnabled       = false,
     AutoGetAllAccessoriesEnabled = false,
     AutoUpgradeWeaponsEnabled   = false,
+    AutoFarmMasteryMeleeEnabled = false,
     AutoFarmMasterySwordEnabled = false,
     AutoFarmMasteryGunEnabled   = false,
-    MasteryTargetLevel          = 300,
+    MasteryTargetLevel          = 600,
     AutoFarmMaterialEnabled     = false,
     SelectedMaterial            = "Bones",
     AutoFarmChestEnabled        = false,
@@ -895,7 +896,7 @@ local S = {
     SwordSkillX                 = true,
     GunSkillZ                   = true,
     GunSkillX                   = true,
-    LeviathanSelectedWeapon     = "Melee",
+    LeviathanSelectedWeapons    = { "Melee" },
 }
 
 local SETTING_STORAGE_FILE = ".hlc_sys_cache_9a.bin"
@@ -3101,7 +3102,15 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
     local myRoot = char:FindFirstChild("HumanoidRootPart")
     if not hum or hum.Health <= 0 or not myRoot then return end
 
-    local wType = weaponTypeOverride or S.LeviathanSelectedWeapon or S.SelectedWeaponType or "Melee"
+    local rawWeapons = S.LeviathanSelectedWeapons or { "Melee" }
+    if typeof(rawWeapons) == "string" then rawWeapons = { rawWeapons } end
+    local wType = weaponTypeOverride or rawWeapons[1] or S.SelectedWeaponType or "Melee"
+
+    -- Súng khi đánh Leviathan TUYỆT ĐỐI KHÔNG DÙNG CHIÊU, CHỈ DÙNG M1 BẮN SIÊU TỐC
+    if wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm" then
+        return
+    end
+
     local tool = Utility.EquipWeaponByType(wType)
 
     local targetPart = targetEnemy and (targetEnemy:FindFirstChild("HumanoidRootPart") or targetEnemy:FindFirstChild("Head") or targetEnemy.PrimaryPart or targetEnemy:FindFirstChildOfClass("BasePart"))
@@ -3132,9 +3141,6 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
     elseif wType == "Sword" then
         if S.SwordSkillZ then table.insert(skillKeys, "Z") end
         if S.SwordSkillX then table.insert(skillKeys, "X") end
-    elseif wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm" then
-        if S.GunSkillZ then table.insert(skillKeys, "Z") end
-        if S.GunSkillX then table.insert(skillKeys, "X") end
     end
 
     for _, key in ipairs(skillKeys) do
@@ -3146,7 +3152,6 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
         local aimCF = CFrame.lookAt(myPos, livePos)
         local hitCF = curPart and curPart.CFrame or CFrame.new(livePos)
 
-        -- 1. Kích hoạt chiêu thức chuẩn Cobalt tương ứng từng loại vũ khí
         for _, rf in ipairs(skillRemotes) do
             task.spawn(function()
                 if wType == "Melee" then
@@ -3155,17 +3160,13 @@ function Utility.CastSkillsLeviathan(targetPos, targetEnemy, weaponTypeOverride)
                     pcall(function() rf:InvokeServer(key) end)
                 elseif wType == "Sword" then
                     pcall(function() rf:InvokeServer(key, livePos) end)
-                elseif wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm" then
-                    pcall(function() rf:InvokeServer(key) end)
                 end
             end)
         end
 
-        -- 2. Liên tục cập nhật tọa độ Aim Vector3 trong suốt thời gian giữ chiêu (Skills Only cho Leviathan)
         local holdEnabled = (wType == "Melee" and S.HoldMeleeSkills)
             or (wType == "Fruit" and S.HoldFruitSkills)
             or (wType == "Sword" and S.HoldSwordSkills)
-            or ((wType == "Gun" or wType == "Dragonstorm" or wType == "Dragon Storm") and S.HoldGunSkills)
         local duration = holdEnabled and (S.SkillHoldDuration or 0.35) or 0.05
         local t0 = os.clock()
         while os.clock() - t0 < duration do
@@ -3194,6 +3195,9 @@ function Utility.StartAutoAttackLeviathan()
     end
 
     _conns["autoAttackLevi"] = task.spawn(function()
+        local wIndex = 1
+        local lastSwapTime = os.clock()
+
         while S.AutoAttackLeviEnabled do
             local target, isSegment = Utility.GetLeviathanTarget()
             local char = LocalPlayer.Character
@@ -3201,7 +3205,6 @@ function Utility.StartAutoAttackLeviathan()
             local root = char and char:FindFirstChild("HumanoidRootPart")
 
             if target and target.Parent and root and hum and hum.Health > 0 then
-                -- Rời khỏi ghế lái trước khi bay tới tấn công
                 if hum.SeatPart or hum.Sit then
                     hum.Sit = false
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
@@ -3211,22 +3214,32 @@ function Utility.StartAutoAttackLeviathan()
                 local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
 
                 if eRoot then
-                    local chosenWeapon = S.LeviathanSelectedWeapon or "Dragonstorm"
+                    -- Lấy danh sách vũ khí được chọn (Đổi qua lại nếu chọn từ 2 vũ khí trở lên)
+                    local weaponList = S.LeviathanSelectedWeapons
+                    if typeof(weaponList) == "string" then weaponList = { weaponList } end
+                    if not weaponList or #weaponList == 0 then weaponList = { "Melee" } end
+
+                    if #weaponList > 1 and (os.clock() - lastSwapTime >= 1.5) then
+                        wIndex = (wIndex % #weaponList) + 1
+                        lastSwapTime = os.clock()
+                    elseif wIndex > #weaponList then
+                        wIndex = 1
+                    end
+
+                    local chosenWeapon = weaponList[wIndex] or "Melee"
                     local targetPos = eRoot.Position
-                    local attackHeight = (chosenWeapon == "Dragonstorm" or chosenWeapon == "Dragon Storm" or chosenWeapon == "Gun") and 40 or 25
+                    local attackHeight = (chosenWeapon == "Gun" or chosenWeapon == "Dragonstorm") and 40 or 25
                     local flyTargetPos = targetPos + Vector3.new(0, attackHeight, 0)
                     Utility.PhysicsFlyTo(flyTargetPos, S.BoatFlySpeed or S.TeleportFlySpeed or 220)
 
-                    -- Thực hiện tấn công vũ khí liên tục
-                    if chosenWeapon == "Dragonstorm" or chosenWeapon == "Dragon Storm" then
-                        Utility.AttackDragonstorm(target, eRoot)
-                    elseif chosenWeapon == "Melee" then
+                    -- Thực hiện tấn công vũ khí (Tích hợp cơ chế Dragonstorm cho toàn bộ súng, không dùng chiêu)
+                    if chosenWeapon == "Melee" then
                         Utility.AttackMelee(target, eRoot)
                     elseif chosenWeapon == "Sword" then
                         Utility.AttackSword(target, eRoot)
                     elseif chosenWeapon == "Fruit" then
                         Utility.AttackFruitM1(target, eRoot)
-                    elseif chosenWeapon == "Gun" then
+                    elseif chosenWeapon == "Gun" or chosenWeapon == "Dragonstorm" then
                         Utility.AttackGun(target, eRoot)
                     end
                 end
@@ -3249,8 +3262,7 @@ end
 function Utility.StartAutoSkillsLeviathan()
     DisconnectConnection("autoSkillsLevi")
     _conns["autoSkillsLevi"] = task.spawn(function()
-        local weaponRotation = { "Melee", "Sword", "Fruit", "Gun" }
-        local wIndex = 1
+        local sIndex = 1
 
         while S.AutoSkillsLeviEnabled do
             local target, _ = Utility.GetLeviathanTarget()
@@ -3259,7 +3271,6 @@ function Utility.StartAutoSkillsLeviathan()
             local root = char and char:FindFirstChild("HumanoidRootPart")
 
             if target and target.Parent and root and hum and hum.Health > 0 then
-                -- Rời khỏi ghế lái trước khi tung chiêu
                 if hum.SeatPart or hum.Sit then
                     hum.Sit = false
                     pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
@@ -3268,14 +3279,28 @@ function Utility.StartAutoSkillsLeviathan()
 
                 local eRoot = target:FindFirstChild("HumanoidRootPart") or target:FindFirstChild("Head") or target.PrimaryPart or target:FindFirstChildOfClass("BasePart")
                 if eRoot then
-                    local chosenWeapon = S.LeviathanSelectedWeapon or "Melee"
-                    if chosenWeapon == "Rotate All" then
-                        chosenWeapon = weaponRotation[wIndex]
-                        wIndex = (wIndex % #weaponRotation) + 1
+                    local rawList = S.LeviathanSelectedWeapons
+                    if typeof(rawList) == "string" then rawList = { rawList } end
+                    if not rawList or #rawList == 0 then rawList = { "Melee" } end
+
+                    -- Lọc bỏ Gun (vì súng đánh Leviathan không được dùng chiêu, chỉ dùng M1)
+                    local skillEligibleWeapons = {}
+                    for _, w in ipairs(rawList) do
+                        if w ~= "Gun" and w ~= "Dragonstorm" then
+                            table.insert(skillEligibleWeapons, w)
+                        end
                     end
 
-                    Utility.CastSkillsLeviathan(eRoot.Position, target, chosenWeapon)
-                    task.wait(1.5)
+                    if #skillEligibleWeapons > 0 then
+                        if sIndex > #skillEligibleWeapons then sIndex = 1 end
+                        local chosenWeapon = skillEligibleWeapons[sIndex]
+                        sIndex = (sIndex % #skillEligibleWeapons) + 1
+
+                        Utility.CastSkillsLeviathan(eRoot.Position, target, chosenWeapon)
+                        task.wait(1.5)
+                    else
+                        task.wait(0.5)
+                    end
                 else
                     task.wait(0.5)
                 end
@@ -4433,17 +4458,24 @@ end
 
 local lastGunClickTime = 0
 
---[[ 7. Thực hiện tấn công bằng Gun (Hỗ trợ đánh lan 100% đa mục tiêu Bring Mob & Siêu tốc) ]]
+--[[ 7. Thực hiện tấn công bằng Gun (Áp dụng toàn diện cơ chế M1 Dragonstorm Leviathan cho TẤT CẢ các loại súng) ]]
 function Utility.AttackGun(enemy, enemyRoot, extraTargets)
     local tool = Utility.EquipWeaponByType("Gun")
-    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy.PrimaryPart))
+    local eRoot = enemyRoot or (enemy and (enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Head") or enemy.PrimaryPart or enemy:FindFirstChildOfClass("BasePart")))
     local eHead = enemy and enemy:FindFirstChild("Head")
     if not eRoot then return end
 
     local char = LocalPlayer.Character
     local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    local myPos = myRoot and myRoot.Position or Vector3.zero
+    if not myRoot then return end
+    local myPos = myRoot.Position
     local targetPos = eRoot.Position
+
+    -- 1. Tự động xoay nhân vật chuẩn xác về hướng quái
+    local flatTarget = Vector3.new(targetPos.X, myPos.Y, targetPos.Z)
+    if (flatTarget - myPos).Magnitude > 0.1 then
+        myRoot.CFrame = CFrame.lookAt(myPos, flatTarget)
+    end
 
     local rep = game:GetService("ReplicatedStorage")
     local net = rep:FindFirstChild("Modules") and rep.Modules:FindFirstChild("Net")
@@ -4452,11 +4484,18 @@ function Utility.AttackGun(enemy, enemyRoot, extraTargets)
     local regHit = net and net:FindFirstChild("RE/RegisterHit")
     local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
 
-    if tick() - lastGunClickTime >= 0.5 then
-        lastGunClickTime = tick()
-        if tool then
-            pcall(function() tool:Activate() end)
+    -- 2. Kích hoạt M1 Gun (Tool Activation + LeftClickRemote + VirtualInputManager)
+    if tool then
+        pcall(function() tool:Activate() end)
+        local lcr = tool:FindFirstChild("LeftClickRemote") or tool:FindFirstChild("LeftClickRemote", true)
+        if lcr and lcr:IsA("RemoteEvent") then
+            local aimDir = (targetPos - myPos).Magnitude > 0 and (targetPos - myPos).Unit or Vector3.new(0, 0, -1)
+            pcall(function() lcr:FireServer(aimDir, 1, true, targetPos) end)
         end
+    end
+
+    if tick() - lastGunClickTime >= 0.25 then
+        lastGunClickTime = tick()
         pcall(function()
             local vim = game:GetService("VirtualInputManager")
             vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
@@ -4468,6 +4507,7 @@ function Utility.AttackGun(enemy, enemyRoot, extraTargets)
         end)
     end
 
+    -- 3. Danh sách mục tiêu đánh lan
     local targetList = {}
     if enemy and enemy:IsA("Model") then
         local hum = enemy:FindFirstChildOfClass("Humanoid")
@@ -4500,26 +4540,30 @@ function Utility.AttackGun(enemy, enemyRoot, extraTargets)
         table.insert(fullBatchHit, { t.Model, t.Root })
     end
 
-    if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
-        for _, t in ipairs(targetList) do
-            pcall(function() shootGunEvent:FireServer(t.Root.Position, { t.Root }) end)
-            pcall(function() shootGunEvent:FireServer(t.Root.Position, { t.Head or t.Root }) end)
+    -- 4. Bão đạn ShootGunEvent + RegisterHit đa tầng
+    for i = 1, 6 do
+        if shootGunEvent and shootGunEvent:IsA("RemoteEvent") then
+            for _, t in ipairs(targetList) do
+                pcall(function() shootGunEvent:FireServer(t.Root.Position, { t.Root }) end)
+                pcall(function() shootGunEvent:FireServer(t.Root.Position, { t.Head or t.Root }) end)
+                pcall(function() shootGunEvent:FireServer(t.Root.Position, {}) end)
+            end
         end
-    end
 
-    if regAttack and regAttack:IsA("RemoteEvent") then
-        pcall(function() regAttack:FireServer(0) end)
-        pcall(function() regAttack:FireServer(0.1) end)
-    end
+        if regAttack and regAttack:IsA("RemoteEvent") then
+            pcall(function() regAttack:FireServer(0) end)
+            pcall(function() regAttack:FireServer(0.1) end)
+        end
 
-    if regHit and regHit:IsA("RemoteEvent") then
-        pcall(function() regHit:FireServer(eHead or eRoot, fullBatchHit) end)
-        pcall(function() regHit:FireServer(eRoot, fullBatchHit) end)
-        for _, t in ipairs(targetList) do
-            pcall(function()
-                regHit:FireServer(t.Head or t.Root, fullBatchHit)
-                regHit:FireServer(t.Head or t.Root, { { t.Model, t.Head or t.Root }, { t.Model, t.Root } })
-            end)
+        if regHit and regHit:IsA("RemoteEvent") then
+            pcall(function() regHit:FireServer(eHead or eRoot, fullBatchHit) end)
+            pcall(function() regHit:FireServer(eRoot, fullBatchHit) end)
+            for _, t in ipairs(targetList) do
+                pcall(function()
+                    regHit:FireServer(t.Head or t.Root, fullBatchHit)
+                    regHit:FireServer(t.Head or t.Root, { { t.Model, t.Head or t.Root }, { t.Model, t.Root } })
+                end)
+            end
         end
     end
 
@@ -5440,6 +5484,35 @@ function Utility.EquipItemByName(itemName)
         hum:EquipTool(t)
         return t
     end
+
+    local rep = game:GetService("ReplicatedStorage")
+    local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
+    if commF then
+        for _, m in ipairs(MELEE_DATABASE) do
+            if m.Name == itemName and m.Remote then
+                pcall(function()
+                    commF:InvokeServer(m.Remote, unpack(m.Args or {}))
+                end)
+                task.wait(0.15)
+                break
+            end
+        end
+        pcall(function()
+            commF:InvokeServer("LoadItem", itemName)
+        end)
+        task.wait(0.15)
+    end
+
+    bp = LocalPlayer:FindFirstChild("Backpack")
+    ch = LocalPlayer.Character
+    hum = ch and ch:FindFirstChildOfClass("Humanoid")
+    if ch and ch:FindFirstChild(itemName) then return ch[itemName] end
+    if bp and bp:FindFirstChild(itemName) and hum then
+        local t = bp[itemName]
+        hum:EquipTool(t)
+        return t
+    end
+
     return nil
 end
 
@@ -6341,8 +6414,81 @@ local ACCESSORIES_DATABASE = {
     { Name = "Tomoe Ring", Price = 500000, Sea = 1 },
 }
 
---[[ Kiểm tra võ nào chưa sở hữu mà người chơi đã ĐỦ TIỀN (Beli & Fragments) để mua ]]
-function Utility.GetAffordableUnownedMelee()
+--[[ THANG TIẾN TRÌNH CHUẨN CỦA VÕ (MELEE PROGRESSION LADDER) ]]
+local MELEE_PROGRESSION_LADDER = {
+    { Name = "Combat", DisplayName = "Combat", Sea = 1, Price = 0, Frags = 0 },
+    { Name = "Black Leg", DisplayName = "Black Leg (Dark Step)", Sea = 1, Price = 150000, Frags = 0 },
+    { Name = "Electro", DisplayName = "Electro", Sea = 1, Price = 500000, Frags = 0 },
+    { Name = "Fishman Karate", DisplayName = "Water Kung Fu (Fishman Karate)", Sea = 1, Price = 750000, Frags = 0 },
+    { Name = "Dragon Breath", DisplayName = "Dragon Breath", Sea = 2, Price = 0, Frags = 1500 },
+    { Name = "Superhuman", DisplayName = "Superhuman", Sea = 2, Price = 3000000, Frags = 0, RequiredMastery = { ["Black Leg"] = 300, ["Electro"] = 300, ["Fishman Karate"] = 300, ["Dragon Breath"] = 300 } },
+    { Name = "Death Step", DisplayName = "Death Step", Sea = 2, Price = 2500000, Frags = 5000, RequiredMastery = { ["Black Leg"] = 400 } },
+    { Name = "Sharkman Karate", DisplayName = "Sharkman Karate", Sea = 2, Price = 2500000, Frags = 5000, RequiredMastery = { ["Fishman Karate"] = 400 } },
+    { Name = "Electric Claw", DisplayName = "Electric Claw", Sea = 3, Price = 3000000, Frags = 5000, RequiredMastery = { ["Electro"] = 400 } },
+    { Name = "Dragon Talon", DisplayName = "Dragon Talon", Sea = 3, Price = 3000000, Frags = 5000, RequiredMastery = { ["Dragon Breath"] = 400 } },
+    { Name = "Godhuman", DisplayName = "Godhuman", Sea = 3, Price = 5000000, Frags = 5000, RequiredMastery = { ["Superhuman"] = 400, ["Death Step"] = 400, ["Sharkman Karate"] = 400, ["Electric Claw"] = 400, ["Dragon Talon"] = 400 } },
+    { Name = "Sanguine Art", DisplayName = "Sanguine Art", Sea = 3, Price = 5000000, Frags = 5000 },
+}
+
+--[[ THANG TIẾN TRÌNH CHUẨN CỦA KIẾM (SWORD PROGRESSION LADDER) ]]
+local SWORD_PROGRESSION_LADDER = {
+    "Katana", "Cutlass", "Dual Katana", "Iron Mace", "Triple Katana", "Pipe", 
+    "Dual-Headed Blade", "Soul Cane", "Bisento", "Saber", "Pole (1st Form)",
+    "Dragon Trident", "Jitte", "Gravity Cane", "Longsword", "Midnight Blade",
+    "Rengoku", "Saddi", "Shisui", "Wando", "True Triple Katana",
+    "Dark Dagger", "Tushita", "Yama", "Cursed Dual Katana", "Shark Anchor", "Spikey Trident", "Hallow Scythe"
+}
+
+--[[ THANG TIẾN TRÌNH CHUẨN CỦA SÚNG (GUN PROGRESSION LADDER) ]]
+local GUN_PROGRESSION_LADDER = {
+    "Slingshot",
+    "Musket",
+    "Flintlock",
+    "Refined Slingshot",
+    "Refined Flintlock",
+    "Dual Flintlock",
+    "Cannon",
+    "Refined Musket",
+    "Acidum Rifle",
+    "Bizarre Rifle",
+    "Kabucha",
+    "Serpent Bow",
+    "Soul Guitar",
+    "Dragonstorm",
+}
+
+--[[ Helper: Lấy điểm Mastery thực tế của vũ khí ]]
+function Utility.GetItemMastery(itemName)
+    local bp = LocalPlayer:FindFirstChild("Backpack")
+    local ch = LocalPlayer.Character
+    local sources = { ch, bp }
+    for _, src in ipairs(sources) do
+        if src then
+            local tool = src:FindFirstChild(itemName)
+            if tool and tool:IsA("Tool") then
+                local l = tool:FindFirstChild("Level") or tool:FindFirstChild("Mastery")
+                if l and (l:IsA("IntValue") or l:IsA("NumberValue")) then
+                    return l.Value
+                end
+            end
+        end
+    end
+    local data = LocalPlayer:FindFirstChild("Data")
+    if data then
+        local mFolder = data:FindFirstChild("Masteries") or data:FindFirstChild("Weapons")
+        if mFolder then
+            local itemData = mFolder:FindFirstChild(itemName)
+            if itemData and itemData:FindFirstChild("Level") then
+                return itemData.Level.Value
+            end
+        end
+    end
+    return 0
+end
+
+--[[ Helper: Tìm bộ võ tiếp theo theo chuỗi tuyến tính (Linear Next Target)
+     Không mua ngược lại, không mua vô tội vạ ]]
+function Utility.GetNextLinearUnownedMelee()
     if not S.AutoGetAllMeleesEnabled then return nil end
     local pBeli = (LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Beli") and LocalPlayer.Data.Beli.Value) or 0
     local pFrags = (LocalPlayer:FindFirstChild("Data") and LocalPlayer.Data:FindFirstChild("Fragments") and LocalPlayer.Data.Fragments.Value) or 0
@@ -6350,11 +6496,77 @@ function Utility.GetAffordableUnownedMelee()
 
     for _, melee in ipairs(MELEE_DATABASE) do
         if not Utility.HasItem(melee.Name) then
-            if curSea >= melee.Sea and pBeli >= melee.Price and pFrags >= melee.Frags then
-                return melee
+            -- Đây là võ đầu tiên chưa sở hữu trong chuỗi tiến trình
+            if curSea >= melee.Sea and pBeli >= melee.Price and pFrags >= (melee.Frags or 0) then
+                -- Kiểm tra điều kiện Mastery trước đó nếu có (VD Superhuman, Death Step...)
+                local meetsMastery = true
+                if melee.RequiredMastery then
+                    for reqName, reqMas in pairs(melee.RequiredMastery) do
+                        if Utility.GetItemMastery(reqName) < reqMas then
+                            meetsMastery = false
+                            break
+                        end
+                    end
+                end
+                if meetsMastery then
+                    return melee
+                end
             end
+            -- Nếu chưa đủ tiền/điều kiện cho võ mục tiêu duy nhất này -> DỪNG LẠI, không mua các võ khác!
+            return nil
         end
     end
+    return nil
+end
+
+--[[ Thuật toán Farm Max Mastery & Quay lui (Backtracking Mastery Algorithm):
+     - Ưu tiên dùng vũ khí bậc cao nhất hiện có để cày.
+     - Khi vũ khí cao nhất đạt 600 (hoặc max target) -> Quay lui về cày các vũ khí trước đó chưa max.
+]]
+function Utility.GetBacktrackingMasteryTarget(wType, maxTargetMastery)
+    maxTargetMastery = maxTargetMastery or S.MasteryTargetLevel or 600
+    local ladder = nil
+    if wType == "Melee" then
+        ladder = MELEE_PROGRESSION_LADDER
+    elseif wType == "Sword" then
+        ladder = SWORD_PROGRESSION_LADDER
+    elseif wType == "Gun" then
+        ladder = GUN_PROGRESSION_LADDER
+    end
+    if not ladder then return nil end
+
+    -- 1. Tìm tất cả các món người chơi ĐANG SỞ HỮU trong thang cấp bậc
+    local ownedList = {}
+    for _, entry in ipairs(ladder) do
+        local itemName = typeof(entry) == "table" and entry.Name or entry
+        if Utility.HasItem(itemName) then
+            local curMas = Utility.GetItemMastery(itemName)
+            table.insert(ownedList, { Name = itemName, Mastery = curMas })
+        end
+    end
+
+    if #ownedList == 0 then
+        local unfin, _ = Utility.GetUnfinishedMasteryWeapon(wType, maxTargetMastery)
+        return unfin
+    end
+
+    -- 2. Món cao nhất hiện tại đang sở hữu (Highest Tier Owned)
+    local highestOwned = ownedList[#ownedList]
+
+    -- Nếu món cao nhất CHƯA ĐẠT Max Mastery -> Tiếp tục dùng món cao nhất này để farm
+    if highestOwned.Mastery < maxTargetMastery then
+        return highestOwned.Name
+    end
+
+    -- 3. NẾU MÓN CAO NHẤT ĐÃ ĐẠT MAX MASTERY (>= 600 hoặc >= maxTargetMastery):
+    -- QUAY LUI (Backtrack) về các món trước đó chưa đạt max mastery
+    for i = #ownedList - 1, 1, -1 do
+        local prevItem = ownedList[i]
+        if prevItem.Mastery < maxTargetMastery then
+            return prevItem.Name
+        end
+    end
+
     return nil
 end
 
@@ -6513,7 +6725,7 @@ function Utility.FarmSingleBossStep(bossName, enemyModel, bData)
     end
 end
 
---[[ Helper: Tìm vũ khí chưa đạt mức Mastery mục tiêu ]]
+--[[ Helper: Tìm vũ khí chưa đạt mức Mastery mục tiêu (Fallback) ]]
 function Utility.GetUnfinishedMasteryWeapon(wType, targetMastery)
     targetMastery = targetMastery or 300
     local bp = LocalPlayer:FindFirstChild("Backpack")
@@ -6525,7 +6737,7 @@ function Utility.GetUnfinishedMasteryWeapon(wType, targetMastery)
             for _, item in ipairs(src:GetChildren()) do
                 if item:IsA("Tool") and item:FindFirstChild("ToolTip") then
                     local tType = item.ToolTip.Value
-                    if (wType == "Sword" and tType == "Sword") or (wType == "Gun" and tType == "Gun") then
+                    if (wType == "Sword" and tType == "Sword") or (wType == "Gun" and tType == "Gun") or (wType == "Melee" and tType == "Melee") then
                         local masteryVal = item:FindFirstChild("Level") and item.Level.Value
                         if masteryVal and masteryVal < targetMastery then
                             return item.Name, item
@@ -6541,7 +6753,10 @@ end
 --[[ Helper: Farm Mastery Step ]]
 function Utility.FarmMasteryStep(toolName, wType)
     Utility.EquipItemByName(toolName)
+    local prevWeapon = S.SelectedWeaponType
+    S.SelectedWeaponType = wType
     Utility.ExecuteStandardLevelFarmStep()
+    S.SelectedWeaponType = prevWeapon
 end
 
 --[[ Helper: Thực hiện 1 tick Farm Level tiêu chuẩn ]]
@@ -6603,19 +6818,19 @@ end
 
 --[[ ═══════════════════════════════════════════════════════════════════════════
      DANH SÁCH CÁC MODULE THEO THỨ TỰ ƯU TIÊN (PRIORITY DISPATCHER)
-     Thứ tự ưu tiên: Melee -> Sword -> Gun -> Accessory -> Boss -> Next Sea -> Puzzle -> Mastery -> Level
+     Thứ tự ưu tiên: Melee -> Sword -> Gun -> Accessory -> Boss -> Next Sea -> Puzzle -> Mas Melee -> Mas Sword -> Mas Gun -> Level
    ═══════════════════════════════════════════════════════════════════════════ ]]
 
 local PipelineModules = {
-    -- [ƯU TIÊN 1]: TỰ ĐỘNG MUA VÕ (KHI ĐỦ TIỀN BELI & FRAGMENTS -> BAY ĐẾN NPC MUA)
+    -- [ƯU TIÊN 1]: TỰ ĐỘNG MUA VÕ TIẾP THEO (UNLOCK NEXT-TIER MELEE -> BAY ĐẾN NPC MUA)
     {
         Name = "AutoBuyMelee",
         Priority = 1,
         CanRun = function()
-            return Utility.GetAffordableUnownedMelee() ~= nil
+            return Utility.GetNextLinearUnownedMelee() ~= nil
         end,
         ExecuteTick = function()
-            local targetMelee = Utility.GetAffordableUnownedMelee()
+            local targetMelee = Utility.GetNextLinearUnownedMelee()
             if targetMelee then
                 local curSea = Utility.GetCurrentSea()
                 local flySpeed = S.TeleportFlySpeed or 200
@@ -6647,7 +6862,7 @@ local PipelineModules = {
                     task.wait(0.5)
                 end
 
-                -- 3. Gửi Remote mua võ khi đã ở gần NPC
+                -- 3. Gửi Remote mua võ khi đã ở gần NPC (Chỉ unlock võ, không ép trang bị)
                 local rep = game:GetService("ReplicatedStorage")
                 local commF = rep:FindFirstChild("Remotes") and rep.Remotes:FindFirstChild("CommF_")
                 if commF then
@@ -6660,7 +6875,7 @@ local PipelineModules = {
                     end)
                 end
                 task.wait(0.8)
-                UILib.Notify("Auto Buy Melee", "Purchased " .. targetMelee.DisplayName .. "! Resuming...", 3)
+                UILib.Notify("Auto Buy Melee", "Unlocked " .. targetMelee.DisplayName .. "! Resuming...", 3)
             end
         end,
     },
@@ -6770,44 +6985,61 @@ local PipelineModules = {
         end,
     },
 
-    -- [ƯU TIÊN 8]: CÀY MASTERY KIẾM CHƯA MAX
+    -- [ƯU TIÊN 8]: CÀY MAX MASTERY VÕ (TIẾN TRÌNH & QUAY LUI)
     {
-        Name = "MasterySword",
+        Name = "MasteryMelee",
         Priority = 8,
         CanRun = function()
+            if not S.AutoFarmMasteryMeleeEnabled then return false end
+            local mName = Utility.GetBacktrackingMasteryTarget("Melee", S.MasteryTargetLevel or 600)
+            return mName ~= nil
+        end,
+        ExecuteTick = function()
+            local mName = Utility.GetBacktrackingMasteryTarget("Melee", S.MasteryTargetLevel or 600)
+            if mName then
+                Utility.FarmMasteryStep(mName, "Melee")
+            end
+        end,
+    },
+
+    -- [ƯU TIÊN 9]: CÀY MAX MASTERY KIẾM (TIẾN TRÌNH & QUAY LUI)
+    {
+        Name = "MasterySword",
+        Priority = 9,
+        CanRun = function()
             if not S.AutoFarmMasterySwordEnabled then return false end
-            local swName = Utility.GetUnfinishedMasteryWeapon("Sword", S.MasteryTargetLevel or 300)
+            local swName = Utility.GetBacktrackingMasteryTarget("Sword", S.MasteryTargetLevel or 600)
             return swName ~= nil
         end,
         ExecuteTick = function()
-            local swName = Utility.GetUnfinishedMasteryWeapon("Sword", S.MasteryTargetLevel or 300)
+            local swName = Utility.GetBacktrackingMasteryTarget("Sword", S.MasteryTargetLevel or 600)
             if swName then
                 Utility.FarmMasteryStep(swName, "Sword")
             end
         end,
     },
 
-    -- [ƯU TIÊN 9]: CÀY MASTERY SÚNG CHƯA MAX
+    -- [ƯU TIÊN 10]: CÀY MAX MASTERY SÚNG (TIẾN TRÌNH & QUAY LUI)
     {
         Name = "MasteryGun",
-        Priority = 9,
+        Priority = 10,
         CanRun = function()
             if not S.AutoFarmMasteryGunEnabled then return false end
-            local gnName = Utility.GetUnfinishedMasteryWeapon("Gun", S.MasteryTargetLevel or 300)
+            local gnName = Utility.GetBacktrackingMasteryTarget("Gun", S.MasteryTargetLevel or 600)
             return gnName ~= nil
         end,
         ExecuteTick = function()
-            local gnName = Utility.GetUnfinishedMasteryWeapon("Gun", S.MasteryTargetLevel or 300)
+            local gnName = Utility.GetBacktrackingMasteryTarget("Gun", S.MasteryTargetLevel or 600)
             if gnName then
                 Utility.FarmMasteryStep(gnName, "Gun")
             end
         end,
     },
 
-    -- [ƯU TIÊN 10]: FARM LEVEL MẶC ĐỊNH (1 - 2550)
+    -- [ƯU TIÊN 11]: FARM LEVEL MẶC ĐỊNH (1 - 2550)
     {
         Name = "FarmLevel",
-        Priority = 10,
+        Priority = 11,
         CanRun = function()
             return S.AutoFarmLevelEnabled == true
         end,
@@ -6836,6 +7068,7 @@ function Utility.IsAnyPipelineTaskEnabled()
         or S.AutoGetAllSwordsEnabled
         or S.AutoGetAllGunsEnabled
         or S.AutoGetAllAccessoriesEnabled
+        or S.AutoFarmMasteryMeleeEnabled
         or S.AutoFarmMasterySwordEnabled
         or S.AutoFarmMasteryGunEnabled
         or (S.AutoNextSeaEnabled and ((Utility.GetCurrentSea() == 1 and ((LocalPlayer.Data and LocalPlayer.Data:FindFirstChild("Level") and LocalPlayer.Data.Level.Value) or 1) >= 700) or (Utility.GetCurrentSea() == 2 and ((LocalPlayer.Data and LocalPlayer.Data:FindFirstChild("Level") and LocalPlayer.Data.Level.Value) or 1) >= 1500)))
@@ -7602,18 +7835,20 @@ UI_ELEMENTS["AutoShootLeviEnabled"] = LevTab:AddToggle({
 LevTab:AddSection("Auto Attack Leviathan")
 
 LevTab:AddDropdown({
-    Name    = "Leviathan Combat Weapon",
-    Desc    = "Select weapon type",
-    Options = { "Dragonstorm", "Melee", "Sword", "Fruit", "Gun", "Rotate All" },
-    Default = S.LeviathanSelectedWeapon or "Dragonstorm",
-    Callback = function(opt)
-        S.LeviathanSelectedWeapon = opt
+    Name    = "Leviathan Combat Weapons",
+    Desc    = "Select weapon(s) to attack Leviathan (Rotates if 2+ selected)",
+    Multi   = true,
+    Options = { "Melee", "Sword", "Fruit", "Gun" },
+    Default = S.LeviathanSelectedWeapons or { "Melee" },
+    Callback = function(opts)
+        if typeof(opts) == "string" then opts = { opts } end
+        S.LeviathanSelectedWeapons = (typeof(opts) == "table" and #opts > 0) and opts or { "Melee" }
     end,
 })
 
 AutoAttackLeviToggle = LevTab:AddToggle({
     Name    = "Auto Attack Leviathan",
-    Desc    = "Automatically attack Leviathan",
+    Desc    = "Automatically attack Leviathan with selected weapon(s)",
     Default = S.AutoAttackLeviEnabled or false,
     Callback = function(val)
         S.AutoAttackLeviEnabled = val
@@ -7630,29 +7865,6 @@ AutoAttackLeviToggle = LevTab:AddToggle({
     end,
 })
 UI_ELEMENTS["AutoAttackLeviEnabled"] = AutoAttackLeviToggle
-
-LevTab:AddToggle({
-    Name    = "Auto Attack (Dragonstorm)",
-    Desc    = "Use Dragonstorm for attack Leviathan",
-    Default = (S.AutoAttackLeviEnabled and S.LeviathanSelectedWeapon == "Dragonstorm") or false,
-    Callback = function(val)
-        if val then
-            S.LeviathanSelectedWeapon = "Dragonstorm"
-            S.AutoAttackLeviEnabled = true
-            if AutoAttackLeviToggle then AutoAttackLeviToggle:Set(true) end
-            if S.MultipleFindLeviathanEnabled then
-                S.MultipleFindLeviathanEnabled = false
-                if MultipleFindLeviathanToggle then MultipleFindLeviathanToggle:Set(false) end
-                Utility.StopMultipleFindLeviathan()
-            end
-            Utility.StartAutoAttackLeviathan()
-        else
-            S.AutoAttackLeviEnabled = false
-            if AutoAttackLeviToggle then AutoAttackLeviToggle:Set(false) end
-            Utility.StopAutoAttackLeviathan()
-        end
-    end,
-})
 
 AutoSkillsLeviToggle = LevTab:AddToggle({
     Name    = "Auto Use Skills for Leviathan",
@@ -8194,11 +8406,21 @@ UI_ELEMENTS["AutoGetAllAccessoriesEnabled"] = FarmTab:AddToggle({
     end,
 })
 
-FarmTab:AddSection("Weapon Mastery Farming")
+FarmTab:AddSection("Weapon & Fighting Style Mastery Farming (Progression & Backtracking)")
+
+UI_ELEMENTS["AutoFarmMasteryMeleeEnabled"] = FarmTab:AddToggle({
+    Name    = "Auto Farm Max Mastery Melee",
+    Desc    = "Farm mastery on fighting styles with backtracking",
+    Default = S.AutoFarmMasteryMeleeEnabled or false,
+    Callback = function(val)
+        S.AutoFarmMasteryMeleeEnabled = val
+        if val then Utility.StartPipelineCoordinator() end
+    end,
+})
 
 UI_ELEMENTS["AutoFarmMasterySwordEnabled"] = FarmTab:AddToggle({
     Name    = "Auto Farm Max Mastery Sword",
-    Desc    = "Farm mastery on uncompleted swords",
+    Desc    = "Farm mastery on swords with backtracking",
     Default = S.AutoFarmMasterySwordEnabled or false,
     Callback = function(val)
         S.AutoFarmMasterySwordEnabled = val
@@ -8208,7 +8430,7 @@ UI_ELEMENTS["AutoFarmMasterySwordEnabled"] = FarmTab:AddToggle({
 
 UI_ELEMENTS["AutoFarmMasteryGunEnabled"] = FarmTab:AddToggle({
     Name    = "Auto Farm Max Mastery Gun",
-    Desc    = "Farm mastery on uncompleted guns",
+    Desc    = "Farm mastery on guns with backtracking",
     Default = S.AutoFarmMasteryGunEnabled or false,
     Callback = function(val)
         S.AutoFarmMasteryGunEnabled = val
@@ -8220,9 +8442,9 @@ FarmTab:AddDropdown({
     Name    = "Mastery Target Level",
     Desc    = "Target mastery level threshold",
     Options = { "300", "400", "600" },
-    Default = tostring(S.MasteryTargetLevel or 300),
+    Default = tostring(S.MasteryTargetLevel or 600),
     Callback = function(opt)
-        S.MasteryTargetLevel = tonumber(opt) or 300
+        S.MasteryTargetLevel = tonumber(opt) or 600
     end,
 })
 
