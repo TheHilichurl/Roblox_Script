@@ -860,7 +860,7 @@ local S = {
     AutoFarmMaterialEnabled     = false,
     SelectedMaterial            = "Bones",
     AutoFarmChestEnabled        = false,
-    TestMilestoneIndex          = 1,
+    TestMilestoneIndex          = 49,
     TestAutoFarmMilestoneEnabled = false,
     AutoStatsMelee              = false,
     AutoStatsDefense            = false,
@@ -1405,6 +1405,84 @@ function Utility.IsFrozenWatcher()
     return false
 end
 
+--[[ Lấy vị trí cổng dịch chuyển vào Cursed Ship / Ghost Ship (Bên ngoài Map) ]]
+function Utility.GetGhostShipEntrancePos()
+    local mapFolder = workspace:FindFirstChild("Map")
+    if mapFolder then
+        local gs = mapFolder:FindFirstChild("GhostShip")
+        if gs then
+            local tp = gs:FindFirstChild("Teleport") or gs:FindFirstChild("Door") or gs:FindFirstChild("Teleport", true)
+            if tp and tp:IsA("BasePart") then
+                return tp.Position, tp
+            end
+        end
+    end
+    return Vector3.new(-6508, 83, -132), nil
+end
+
+--[[ Lấy vị trí cổng dịch chuyển ra khỏi Cursed Ship / Ghost Ship (Bên trong Interior) ]]
+function Utility.GetGhostShipExitPos()
+    local mapFolder = workspace:FindFirstChild("Map")
+    if mapFolder then
+        local gsi = mapFolder:FindFirstChild("GhostShipInterior")
+        if gsi then
+            local tp = gsi:FindFirstChild("Teleport") or gsi:FindFirstChild("Door") or gsi:FindFirstChild("Teleport", true)
+            if tp and tp:IsA("BasePart") then
+                return tp.Position, tp
+            end
+        end
+    end
+    return Vector3.new(923, 125, 32885), nil
+end
+
+--[[ Kiểm tra xem người chơi hoặc toạ độ mục tiêu có nằm bên trong không gian Tàu Ma hay không ]]
+function Utility.IsInsideGhostShip(pos)
+    local checkPos = pos
+    if not checkPos then
+        local char = LocalPlayer.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        checkPos = root and root.Position or Vector3.zero
+    end
+    return checkPos.Z > 25000
+end
+
+--[[ Tự động tính toán điểm waypoint trung gian (Teleport Door) nếu điểm đến nằm khác chiều không gian ]]
+function Utility.GetWaypointTargetPos(finalTargetPos)
+    if not finalTargetPos then return nil end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return finalTargetPos end
+
+    local curSea = Utility.GetCurrentSea()
+    local myPos = root.Position
+
+    if curSea == 2 then
+        local isInside = Utility.IsInsideGhostShip(myPos)
+        local targetIsInside = Utility.IsInsideGhostShip(finalTargetPos)
+
+        if isInside and not targetIsInside then
+            -- Đang ở trong tàu, điểm đến ở ngoài -> Điểm đến trung gian là cổng Exit Teleport
+            local exitPos, _ = Utility.GetGhostShipExitPos()
+            return exitPos
+        elseif not isInside and targetIsInside then
+            -- Đang ở ngoài, điểm đến ở trong tàu -> Điểm đến trung gian là cổng Entrance Teleport
+            local enterPos, _ = Utility.GetGhostShipEntrancePos()
+            return enterPos
+        end
+    elseif curSea == 1 then
+        local isUnder = (myPos.X > 50000)
+        local targetIsUnder = (finalTargetPos.X > 50000)
+
+        if isUnder and not targetIsUnder then
+            return Vector3.new(61170, 0, 1942)
+        elseif not isUnder and targetIsUnder then
+            return Vector3.new(4019, 0, -1848)
+        end
+    end
+
+    return finalTargetPos
+end
+
 local currentFlyTarget = nil
 local currentFlySpeed = 180
 local currentFlyOnComplete = nil
@@ -1455,11 +1533,20 @@ function Utility.PhysicsFlyTo(targetCFrame, speed, onComplete)
                 return
             end
 
+            -- Tự động chuyển hướng bay qua cổng Teleport nếu điểm đến nằm khác chiều không gian
+            local effectiveTarget = Utility.GetWaypointTargetPos(currentFlyTarget)
             local currentPos = root.Position
-            local dir = (currentFlyTarget - currentPos)
+            local dir = (effectiveTarget - currentPos)
             local dist = dir.Magnitude
 
-            if currentFlyOnComplete and dist <= 6 then
+            -- Nếu đang tiếp cận cổng Teleport trung gian (khoảng cách <= 12 studs), bước vào cổng để dịch chuyển tức thì
+            if effectiveTarget ~= currentFlyTarget and dist <= 12 then
+                pcall(function()
+                    root.CFrame = CFrame.new(effectiveTarget)
+                end)
+            end
+
+            if currentFlyOnComplete and (currentFlyTarget - currentPos).Magnitude <= 6 then
                 Utility.StopPhysicsFly()
                 currentFlyOnComplete()
                 return
@@ -2163,11 +2250,70 @@ function Utility.CheckAndHandleUnderwaterTransition(targetPos)
     end
 end
 
---[[ Điều hướng thông minh có xử lý tự động qua cổng Whirlpool khi ra/vào Underwater City ]]
+
+--[[ Xử lý tự động chuyển vùng khi vào/ra Cursed Ship (Ghost Ship) ở Sea 2 ]]
+function Utility.CheckAndHandleGhostShipTransition(targetPos)
+    if not targetPos or Utility.GetCurrentSea() ~= 2 then return end
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local isInside = Utility.IsInsideGhostShip(root.Position)
+    local targetIsInside = Utility.IsInsideGhostShip(targetPos)
+
+    if isInside and not targetIsInside then
+        -- Đang ở trong tàu ma, cần ra ngoài làm nhiệm vụ ngoài map
+        local exitPos, exitPart = Utility.GetGhostShipExitPos()
+        UILib.Notify("Ghost Ship", "Exiting Cursed Ship via Teleport...", 3)
+        Utility.PhysicsFlyTo(exitPos, S.TeleportFlySpeed or 200)
+        local t0 = os.clock()
+        while Utility.IsInsideGhostShip() and (os.clock() - t0 < 4.0) do
+            pcall(function()
+                local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if r then 
+                    r.CFrame = exitPart and exitPart.CFrame or CFrame.new(exitPos)
+                end
+            end)
+            task.wait(0.15)
+        end
+        task.wait(0.3)
+        Utility.StopPhysicsFly()
+    elseif not isInside and targetIsInside then
+        -- Đang ở ngoài map, cần vào trong tàu ma làm nhiệm vụ
+        local enterPos, enterPart = Utility.GetGhostShipEntrancePos()
+        UILib.Notify("Ghost Ship", "Entering Cursed Ship via Teleport...", 3)
+        Utility.PhysicsFlyTo(enterPos, S.TeleportFlySpeed or 200)
+        local t0 = os.clock()
+        while not Utility.IsInsideGhostShip() and (os.clock() - t0 < 4.0) do
+            pcall(function()
+                local r = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if r then 
+                    r.CFrame = enterPart and enterPart.CFrame or CFrame.new(enterPos)
+                end
+            end)
+            task.wait(0.15)
+        end
+        task.wait(0.3)
+        Utility.StopPhysicsFly()
+    end
+end
+
+--[[ Tổng hợp kiểm tra chuyển vùng cho mọi Sea (Underwater City ở Sea 1 hoặc Ghost Ship ở Sea 2) ]]
+function Utility.CheckAndHandleAreaTransitions(targetPos)
+    if not targetPos then return end
+    local curSea = Utility.GetCurrentSea()
+    if curSea == 1 then
+        Utility.CheckAndHandleUnderwaterTransition(targetPos)
+    elseif curSea == 2 then
+        Utility.CheckAndHandleGhostShipTransition(targetPos)
+    end
+end
+
+--[[ Điều hướng thông minh có xử lý tự động qua cổng chuyển vùng ]]
 function Utility.SmartFlyTo(targetPos, speed, onComplete)
     task.spawn(function()
         local flySpeed = speed or S.TeleportFlySpeed or 200
-        Utility.CheckAndHandleUnderwaterTransition(targetPos)
+        Utility.CheckAndHandleAreaTransitions(targetPos)
         Utility.PhysicsFlyTo(targetPos, flySpeed, onComplete)
     end)
 end
@@ -5102,15 +5248,15 @@ local LEVEL_QUEST_DATA = {
     { Min = 1000, Max = 1049, Mob = "Snow Trooper", Quest = "SnowMountainQuest", QLevel = 1, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(500, 401, -5500) },
     { Min = 1050, Max = 1099, Mob = "Winter Warrior", Quest = "SnowMountainQuest", QLevel = 2, GiverPos = Vector3.new(609, 401, -5372), MobPos = Vector3.new(1200, 450, -5200) },
     { Min = 1100, Max = 1124, Mob = "Lab Subordinate", Quest = "IceSideQuest", QLevel = 1, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5769, 82, -4490) },
-    { Min = 1125, Max = 1174, Mob = "Horned Warrior", Quest = "FireSideQuest", QLevel = 1, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-6347, 35, -5887) },
-    { Min = 1175, Max = 1199, Mob = "Magma Ninja", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5400, 16, -5900) },
-    { Min = 1200, Max = 1249, Mob = "Lava Pirate", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-5200, 39, -4700) },
-    { Min = 1250, Max = 1274, Mob = "Ship Deckhand", Quest = "ShipQuest1", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1150, 125, 33000) },
-    { Min = 1275, Max = 1299, Mob = "Ship Engineer", Quest = "ShipQuest1", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 45, 33000) },
-    { Min = 1300, Max = 1324, Mob = "Ship Steward", Quest = "ShipQuest2", QLevel = 1, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(900, 90, 33400) },
-    { Min = 1325, Max = 1349, Mob = "Ship Officer", Quest = "ShipQuest2", QLevel = 2, GiverPos = Vector3.new(923, 125, 32885), MobPos = Vector3.new(1000, 170, 33400) },
-    { Min = 1350, Max = 1374, Mob = "Arctic Warrior", Quest = "IceCastleQuest", QLevel = 1, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(6000, 29, -6800) },
-    { Min = 1375, Max = 1424, Mob = "Snow Lurker", Quest = "IceCastleQuest", QLevel = 2, GiverPos = Vector3.new(6040, 29, -6226), MobPos = Vector3.new(5500, 29, -6800) },
+    { Min = 1125, Max = 1174, Mob = "Horned Warrior", Quest = "IceSideQuest", QLevel = 2, GiverPos = Vector3.new(-6228, 82, -4851), MobPos = Vector3.new(-6347, 35, -5887) },
+    { Min = 1175, Max = 1199, Mob = "Magma Ninja", Quest = "FireSideQuest", QLevel = 1, GiverPos = Vector3.new(-5405, 29, -5373), MobPos = Vector3.new(-5750, 29, -5514) },
+    { Min = 1200, Max = 1249, Mob = "Lava Pirate", Quest = "FireSideQuest", QLevel = 2, GiverPos = Vector3.new(-5404, 29, -5368), MobPos = Vector3.new(-5110, 29, -4973) },
+    { Min = 1250, Max = 1274, Mob = "Ship Deckhand", Quest = "ShipQuest1", QLevel = 1, GiverPos = Vector3.new(1039, 125, 32906), MobPos = Vector3.new(1150, 125, 33000) },
+    { Min = 1275, Max = 1299, Mob = "Ship Engineer", Quest = "ShipQuest1", QLevel = 2, GiverPos = Vector3.new(1039, 125, 32906), MobPos = Vector3.new(900, 45, 33000) },
+    { Min = 1300, Max = 1324, Mob = "Ship Steward", Quest = "ShipQuest2", QLevel = 1, GiverPos = Vector3.new(973, 125, 33251), MobPos = Vector3.new(900, 90, 33400) },
+    { Min = 1325, Max = 1349, Mob = "Ship Officer", Quest = "ShipQuest2", QLevel = 2, GiverPos = Vector3.new(973, 125, 33251), MobPos = Vector3.new(1000, 170, 33400) },
+    { Min = 1350, Max = 1374, Mob = "Arctic Warrior", Quest = "IceCastleQuest", QLevel = 1, GiverPos = Vector3.new(5664, 28, -6489), MobPos = Vector3.new(6071, 28, -6234) },
+    { Min = 1375, Max = 1424, Mob = "Snow Lurker", Quest = "IceCastleQuest", QLevel = 2, GiverPos = Vector3.new(5664, 28, -6489), MobPos = Vector3.new(5591, 29, -6715) },
     { Min = 1425, Max = 1449, Mob = "Sea Soldier", Quest = "ForgottenQuest", QLevel = 1, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3200, 237, -9700) },
     { Min = 1450, Max = 1499, Mob = "Water Fighter", Quest = "ForgottenQuest", QLevel = 2, GiverPos = Vector3.new(-3054, 237, -10148), MobPos = Vector3.new(-3400, 237, -10400) },
 
@@ -5264,9 +5410,16 @@ function Utility.GetActiveQuestText()
     if questGui and questGui.Visible then
         local container = questGui:FindFirstChild("Container")
         local title = container and container:FindFirstChild("QuestTitle")
-        local textLabel = title and (title:FindFirstChild("Title") or title:FindFirstChildOfClass("TextLabel") or (title:IsA("TextLabel") and title))
-        if textLabel and textLabel.Text ~= "" then
-            return textLabel.Text
+        if title then
+            local textLabel = title:FindFirstChild("Title") or title:FindFirstChildOfClass("TextLabel") or (title:IsA("TextLabel") and title)
+            if textLabel and textLabel.Text and textLabel.Text ~= "" then
+                return textLabel.Text
+            end
+        end
+        for _, desc in ipairs(questGui:GetDescendants()) do
+            if desc:IsA("TextLabel") and desc.Text and desc.Text ~= "" and not desc.Text:find("^%d+/%d+") and not desc.Text:find("^%$") then
+                return desc.Text
+            end
         end
     end
     return ""
@@ -5277,14 +5430,33 @@ function Utility.IsQuestMatchingMob(mobName)
     if not Utility.HasActiveQuest() then return false end
     if not mobName or mobName == "" then return true end
     local qText = Utility.GetActiveQuestText():lower()
-    if qText == "" then return true end
+    if qText == "" then return true end -- Nếu quest đang hiển thị nhưng chưa load kịp text -> Tạm thời coi là hợp lệ
+    
     local target = mobName:lower()
+    -- 1. So khớp chuỗi trực tiếp
     if qText:find(target, 1, true) then return true end
+
+    -- 2. So khớp loại bỏ số nhiều & dấu ('s, s)
+    local cleanTarget = target:gsub("['s]", "")
+    local cleanQText = qText:gsub("['s]", "")
+    if cleanQText:find(cleanTarget, 1, true) then return true end
+
+    -- 3. So khớp từng từ khoá chính (>= 3 ký tự)
     for word in target:gmatch("%w+") do
-        if #word >= 4 and qText:find(word, 1, true) then
+        if #word >= 3 and qText:find(word, 1, true) then
             return true
         end
     end
+
+    -- 4. So khớp theo tên Quest trong database
+    local qData = Utility.GetQuestDataForMob(mobName)
+    if qData and qData.Quest then
+        local qn = qData.Quest:lower():gsub("quest", ""):gsub("%d", "")
+        if #qn >= 3 and qText:find(qn, 1, true) then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -5315,12 +5487,13 @@ end
 function Utility.GetQuestDataForMob(mobName)
     if not mobName or mobName == "" then return nil end
     local lowerName = mobName:lower()
-    for _, q in ipairs(LEVEL_FARM_DATA) do
+    local db = LEVEL_QUEST_DATA or {}
+    for _, q in ipairs(db) do
         if q.Mob == mobName or q.Mob:lower() == lowerName then
             return q
         end
     end
-    for _, q in ipairs(LEVEL_FARM_DATA) do
+    for _, q in ipairs(db) do
         if q.Mob:lower():find(lowerName, 1, true) or lowerName:find(q.Mob:lower(), 1, true) then
             return q
         end
@@ -5337,6 +5510,9 @@ function Utility.EnsureQuestForMob(mobName)
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not root then return false end
 
+    -- Xử lý chuyển vùng (Underwater City ở Sea 1 hoặc Ghost Ship ở Sea 2)
+    Utility.CheckAndHandleAreaTransitions(qData.GiverPos)
+
     -- 1. Nếu đang có quest nhưng quest đó KHÔNG PHẢI của quái mục tiêu -> HỦY QUEST CŨ NGAY
     if Utility.HasActiveQuest() and not Utility.IsQuestMatchingMob(qData.Mob) then
         Utility.AbandonQuest()
@@ -5347,15 +5523,14 @@ function Utility.EnsureQuestForMob(mobName)
     -- 2. Nếu chưa có quest -> Bay tới NPC giao quest và nhận quest của quái mục tiêu
     if not Utility.HasActiveQuest() then
         currentBringData = nil
-        Utility.CheckAndHandleUnderwaterTransition(qData.GiverPos)
         local giverDist = (root.Position - qData.GiverPos).Magnitude
-        if giverDist > 25 then
+        if giverDist > 35 then
             Utility.PhysicsFlyTo(qData.GiverPos + Vector3.new(0, 5, 0), S.TeleportFlySpeed or 200)
             return false
         else
             Utility.StartQuest(qData.Quest, qData.QLevel)
             task.wait(0.35)
-            return Utility.HasActiveQuest() and Utility.IsQuestMatchingMob(qData.Mob)
+            return true
         end
     end
 
@@ -5774,8 +5949,8 @@ function Utility.FlyAndWaitArrival(targetPos, speed, timeout, reachDist)
     local flySpeed = speed or S.TeleportFlySpeed or 200
     local t0 = os.clock()
 
-    -- Xử lý chuyển vùng qua Whirlpool nếu điểm đến nằm khác khu vực (Underwater City)
-    Utility.CheckAndHandleUnderwaterTransition(targetPos)
+    -- Xử lý chuyển vùng nếu điểm đến nằm khác khu vực (Underwater City hoặc Ghost Ship)
+    Utility.CheckAndHandleAreaTransitions(targetPos)
 
     Utility.PhysicsFlyTo(targetPos, flySpeed)
     while os.clock() - t0 < timeout do
@@ -6906,6 +7081,9 @@ function Utility.ExecuteStandardLevelFarmStep()
     local questReady = Utility.EnsureQuestForMob(qData.Mob)
     if not questReady then return end
 
+    -- Xử lý chuyển vùng nếu bãi quái nằm khác khu vực (Underwater City hoặc Ghost Ship)
+    Utility.CheckAndHandleAreaTransitions(qData.MobPos)
+
     local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 240)
     if centerPos and mainMob and #cluster > 0 then
         local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
@@ -7254,6 +7432,8 @@ function Utility.StartAutoFarmSelectedMob()
                     -- Đảm bảo kiểm tra & nhận đúng quest của mob mục tiêu trước khi tấn công
                     local questReady = Utility.EnsureQuestForMob(mobName)
                     if questReady then
+                        local qData = Utility.GetQuestDataForMob(mobName)
+                        if qData then Utility.CheckAndHandleAreaTransitions(qData.MobPos) end
                         local centerPos, mainMob, cluster = Utility.BringMatchingMobs(mobName, S.BringMobDistance or 240)
                         if centerPos and mainMob and #cluster > 0 then
                             local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
@@ -7477,8 +7657,8 @@ end
 function Utility.GetMilestoneList()
     local list = {}
     for i, data in ipairs(LEVEL_QUEST_DATA) do
-        -- Tạm thời lọc bỏ các mốc farm quái của Sea 1 (Min < 700), chỉ giữ Sea 2 và Sea 3
-        if data.Min >= 700 then
+        -- Lọc chỉ giữ lại các mốc farm quái của Sea 3 (Min >= 1500) để kiểm thử
+        if data.Min >= 1500 then
             local entryName = string.format("[%d] Lv %d - %d: %s (%s)", i, data.Min, data.Max, data.Mob, data.Quest)
             table.insert(list, entryName)
         end
@@ -7487,7 +7667,7 @@ function Utility.GetMilestoneList()
 end
 
 function Utility.GetMilestoneByIndex(index)
-    return LEVEL_QUEST_DATA[index] or LEVEL_QUEST_DATA[27] or LEVEL_QUEST_DATA[1]
+    return LEVEL_QUEST_DATA[index] or LEVEL_QUEST_DATA[49] or LEVEL_QUEST_DATA[1]
 end
 
 --[[ Start Auto Farm Test Milestone ]]
@@ -7495,7 +7675,7 @@ function Utility.StartTestAutoFarmMilestone()
     DisconnectConnection("testAutoFarmMilestone")
     _conns["testAutoFarmMilestone"] = task.spawn(function()
         while S.TestAutoFarmMilestoneEnabled do
-            local qData = Utility.GetMilestoneByIndex(S.TestMilestoneIndex or 1)
+            local qData = Utility.GetMilestoneByIndex(S.TestMilestoneIndex or 49)
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local root = char and char:FindFirstChild("HumanoidRootPart")
@@ -7503,6 +7683,7 @@ function Utility.StartTestAutoFarmMilestone()
             if char and hum and hum.Health > 0 and root and qData then
                 local questReady = Utility.EnsureQuestForMob(qData.Mob)
                 if questReady then
+                    Utility.CheckAndHandleAreaTransitions(qData.MobPos)
                     local centerPos, mainMob, cluster = Utility.BringMatchingMobs(qData.Mob, S.BringMobDistance or 240)
                     if centerPos and mainMob and #cluster > 0 then
                         local mainCF, mainPos, mainRoot = Utility.GetEnemyRootCFrame(mainMob)
@@ -9422,15 +9603,15 @@ local TestTab = Window:AddTab({ Name = "Testing", Icon = "" })
 TestTab:AddSection("Level Milestone Auto Farm Tester")
 
 local milestoneList = Utility.GetMilestoneList()
-local selectedMilestoneIndex = S.TestMilestoneIndex or 27
+local selectedMilestoneIndex = S.TestMilestoneIndex or 49
 
 local TestMilestoneDD = TestTab:AddDropdown({
-    Name    = "Select Level Milestone (Sea 2 & 3)",
-    Desc    = "Choose level bracket/quest to test (Sea 1 hidden)",
+    Name    = "Select Level Milestone (Sea 3)",
+    Desc    = "Choose Sea 3 level bracket/quest to test (Sea 1 & 2 done)",
     Options = milestoneList,
     Default = milestoneList[1],
     Callback = function(opt)
-        local idx = tonumber(opt:match("%[(%d+)%]")) or 27
+        local idx = tonumber(opt:match("%[(%d+)%]")) or 49
         selectedMilestoneIndex = idx
         S.TestMilestoneIndex = idx
     end,
