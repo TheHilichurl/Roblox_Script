@@ -5061,7 +5061,7 @@ local LEVEL_QUEST_DATA = {
     { Min = 375, Max = 399, Mob = "Fishman Warrior", Quest = "FishmanQuest", QLevel = 1, GiverPos = Vector3.new(60900, 19, 1500), MobPos = Vector3.new(61163, 19, 1569) },
     { Min = 400, Max = 449, Mob = "Fishman Commando", Quest = "FishmanQuest", QLevel = 2, GiverPos = Vector3.new(60900, 19, 1500), MobPos = Vector3.new(61900, 19, 1500) },
     { Min = 450, Max = 474, Mob = "God's Guard", Quest = "SkyExp1Quest", QLevel = 1, GiverPos = Vector3.new(-4723, 845, -1952), MobPos = Vector3.new(-4720, 889, -1938) },
-    { Min = 475, Max = 524, Mob = "Shanda", Quest = "SkyExp1Quest", QLevel = 2, GiverPos = Vector3.new(-4720, 845, -1952), MobPos = Vector3.new(-7700, 5545, -450) },
+    { Min = 475, Max = 524, Mob = "Shanda", Quest = "SkyExp1Quest", QLevel = 2, GiverPos = Vector3.new(-7861, 5546, -382), MobPos = Vector3.new(-7700, 5545, -450) },
     { Min = 525, Max = 549, Mob = "Royal Squad", Quest = "SkyExp2Quest", QLevel = 1, GiverPos = Vector3.new(-7752, 5607, -1490), MobPos = Vector3.new(-7600, 5607, -1400) },
     { Min = 550, Max = 624, Mob = "Royal Soldier", Quest = "SkyExp2Quest", QLevel = 2, GiverPos = Vector3.new(-7752, 5607, -1490), MobPos = Vector3.new(-7800, 5607, -1800) },
     { Min = 625, Max = 649, Mob = "Galley Pirate", Quest = "FountainQuest", QLevel = 1, GiverPos = Vector3.new(5259, 39, 4050), MobPos = Vector3.new(5500, 39, 3950) },
